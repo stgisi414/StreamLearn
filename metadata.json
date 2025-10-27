@@ -1,0 +1,5 @@
+{
+  "name": "StreamLearn",
+  "description": "StreamLearn helps users learn English by generating customized lessons based on current news articles matching their interests. It uses the Bright Data SERP API to find relevant Google News articles and the Gemini API to create learning materials from the article content.",
+  "requestFramePermissions": []
+}
