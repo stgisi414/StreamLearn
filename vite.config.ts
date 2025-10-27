@@ -11,10 +11,6 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       define: {
-        'process.env.VITE_GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY),
-        'process.env.VITE_BRIGHTDATA_CUSTOMER_ID': JSON.stringify(env.VITE_BRIGHTDATA_CUSTOMER_ID),
-        'process.env.VITE_BRIGHTDATA_ZONE_NAME': JSON.stringify(env.VITE_BRIGHTDATA_ZONE_NAME),
-        'process.env.VITE_BRIGHTDATA_API_TOKEN': JSON.stringify(env.VITE_BRIGHTDATA_API_TOKEN)
       },
       resolve: {
         alias: {

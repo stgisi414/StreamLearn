@@ -1,233 +1,317 @@
-
-import React, { useState, useCallback } from 'react';
-import { EnglishLevel, BrightDataArticle, Lesson } from './types';
-import { fetchNewsArticles } from './services/brightDataService';
-import { fetchArticleContent } from './services/articleScraperService';
-import { generateLesson } from './services/geminiService';
-import { LoadingSpinner } from './components/LoadingSpinner';
-import { ErrorMessage } from './components/ErrorMessage';
-import { ArrowLeftIcon } from './components/icons/ArrowLeftIcon';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, onAuthStateChanged, User, signInWithCustomToken } from 'firebase/auth';
+import { getFirestore, doc, setDoc, Timestamp, collection, query, where, limit, getDocs } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import LoadingSpinner from './components/LoadingSpinner';
+import ErrorMessage from './components/ErrorMessage';
 import { RestartIcon } from './components/icons/RestartIcon';
+import { ArrowLeftIcon } from './components/icons/ArrowLeftIcon';
+import { Lesson, Article, NewsResult } from './types'; // Assuming these types exist
 
-type View = 'input' | 'articles' | 'lesson';
+// --- Configuration Variables ---
+// IMPORTANT: These are set by the Canvas environment for security.
+declare const __firebase_config: string;
+declare const __initial_auth_token: string | undefined;
+const firebaseConfig = JSON.parse(__firebase_config);
 
+// --- State Types ---
+type AppState = 'LOADING' | 'INPUT' | 'NEWS_LIST' | 'LESSON_VIEW' | 'ERROR';
+type EnglishLevel = 'Beginner' | 'Intermediate' | 'Advanced';
+
+// --- Function Call Definitions ---
+// Define the structure for the payload and response of the two functions
+const functions = getFunctions(initializeApp(firebaseConfig));
+const fetchNewsFunction = httpsCallable<
+  { query: string; languageCode?: string }, 
+  NewsResult[]
+>(functions, 'fetchNews');
+const createLessonFunction = httpsCallable<
+  { articleUrl: string; level: EnglishLevel }, 
+  { success: boolean, lesson: Lesson, originalArticleUrl: string }
+>(functions, 'createLesson');
+
+// --- Main App Component ---
 const App: React.FC = () => {
-    const [view, setView] = useState<View>('input');
-    const [interests, setInterests] = useState<string>('');
-    const [level, setLevel] = useState<EnglishLevel>('Intermediate');
-    const [articles, setArticles] = useState<BrightDataArticle[]>([]);
-    const [selectedArticle, setSelectedArticle] = useState<BrightDataArticle | null>(null);
-    const [articleContent, setArticleContent] = useState<string>('');
-    const [lesson, setLesson] = useState<Lesson | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [authState, setAuthState] = useState<'LOADING' | 'READY'>('LOADING');
+  const [appState, setAppState] = useState<AppState>('INPUT');
+  const [error, setError] = useState<string | null>(null);
 
-    const [isLoading, setIsLoading] = useState({
-        articles: false,
-        content: false,
-        lesson: false,
+  const [inputTopic, setInputTopic] = useState('');
+  const [inputLevel, setInputLevel] = useState<EnglishLevel>('Intermediate');
+  
+  const [newsResults, setNewsResults] = useState<NewsResult[]>([]);
+  const [currentArticle, setCurrentArticle] = useState<Article | null>(null);
+  const [currentLesson, setCurrentLesson] = useState<Lesson | null>(null);
+
+  const db = useMemo(() => getFirestore(initializeApp(firebaseConfig)), []);
+
+  // 1. Firebase Initialization & Auth Effect
+  useEffect(() => {
+    const auth = getAuth(initializeApp(firebaseConfig));
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+      } else {
+        try {
+          if (typeof __initial_auth_token !== 'undefined') {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(auth);
+          }
+        } catch (e) {
+          setError("Failed to authenticate user.");
+          setAuthState('READY');
+          return;
+        }
+      }
+      setAuthState('READY');
     });
-    const [error, setError] = useState<string | null>(null);
+    return () => unsubscribe();
+  }, []);
 
-    const handleFindArticles = async () => {
-        if (!interests.trim()) {
-            setError('Please enter your interests.');
-            return;
-        }
-        setError(null);
-        setIsLoading(prev => ({ ...prev, articles: true }));
-        try {
-            const fetchedArticles = await fetchNewsArticles(interests);
-            setArticles(fetchedArticles);
-            setView('articles');
-        } catch (e: any) {
-            setError(e.message || 'An unknown error occurred.');
-        } finally {
-            setIsLoading(prev => ({ ...prev, articles: false }));
-        }
-    };
+  // 2. Function Call Logic
+  const handleFindArticles = useCallback(async () => {
+    if (inputTopic.trim() === '') {
+      setError("Please enter a topic of interest.");
+      return;
+    }
+    setAppState('LOADING');
+    setError(null);
+    setNewsResults([]);
 
-    const handleSelectArticle = useCallback(async (article: BrightDataArticle) => {
-        setSelectedArticle(article);
-        setView('lesson');
-        setError(null);
-        setArticleContent('');
-        setLesson(null);
+    try {
+      // NOTE: This call is protected by Firebase Authentication on the backend
+      const response = await fetchNewsFunction({ 
+        query: inputTopic, 
+        languageCode: 'en' // Focusing on English news
+      });
 
-        setIsLoading(prev => ({ ...prev, content: true, lesson: true }));
+      const results = response.data.filter(r => r.title && r.link);
+      if (results.length === 0) {
+        setError("No current news articles found for that topic.");
+        setAppState('INPUT');
+      } else {
+        setNewsResults(results);
+        setAppState('NEWS_LIST');
+      }
+    } catch (e) {
+      console.error(e);
+      setError("Failed to fetch news. Please check your internet or try again.");
+      setAppState('INPUT');
+    }
+  }, [inputTopic]);
 
-        try {
-            // Fetch placeholder content
-            const content = await fetchArticleContent(article.link);
-            setArticleContent(content);
-            setIsLoading(prev => ({ ...prev, content: false }));
+  const handleSelectArticle = useCallback(async (article: NewsResult) => {
+    if (!user) return; // Should be impossible if authState === 'READY'
 
-            // Generate lesson with the fetched content
-            const generatedLesson = await generateLesson(content, level);
-            setLesson(generatedLesson);
-        } catch (e: any) {
-            setError(e.message || 'Failed to prepare the lesson.');
-        } finally {
-            setIsLoading(prev => ({ ...prev, content: false, lesson: false }));
-        }
-    }, [level]);
-    
-    const handleStartOver = () => {
-        setView('input');
-        setInterests('');
-        setArticles([]);
-        setSelectedArticle(null);
-        setArticleContent('');
-        setLesson(null);
-        setError(null);
-    };
+    setAppState('LOADING');
+    setError(null);
+    setCurrentArticle(article);
+    setCurrentLesson(null);
 
-    const renderInputView = () => (
-        <div className="w-full max-w-lg mx-auto bg-slate-800/50 p-8 rounded-xl shadow-2xl backdrop-blur-sm border border-slate-700">
-            <h2 className="text-3xl font-bold text-center text-sky-300 mb-2">Welcome to StreamLearn</h2>
-            <p className="text-center text-slate-400 mb-8">Tell us what you're interested in to get started.</p>
-            
-            <div className="space-y-6">
-                <div>
-                    <label htmlFor="interests" className="block text-sm font-medium text-slate-300 mb-2">What topics interest you?</label>
-                    <input
-                        type="text"
-                        id="interests"
-                        value={interests}
-                        onChange={(e) => setInterests(e.target.value)}
-                        placeholder="e.g., space exploration, renewable energy"
-                        className="w-full bg-slate-900 border border-slate-600 rounded-md px-4 py-2 text-slate-200 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition"
-                    />
-                </div>
+    try {
+      // NOTE: This call is protected and handles the scraping/Gemini generation
+      const response = await createLessonFunction({ 
+        articleUrl: article.link, 
+        level: inputLevel 
+      });
 
-                <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">Select your English level:</label>
-                    <div className="grid grid-cols-3 gap-2 rounded-md bg-slate-900 p-1 border border-slate-700">
-                        {(['Beginner', 'Intermediate', 'Advanced'] as EnglishLevel[]).map((l) => (
-                            <button
-                                key={l}
-                                onClick={() => setLevel(l)}
-                                className={`px-4 py-2 text-sm font-semibold rounded transition ${level === l ? 'bg-sky-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-700/50'}`}
-                            >
-                                {l}
-                            </button>
-                        ))}
-                    </div>
-                </div>
+      if (response.data.success && response.data.lesson) {
+        const lesson = response.data.lesson;
+        setCurrentLesson(lesson);
+        setAppState('LESSON_VIEW');
 
-                <button
-                    onClick={handleFindArticles}
-                    disabled={isLoading.articles}
-                    className="w-full bg-sky-600 text-white font-bold py-3 px-4 rounded-md hover:bg-sky-500 disabled:bg-slate-600 disabled:cursor-not-allowed transition-all duration-300 flex items-center justify-center shadow-lg"
-                >
-                    {isLoading.articles ? <LoadingSpinner className="w-6 h-6"/> : 'Find Articles'}
-                </button>
-            </div>
-             <ErrorMessage message={error || ''} />
-        </div>
-    );
+        // Save lesson to Firestore (for history/subscriptions)
+        await setDoc(doc(db, `artifacts/${firebaseConfig.projectId}/users/${user.uid}/lessons`, lesson.articleTitle.substring(0, 50) + '-' + Date.now()), {
+          userId: user.uid,
+          topic: inputTopic,
+          level: inputLevel,
+          articleUrl: article.link,
+          lesson: lesson,
+          timestamp: Timestamp.now()
+        });
+      } else {
+        throw new Error("Lesson generation failed.");
+      }
+    } catch (e) {
+      console.error("Lesson Error:", e);
+      setError("Failed to create the lesson. The article source may be blocked.");
+      setAppState('NEWS_LIST');
+    }
+  }, [inputLevel, user, db, inputTopic, createLessonFunction]);
 
-    const renderArticlesView = () => (
-        <div className="w-full max-w-4xl mx-auto">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-3xl font-bold text-sky-300">Relevant Articles</h2>
-                <button onClick={handleStartOver} className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold py-2 px-4 rounded-md transition">
-                    <RestartIcon className="w-5 h-5" />
-                    Start Over
-                </button>
-            </div>
-            <div className="space-y-4">
-                {articles.map((article, index) => (
-                    <div
-                        key={index}
-                        onClick={() => handleSelectArticle(article)}
-                        className="bg-slate-800 p-6 rounded-lg border border-slate-700 hover:border-sky-500 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer"
-                    >
-                        <h3 className="text-xl font-bold text-sky-400 mb-2">{article.title}</h3>
-                        <p className="text-slate-400 mb-3 text-sm">{article.snippet}</p>
-                        <div className="flex justify-between items-center text-xs text-slate-500">
-                            <span>{article.source}</span>
-                            <span>{article.timestamp}</span>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-
-    const renderLessonView = () => (
-        <div className="w-full max-w-4xl mx-auto">
-             <div className="flex justify-between items-center mb-6">
-                <button onClick={() => setView('articles')} className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold py-2 px-4 rounded-md transition">
-                    <ArrowLeftIcon className="w-5 h-5"/>
-                    Back to Articles
-                </button>
-                <button onClick={handleStartOver} className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold py-2 px-4 rounded-md transition">
-                    <RestartIcon className="w-5 h-5" />
-                    Start Over
-                </button>
-            </div>
-            
-            <div className="bg-slate-800/80 p-6 sm:p-8 rounded-xl border border-slate-700 backdrop-blur-md">
-                <h2 className="text-2xl sm:text-3xl font-bold text-sky-300 mb-4">{selectedArticle?.title}</h2>
-                
-                <div className="prose prose-invert prose-p:text-slate-300 prose-headings:text-sky-400 max-w-none mb-8">
-                    {isLoading.content ? <LoadingSpinner text="Fetching article content..." /> : <p className="whitespace-pre-wrap">{articleContent}</p>}
-                </div>
-
-                <hr className="border-slate-700 my-8" />
-                
-                <h3 className="text-2xl font-bold text-sky-300 mb-6">Your Lesson</h3>
-                 <ErrorMessage message={error || ''} />
-
-                {isLoading.lesson ? (
-                     <LoadingSpinner text="Generating your personalized lesson with AI..." />
-                ) : lesson && (
-                    <div className="space-y-8">
-                        {/* Vocabulary Section */}
-                        <div>
-                            <h4 className="text-xl font-semibold text-sky-400 mb-4">Vocabulary</h4>
-                            <ul className="space-y-4">
-                                {lesson.vocabulary.map((item, index) => (
-                                    <li key={index} className="p-4 bg-slate-900/50 rounded-md border border-slate-700">
-                                        <p><strong className="text-slate-100">{item.word}:</strong> <span className="text-slate-300">{item.definition}</span></p>
-                                        <p className="text-sm text-slate-400 italic mt-2">"{item.example}"</p>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-
-                        {/* Comprehension Questions */}
-                        <div>
-                            <h4 className="text-xl font-semibold text-sky-400 mb-4">Comprehension Questions</h4>
-                            <ol className="list-decimal list-inside space-y-2 text-slate-300">
-                                {lesson.comprehensionQuestions.map((q, index) => <li key={index}>{q}</li>)}
-                            </ol>
-                        </div>
-                        
-                        {/* Grammar Point */}
-                        <div>
-                            <h4 className="text-xl font-semibold text-sky-400 mb-4">Grammar Point: {lesson.grammarPoint.title}</h4>
-                            <p className="p-4 bg-slate-900/50 rounded-md border border-slate-700 text-slate-300">{lesson.grammarPoint.explanation}</p>
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-
+  // 3. Render Logic
+  if (authState === 'LOADING') {
     return (
-        <div className="min-h-screen bg-slate-900 text-slate-200 font-sans p-4 sm:p-8 flex flex-col items-center">
-            <header className="w-full max-w-4xl mx-auto mb-10 text-center">
-                <h1 className="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-cyan-300">
-                    StreamLearn
-                </h1>
-            </header>
-            <main className="w-full flex-grow flex items-center justify-center">
-                {view === 'input' && renderInputView()}
-                {view === 'articles' && renderArticlesView()}
-                {view === 'lesson' && renderLessonView()}
-            </main>
-        </div>
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <LoadingSpinner />
+      </div>
     );
+  }
+
+  const renderInput = () => (
+    <div className="p-6 max-w-lg mx-auto bg-white rounded-xl shadow-2xl space-y-6">
+      <h2 className="text-3xl font-extrabold text-blue-700 text-center">
+        StreamLearn AI
+      </h2>
+      <p className="text-gray-500 text-center">
+        Learn English with articles tailored to your interests and level.
+      </p>
+
+      {/* Level Selection */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Your English Level
+        </label>
+        <select
+          value={inputLevel}
+          onChange={(e) => setInputLevel(e.target.value as EnglishLevel)}
+          className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+        >
+          {['Beginner', 'Intermediate', 'Advanced'].map(level => (
+            <option key={level} value={level}>{level}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Topic Input */}
+      <div>
+        <label htmlFor="topic" className="block text-sm font-medium text-gray-700 mb-2">
+          What topics interest you? (e.g., AI, Space, Cooking)
+        </label>
+        <input
+          id="topic"
+          type="text"
+          value={inputTopic}
+          onChange={(e) => setInputTopic(e.target.value)}
+          placeholder="Enter a topic"
+          className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+
+      <button
+        onClick={handleFindArticles}
+        className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-lg"
+      >
+        Find Articles
+      </button>
+    </div>
+  );
+
+  const renderNewsList = () => (
+    <div className="p-6 max-w-3xl mx-auto bg-white rounded-xl shadow-2xl space-y-4">
+      <div className="flex justify-between items-center">
+        <button 
+          onClick={() => setAppState('INPUT')}
+          className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
+        >
+          <ArrowLeftIcon className="w-4 h-4 mr-1" /> Change Topic
+        </button>
+        <h2 className="text-xl font-bold text-gray-800">
+          Articles on "{inputTopic}" ({inputLevel})
+        </h2>
+      </div>
+
+      <div className="space-y-3 max-h-[70vh] overflow-y-auto">
+        {newsResults.map((article, index) => (
+          <div
+            key={index}
+            className="p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-blue-50 transition duration-150"
+            onClick={() => handleSelectArticle(article)}
+          >
+            <p className="text-lg font-semibold text-gray-900 line-clamp-2">
+              {article.title}
+            </p>
+            <p className="text-sm text-gray-600 line-clamp-2">
+              {article.snippet}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              Source: {article.source}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderLessonView = () => (
+    <div className="p-6 max-w-4xl mx-auto bg-white rounded-xl shadow-2xl space-y-6">
+      <div className="flex justify-between items-center border-b pb-4">
+        <button 
+          onClick={() => setAppState('NEWS_LIST')}
+          className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
+        >
+          <ArrowLeftIcon className="w-4 h-4 mr-1" /> Back to Articles
+        </button>
+        <h2 className="text-2xl font-extrabold text-blue-700">
+          {currentLesson?.articleTitle || "Generated Lesson"}
+        </h2>
+        <button 
+          onClick={() => {
+            setCurrentLesson(null);
+            setCurrentArticle(null);
+            setAppState('INPUT');
+          }}
+          className="flex items-center text-red-600 hover:text-red-800 text-sm font-medium"
+        >
+          <RestartIcon className="w-4 h-4 mr-1" /> Start New
+        </button>
+      </div>
+
+      <p className="text-sm text-gray-600">
+        **Article Link:** <a href={currentArticle?.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{currentArticle?.link}</a>
+      </p>
+
+      {/* Vocabulary Section */}
+      <div className="space-y-3 border-l-4 border-yellow-500 pl-4 bg-yellow-50 p-3 rounded-lg">
+        <h3 className="text-xl font-bold text-yellow-700">Vocabulary Builder</h3>
+        <ul className="space-y-3">
+          {currentLesson?.vocabularyList?.map((item, index) => (
+            <li key={index} className="text-gray-800">
+              <strong className="text-yellow-900">{item.word} ({item.definition})</strong>
+              <p className="text-sm italic text-gray-600">"{item.articleExample}"</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Grammar Section */}
+      <div className="space-y-3 border-l-4 border-purple-500 pl-4 bg-purple-50 p-3 rounded-lg">
+        <h3 className="text-xl font-bold text-purple-700">Grammar Focus</h3>
+        <p className="text-gray-800">
+          <strong className="text-purple-900">{currentLesson?.grammarFocus?.topic}:</strong> 
+          {" "}{currentLesson?.grammarFocus?.explanation}
+        </p>
+      </div>
+
+      {/* Comprehension Section */}
+      <div className="space-y-3 border-l-4 border-green-500 pl-4 bg-green-50 p-3 rounded-lg">
+        <h3 className="text-xl font-bold text-green-700">Comprehension Questions</h3>
+        <ol className="list-decimal list-inside space-y-2">
+          {currentLesson?.comprehensionQuestions?.map((q, index) => (
+            <li key={index} className="text-gray-800">
+              {q}
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
+  );
+
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-100 font-inter">
+      <div className="w-full">
+        {error && <ErrorMessage message={error} />}
+        {appState === 'LOADING' && <LoadingSpinner />}
+        {appState === 'INPUT' && renderInput()}
+        {appState === 'NEWS_LIST' && renderNewsList()}
+        {appState === 'LESSON_VIEW' && renderLessonView()}
+      </div>
+    </div>
+  );
 };
 
 export default App;
