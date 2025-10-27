@@ -16,6 +16,18 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
-      }
+      },
+      // ADDITION: Configure Rollup to treat Firebase packages as external
+      // to resolve the "failed to resolve import" error.
+      build: {
+        rollupOptions: {
+          external: [
+            'firebase/app',
+            'firebase/auth',
+            'firebase/firestore',
+            'firebase/functions'
+          ],
+        },
+      },
     };
 });

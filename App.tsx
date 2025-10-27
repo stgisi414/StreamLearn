@@ -1,19 +1,30 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, User, signInWithCustomToken } from 'firebase/auth';
+// MODIFICATION 1: Ensure connectAuthEmulator is imported
+import { getAuth, signInAnonymously, onAuthStateChanged, User, signInWithCustomToken, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore, doc, setDoc, Timestamp, collection, query, where, limit, getDocs } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import LoadingSpinner from './components/LoadingSpinner';
-import ErrorMessage from './components/ErrorMessage';
+import { LoadingSpinner } from './components/LoadingSpinner';
+import { ErrorMessage } from './components/ErrorMessage';
 import { RestartIcon } from './components/icons/RestartIcon';
 import { ArrowLeftIcon } from './components/icons/ArrowLeftIcon';
 import { Lesson, Article, NewsResult } from './types'; // Assuming these types exist
 
 // --- Configuration Variables ---
 // IMPORTANT: These are set by the Canvas environment for security.
-declare const __firebase_config: string;
-declare const __initial_auth_token: string | undefined;
-const firebaseConfig = JSON.parse(__firebase_config);
+const rawConfig = (window as any).__firebase_config;
+
+// FIX: Set apiKey to a non-empty dummy string. This passes the SDK's internal synchronous check, 
+// and the Auth Emulator will ignore it for network traffic.
+const firebaseConfig = {
+  projectId: 'streamlearnxyz',
+  apiKey: 'LOCAL_DEV_KEY_MUST_BE_NON_EMPTY', // Set to a non-empty string to pass SDK validation
+  ...(JSON.parse(
+    (typeof rawConfig === 'string' && rawConfig) ? rawConfig : '{}'
+  ))
+};
+
+const __initial_auth_token: string | undefined = (window as any).__initial_auth_token;
 
 // --- State Types ---
 type AppState = 'LOADING' | 'INPUT' | 'NEWS_LIST' | 'LESSON_VIEW' | 'ERROR';
@@ -50,6 +61,15 @@ const App: React.FC = () => {
   // 1. Firebase Initialization & Auth Effect
   useEffect(() => {
     const auth = getAuth(initializeApp(firebaseConfig));
+
+    // FIX 2: Check explicitly for the dev environment and IMMEDIATELY connect the emulator.
+    const isDevelopment = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    
+    if (isDevelopment) {
+        // Default Auth emulator port is 9099
+        connectAuthEmulator(auth, "http://127.0.0.1:9099");
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);

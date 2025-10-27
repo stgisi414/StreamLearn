@@ -36,5 +36,35 @@
         "destination": "/index.html"
       }
     ]
+  },
+  "apphosting": {
+    "backendId": "streamlearnxyz",
+    "rootDir": "/",
+    "ignore": [
+      "node_modules",
+      ".git",
+      "firebase-debug.log",
+      "firebase-debug.*.log",
+      "functions"
+    ]
+  },
+  "emulators": {
+    "auth": {
+      "port": 9099
+    },
+    "functions": {
+      "port": 5001
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "hosting": {
+      "port": 5000
+    },
+    "apphosting": {
+      "port": 8081
+    },
+    // FIX: Set the emulator host to bind to all local network interfaces
+    "host": "0.0.0.0" 
   }
 }
