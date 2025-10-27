@@ -1,24 +1,20 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
-// MODIFICATION 1: Ensure connectAuthEmulator is imported
 import { getAuth, signInAnonymously, onAuthStateChanged, User, signInWithCustomToken, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, doc, setDoc, Timestamp, collection, query, where, limit, getDocs } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFirestore, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { ErrorMessage } from './components/ErrorMessage';
 import { RestartIcon } from './components/icons/RestartIcon';
 import { ArrowLeftIcon } from './components/icons/ArrowLeftIcon';
-import { Lesson, Article, NewsResult } from './types'; // Assuming these types exist
+import { Lesson, Article, NewsResult, EnglishLevel, LessonResponse } from './types';
 
 // --- Configuration Variables ---
-// IMPORTANT: These are set by the Canvas environment for security.
 const rawConfig = (window as any).__firebase_config;
 
-// FIX: Set apiKey to a non-empty dummy string. This passes the SDK's internal synchronous check, 
-// and the Auth Emulator will ignore it for network traffic.
 const firebaseConfig = {
   projectId: 'streamlearnxyz',
-  apiKey: 'LOCAL_DEV_KEY_MUST_BE_NON_EMPTY', // Set to a non-empty string to pass SDK validation
+  // Use FAKE key for local emulator stability
+  apiKey: 'FAKE_LOCAL_DEV_KEY', 
   ...(JSON.parse(
     (typeof rawConfig === 'string' && rawConfig) ? rawConfig : '{}'
   ))
@@ -26,23 +22,34 @@ const firebaseConfig = {
 
 const __initial_auth_token: string | undefined = (window as any).__initial_auth_token;
 
-// --- State Types ---
-type AppState = 'LOADING' | 'INPUT' | 'NEWS_LIST' | 'LESSON_VIEW' | 'ERROR';
-type EnglishLevel = 'Beginner' | 'Intermediate' | 'Advanced';
+/**
+ * Determines the base URL for the Cloud Functions.
+ * Uses the '/api' Vite proxy path for local development to bypass CORS.
+ */
+function getFunctionBaseUrl(): string {
+  // If running locally, use the Vite proxy path
+  const isDevelopment = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  if (isDevelopment) {
+    return "/api"; 
+  }
 
-// --- Function Call Definitions ---
-// Define the structure for the payload and response of the two functions
-const functions = getFunctions(initializeApp(firebaseConfig));
-const fetchNewsFunction = httpsCallable<
-  { query: string; languageCode?: string }, 
-  NewsResult[]
->(functions, 'fetchNews');
-const createLessonFunction = httpsCallable<
-  { articleUrl: string; level: EnglishLevel }, 
-  { success: boolean, lesson: Lesson, originalArticleUrl: string }
->(functions, 'createLesson');
+  // Check for hosted environment variable
+  const hostedFullUrl = (window as any).functionBaseUrl; 
+
+  if (typeof hostedFullUrl === 'string' && hostedFullUrl.length > 0) {
+    // Attempt to clean the base URL if necessary 
+    const base = hostedFullUrl.split('/fetchNews')[0];
+    return base || hostedFullUrl;
+  }
+  
+  return "/api"; 
+}
+
+const BASE_FUNCTION_URL = getFunctionBaseUrl(); 
 
 // --- Main App Component ---
+type AppState = 'LOADING' | 'INPUT' | 'NEWS_LIST' | 'LESSON_VIEW' | 'ERROR';
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [authState, setAuthState] = useState<'LOADING' | 'READY'>('LOADING');
@@ -57,14 +64,14 @@ const App: React.FC = () => {
   const [currentLesson, setCurrentLesson] = useState<Lesson | null>(null);
 
   const db = useMemo(() => getFirestore(initializeApp(firebaseConfig)), []);
-
+  
   // 1. Firebase Initialization & Auth Effect
   useEffect(() => {
-    const auth = getAuth(initializeApp(firebaseConfig));
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
 
-    // FIX 2: Check explicitly for the dev environment and IMMEDIATELY connect the emulator.
+    // CRITICAL FIX: Connect auth emulator explicitly if running locally
     const isDevelopment = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-    
     if (isDevelopment) {
         // Default Auth emulator port is 9099
         connectAuthEmulator(auth, "http://127.0.0.1:9099");
@@ -75,13 +82,16 @@ const App: React.FC = () => {
         setUser(currentUser);
       } else {
         try {
-          if (typeof __initial_auth_token !== 'undefined') {
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
             await signInWithCustomToken(auth, __initial_auth_token);
           } else {
+            // Sign in anonymously if no custom token is available
             await signInAnonymously(auth);
           }
         } catch (e) {
-          setError("Failed to authenticate user.");
+          console.error("Authentication Error:", e);
+          // Set a user-friendly error state on failure
+          setError("Failed to connect to authentication server. Please ensure Firebase Emulators are running.");
           setAuthState('READY');
           return;
         }
@@ -91,40 +101,82 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // 2. Function Call Logic
+  // --- Core Fetch Helper ---
+  const authenticatedFetch = useCallback(async (functionName: string, body: any) => {
+    if (!user) {
+        throw new Error("Authentication failed: User token missing.");
+    }
+
+    const idToken = await user.getIdToken();
+    // Use the proxy path if local: /api/fetchNews
+    const url = `${BASE_FUNCTION_URL}/${functionName}`;
+
+    try {
+        const response = await fetch(url, {
+            method: "POST", 
+            headers: {
+                "Content-Type": "application/json",
+                // Pass the ID token in the Authorization header for backend validation
+                "Authorization": `Bearer ${idToken}`,
+            },
+            body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            let errorData: any = {};
+            try {
+                // Attempt to parse JSON error response from the function
+                errorData = JSON.parse(errorText);
+            } catch {
+                // If response isn't JSON, use status and text
+            }
+            const errorMessage = errorData.error || errorData.details || `Request failed with status ${response.status}`;
+            throw new Error(errorMessage);
+        }
+
+        return response.json();
+    } catch (e) {
+        // Re-throw the error to be caught by the calling handler
+        throw e;
+    }
+  }, [user]);
+
+  // 2. Function Call Logic: Find Articles
   const handleFindArticles = useCallback(async () => {
     if (inputTopic.trim() === '') {
       setError("Please enter a topic of interest.");
       return;
     }
+    if (authState !== 'READY') return;
+
     setAppState('LOADING');
     setError(null);
     setNewsResults([]);
 
     try {
-      // NOTE: This call is protected by Firebase Authentication on the backend
-      const response = await fetchNewsFunction({ 
+      const results = await authenticatedFetch('fetchNews', { 
         query: inputTopic, 
-        languageCode: 'en' // Focusing on English news
-      });
+        languageCode: 'en'
+      }) as NewsResult[];
 
-      const results = response.data.filter(r => r.title && r.link);
-      if (results.length === 0) {
+      if (!results || results.length === 0) {
         setError("No current news articles found for that topic.");
         setAppState('INPUT');
       } else {
-        setNewsResults(results);
+        setNewsResults(results.filter(r => r.title && r.link));
         setAppState('NEWS_LIST');
       }
     } catch (e) {
-      console.error(e);
-      setError("Failed to fetch news. Please check your internet or try again.");
+      console.error("Fetch News Error:", e);
+      setError(`Failed to fetch news: ${(e as Error).message}.`);
       setAppState('INPUT');
     }
-  }, [inputTopic]);
+  }, [inputTopic, authState, authenticatedFetch]);
 
+  // 3. Function Call Logic: Create Lesson
   const handleSelectArticle = useCallback(async (article: NewsResult) => {
-    if (!user) return; // Should be impossible if authState === 'READY'
+    if (authState !== 'READY') return;
 
     setAppState('LOADING');
     setError(null);
@@ -132,41 +184,42 @@ const App: React.FC = () => {
     setCurrentLesson(null);
 
     try {
-      // NOTE: This call is protected and handles the scraping/Gemini generation
-      const response = await createLessonFunction({ 
+      const responseData = await authenticatedFetch('createLesson', { 
         articleUrl: article.link, 
         level: inputLevel 
-      });
+      }) as LessonResponse;
 
-      if (response.data.success && response.data.lesson) {
-        const lesson = response.data.lesson;
+      if (responseData.success && responseData.lesson) {
+        const lesson = responseData.lesson;
         setCurrentLesson(lesson);
         setAppState('LESSON_VIEW');
 
-        // Save lesson to Firestore (for history/subscriptions)
-        await setDoc(doc(db, `artifacts/${firebaseConfig.projectId}/users/${user.uid}/lessons`, lesson.articleTitle.substring(0, 50) + '-' + Date.now()), {
-          userId: user.uid,
-          topic: inputTopic,
-          level: inputLevel,
-          articleUrl: article.link,
-          lesson: lesson,
-          timestamp: Timestamp.now()
-        });
+        // Save lesson to Firestore 
+        if (user) {
+            await setDoc(doc(db, `artifacts/${firebaseConfig.projectId}/users/${user.uid}/lessons`, lesson.articleTitle.substring(0, 50) + '-' + Date.now()), {
+              userId: user.uid,
+              topic: inputTopic,
+              level: inputLevel,
+              articleUrl: article.link,
+              lesson: lesson,
+              timestamp: Timestamp.now()
+            });
+        }
       } else {
-        throw new Error("Lesson generation failed.");
+        throw new Error("Lesson generation failed or returned no lesson object.");
       }
     } catch (e) {
       console.error("Lesson Error:", e);
-      setError("Failed to create the lesson. The article source may be blocked.");
+      setError(`Failed to create the lesson: ${(e as Error).message}.`);
       setAppState('NEWS_LIST');
     }
-  }, [inputLevel, user, db, inputTopic, createLessonFunction]);
+  }, [inputLevel, authState, db, inputTopic, authenticatedFetch, user]);
 
-  // 3. Render Logic
+  // 4. Render Logic
   if (authState === 'LOADING') {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <LoadingSpinner />
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <LoadingSpinner text="Connecting to services and authenticating..." />
       </div>
     );
   }
@@ -213,10 +266,12 @@ const App: React.FC = () => {
 
       <button
         onClick={handleFindArticles}
-        className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-lg"
+        disabled={!user}
+        className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Find Articles
       </button>
+      {user && <p className="text-xs text-slate-500 text-center">User ID: {user.uid.substring(0, 8)}... (Authenticated)</p>}
     </div>
   );
 
@@ -325,7 +380,7 @@ const App: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center p-4 bg-gray-100 font-inter">
       <div className="w-full">
         {error && <ErrorMessage message={error} />}
-        {appState === 'LOADING' && <LoadingSpinner />}
+        {appState === 'LOADING' && <LoadingSpinner text="Fetching data..." />}
         {appState === 'INPUT' && renderInput()}
         {appState === 'NEWS_LIST' && renderNewsList()}
         {appState === 'LESSON_VIEW' && renderLessonView()}

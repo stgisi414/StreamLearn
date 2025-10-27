@@ -8,6 +8,17 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        // CRITICAL FIX: Vite Proxy to bypass CORS issues for Firebase Functions Emulator
+        proxy: {
+            '/api': {
+                // The emulator port defined in firebase.json
+                target: 'http://127.0.0.1:5001/streamlearnxyz/us-central1',
+                // Rewrite /api/functionName to /functionName for the target
+                rewrite: (path) => path.replace(/^\/api/, ''),
+                changeOrigin: true, 
+                secure: false,      
+            }
+        }
       },
       plugins: [react()],
       define: {
@@ -17,8 +28,7 @@ export default defineConfig(({ mode }) => {
           '@': path.resolve(__dirname, '.'),
         }
       },
-      // ADDITION: Configure Rollup to treat Firebase packages as external
-      // to resolve the "failed to resolve import" error.
+      // Configure Rollup to treat Firebase packages as external
       build: {
         rollupOptions: {
           external: [
