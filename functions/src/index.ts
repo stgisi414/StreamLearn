@@ -4,6 +4,7 @@ import * as admin from "firebase-admin";
 import fetch, { RequestInit } from "node-fetch"; // For fetchNews
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold, Type } from "@google/genai";
 import * as logger from "firebase-functions/logger";
+import * as TextToSpeech from '@google-cloud/text-to-speech';
 
 interface NewsResult {
     title: string;
@@ -11,6 +12,7 @@ interface NewsResult {
     link: string;
     source: string;
     date: string;
+    image?: string;
 }
 
 // --- Firebase Admin Helper ---
@@ -107,6 +109,7 @@ export const fetchNews = onRequest(
           link: item.link,
           source: item.source || new URL(item.link).hostname.replace(/^www\./, ''),
           date: item.date,
+          image: item.image || undefined
         })).filter((item: NewsResult) => item.title && item.link)); // Type check here
 
       } catch (error) {
@@ -130,8 +133,8 @@ export const createLesson = onRequest(
     try {
         const userId = await getAuthenticatedUid(req);
         const { articleUrl, level, title, snippet } = req.body;
-        if (!articleUrl || !level || !title || !snippet) {
-          res.status(400).json({error: "Missing article URL, level, title, or snippet."});
+        if (!articleUrl || !level || !title) {
+          res.status(400).json({error: "Missing article URL, level and title."});
           return;
         }
 
@@ -171,7 +174,7 @@ export const createLesson = onRequest(
 
         // ---------- ATTEMPT 1: Get Article Summary via URL Context ----------
         logger.info(`Attempt 1: Fetching summary via urlContext for ${articleUrl}`);
-        const urlSummaryPrompt = `Please provide a detailed, comprehensive summary of the article at this URL: ${articleUrl}. Extract key facts, names, and concepts. IMPORTANT: Also, explicitly state if the full article content seems to be behind a paywall or requires a subscription/login based on the fetched content.`;
+        const urlSummaryPrompt = `Please provide a detailed, comprehensive summary of the article at this URL: ${articleUrl}, ensuring the summary is between 5 and 10 sentences long. Extract key facts, names, and concepts. IMPORTANT: Also, explicitly state if the full article content seems to be behind a paywall or requires a subscription/login based on the fetched content.`;
 
         try {
             const urlSummaryResponse = await ai.models.generateContent({
@@ -217,13 +220,18 @@ export const createLesson = onRequest(
 
         // ---------- ATTEMPT 2: Generate Summary via Grounding (if Attempt 1 failed or detected paywall) ----------
         if (paywallLikely && !summaryText) {
-            logger.info(`Attempt 2: Generating summary via grounding using title and snippet for ${articleUrl}`);
-            const groundingSummaryPrompt = `Based *only* on the following title and snippet from a news article, please generate a concise summary. Do not add external information.
+            logger.info(`Attempt 2: Generating summary via grounding for ${articleUrl}`);
 
-            Title: "${title}"
-            Snippet: "${snippet}"
-
-            Summary:`;
+            // --- MODIFY Prompt 2 ---
+            let groundingSummaryPrompt = `Based *only* on the following title`;
+            if (snippet && snippet.trim() !== "") {
+                groundingSummaryPrompt += ` and snippet`;
+            }
+            groundingSummaryPrompt += ` from a news article, please generate a concise summary between 5 and 10 sentences long. Do not add external information.\n\nTitle: "${title}"`;
+            if (snippet && snippet.trim() !== "") {
+                groundingSummaryPrompt += `\nSnippet: "${snippet}"`;
+            }
+            groundingSummaryPrompt += `\n\nSummary:`;
 
              try {
                 const groundingSummaryResponse = await ai.models.generateContent({
@@ -264,6 +272,7 @@ export const createLesson = onRequest(
             type: Type.OBJECT,
             properties: {
               articleTitle: { type: Type.STRING, description: "The title of the article fetched from the URL." },
+              summary: { type: Type.STRING, description: "A detailed summary of the article content." },
               vocabularyList: {
                 type: Type.ARRAY,
                 items: {
@@ -302,7 +311,14 @@ export const createLesson = onRequest(
 
               SUMMARY: "${summaryText}"
 
-              Base the lesson *only* on this summary text. Ensure vocabulary examples come directly from the summary.`;
+              Your JSON output must include:
+              1. "articleTitle": The title of the article (or the provided title if it's just a summary).
+              2. "summary": The detailed summary text provided above.
+              3. "vocabularyList": Based *only* on the summary text.
+              4. "comprehensionQuestions": Based *only* on the summary text.
+              5. "grammarFocus": Based *only* on the summary text.
+              
+              Ensure vocabulary examples come directly from the summary text.`;
 
         logger.info("Starting final call: Generating lesson from summary.");
         const lessonResponse = await ai.models.generateContent({
@@ -342,3 +358,262 @@ export const createLesson = onRequest(
         res.status(status).json({error: `Lesson generation failed: ${message}`});
     }
   });
+
+// --- NEW: handleActivity Function ---
+export const handleActivity = onRequest(
+  { secrets: ["GEMINI_API_KEY"], timeoutSeconds: 60, cors: true },
+  async (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+
+    try {
+      const { activityType, payload } = req.body;
+      /*
+        Expected payload structures:
+        - vocab: { word: string, definition: string, userAnswer: string }
+        - grammar_generate: { topic: string, explanation: string, level: string }
+        - grammar_grade: { question: string, options: string[], correctAnswer: string, userAnswer: string }
+        - comprehension: { question: string, summary: string, userAnswer: string }
+      */
+
+      if (!activityType || !payload) {
+        res.status(400).json({ error: "Missing activityType or payload." });
+        return;
+      }
+
+      const geminiApiKey = process.env.GEMINI_API_KEY;
+      if (!geminiApiKey) {
+        logger.error("Secret Configuration Error: GEMINI_API_KEY missing.");
+        res.status(500).json({ error: "Server configuration error." });
+        return;
+      }
+
+      const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+
+      const safetySettings = [
+            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        ];
+
+
+      let prompt = "";
+      let responseSchema: any = null; // Use schema for grammar generation
+
+      switch (activityType) {
+        // --- Vocabulary Grading ---
+        case 'vocab':
+          if (!payload.word || !payload.userAnswer) {
+             res.status(400).json({ error: "Missing word or userAnswer for vocab activity." });
+             return;
+          }
+          // Simple check first, fallback to AI for slight variations? (Optional enhancement)
+          const isSimpleCorrect = payload.userAnswer.trim().toLowerCase() === payload.word.trim().toLowerCase();
+          if (isSimpleCorrect) {
+             res.status(200).json({ isCorrect: true, feedback: "Correct!" });
+             return;
+          }
+          // Optional: AI check for typos/close answers
+          prompt = `The correct vocabulary word is "${payload.word}". The user guessed "${payload.userAnswer}". Is the user's guess essentially correct, possibly with a minor typo? Answer only "yes" or "no".`;
+          // For simplicity now, we'll just use the simple check. Expand later if needed.
+           res.status(200).json({ isCorrect: false, feedback: `Incorrect. The word was "${payload.word}".` });
+           return;
+
+        // --- Grammar Quiz Generation ---
+        case 'grammar_generate':
+           if (!payload.topic || !payload.explanation || !payload.level) {
+             res.status(400).json({ error: "Missing topic, explanation, or level for grammar generation." });
+             return;
+           }
+          prompt = `Generate one multiple-choice question to test understanding of the English grammar topic "${payload.topic}" suitable for a ${payload.level} learner. The explanation is: "${payload.explanation}". Provide 4 distinct options (A, B, C, D), with only one being correct. Base the question on the explanation provided. Respond ONLY with a JSON object following the specified schema.`;
+          responseSchema = {
+            type: Type.OBJECT,
+            properties: {
+              question: { type: Type.STRING },
+              options: { type: Type.ARRAY, items: { type: Type.STRING } },
+              correctAnswer: { type: Type.STRING, description: "The letter (A, B, C, or D) corresponding to the correct option." }
+            },
+            required: ["question", "options", "correctAnswer"]
+          };
+          break; // Proceed to Gemini call
+
+        // --- Grammar Grading (Simple Check) ---
+         case 'grammar_grade':
+           if (!payload.correctAnswer || payload.userAnswer === undefined || payload.userAnswer === null) {
+              res.status(400).json({ error: "Missing correctAnswer or userAnswer for grammar grading." });
+              return;
+           }
+           const isGrammarCorrect = String(payload.userAnswer).trim().toUpperCase() === String(payload.correctAnswer).trim().toUpperCase();
+           res.status(200).json({
+               isCorrect: isGrammarCorrect,
+               feedback: isGrammarCorrect ? "Correct!" : `Incorrect. The correct answer was ${payload.correctAnswer}.`
+           });
+           return;
+
+        // --- Comprehension Grading ---
+        case 'comprehension':
+          if (!payload.question || !payload.summary || payload.userAnswer === undefined || payload.userAnswer === null) {
+              res.status(400).json({ error: "Missing question, summary, or userAnswer for comprehension activity." });
+              return;
+          }
+          prompt = `Based *only* on the following summary, evaluate if the user's answer accurately addresses the question.
+                    Summary: "${payload.summary}"
+                    Question: "${payload.question}"
+                    User Answer: "${payload.userAnswer}"
+
+                    Is the user's answer correct based on the summary? Provide brief feedback explaining why or why not (1-2 sentences). Respond ONLY with a JSON object with keys "isCorrect" (boolean) and "feedback" (string).`;
+           // For comprehension, we expect a specific JSON back, but won't use responseSchema for flexibility.
+           break; // Proceed to Gemini call
+
+        default:
+          res.status(400).json({ error: "Invalid activityType." });
+          return;
+      }
+
+      // --- Call Gemini for Grammar Gen or Comprehension Grade ---
+      logger.info(`Calling Gemini for ${activityType}`);
+      const result = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            config: {
+                // Use responseSchema only for grammar_generate
+                ...(responseSchema && { responseMimeType: "application/json", responseSchema: responseSchema }),
+                safetySettings: safetySettings,
+            },
+        });
+
+
+      let responseText = result.text;
+      if (!responseText) {
+        logger.error(`Gemini response empty for ${activityType}`, JSON.stringify(result, null, 2));
+        throw new Error(`AI generation failed for ${activityType}.`);
+      }
+
+      if (activityType === 'comprehension') {
+          // Remove potential markdown fences (```json ... ```) and trim whitespace
+          responseText = responseText.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
+      }
+
+      try {
+        const jsonResponse = JSON.parse(responseText);
+
+        if (activityType === 'comprehension' && jsonResponse.feedback && typeof jsonResponse.feedback === 'string') {
+            jsonResponse.feedback = jsonResponse.feedback.replace(/`/g, ''); // Remove all backticks
+        }
+
+        // For comprehension, add simple isCorrect check if missing (basic fallback)
+        if (activityType === 'comprehension' && jsonResponse.isCorrect === undefined) {
+            jsonResponse.isCorrect = jsonResponse.feedback?.toLowerCase().includes("correct") ?? false;
+        }
+        res.status(200).json(jsonResponse);
+        return;
+      } catch (parseError) {
+        logger.error(`Failed to parse Gemini JSON response for ${activityType}:`, parseError, "Raw text:", responseText);
+        // Fallback for comprehension if JSON fails but text might be useful
+        if (activityType === 'comprehension') {
+            // --- ALSO CLEAN FEEDBACK HERE ---
+            const cleanedFeedback = responseText.replace(/`/g, '');
+            // --- END CLEAN ---
+            res.status(200).json({
+                isCorrect: cleanedFeedback.toLowerCase().includes("correct"),
+                feedback: cleanedFeedback // Send cleaned raw text as feedback
+            });
+            return; // <-- Ensure return here
+        }
+        throw new Error(`AI returned invalid format for ${activityType}.`);
+      }
+
+    } catch (e) {
+      const message = (e as Error).message;
+      const status = message.includes("Unauthenticated") ? 401 : 500;
+      logger.error("Function Error (handleActivity):", e);
+      res.status(status).json({ error: `Activity processing failed: ${message}` });
+    }
+  }
+);
+
+// --- NEW: textToSpeech Function ---
+export const textToSpeech = onRequest(
+  // IMPORTANT: Add your TTS service account key as a secret!
+  { secrets: ["TTS_SERVICE_ACCOUNT_KEY"], cors: true, memory: '256MiB' },
+  async (req, res) => {
+    // Enable CORS for OPTIONS request
+    res.set('Access-Control-Allow-Origin', '*'); // Or restrict to your domain in production
+     if (req.method === 'OPTIONS') {
+        res.set('Access-Control-Allow-Methods', 'POST');
+        res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        res.set('Access-Control-Max-Age', '3600');
+        res.status(204).send('');
+        return;
+    }
+
+    try {
+      // Basic check - you might want auth check here too if needed
+      await getAuthenticatedUid(req); // Optional: uncomment if only logged-in users can use TTS
+
+      const { text } = req.body;
+      if (!text) {
+        res.status(400).json({ error: "Missing 'text' in request body." });
+        return;
+      }
+      if (typeof text !== 'string' || text.length > 500) { // Limit input length
+         res.status(400).json({ error: "'text' must be a string under 500 characters." });
+         return;
+      }
+
+
+      // --- Initialize TTS Client ---
+      let clientOptions = {};
+      // Check if the secret exists and parse it (assuming it's JSON)
+      if (process.env.TTS_SERVICE_ACCOUNT_KEY) {
+          try {
+              const serviceAccount = JSON.parse(process.env.TTS_SERVICE_ACCOUNT_KEY);
+              clientOptions = { credentials: serviceAccount, projectId: serviceAccount.project_id };
+          } catch (e) {
+              logger.error("Failed to parse TTS_SERVICE_ACCOUNT_KEY JSON:", e);
+              res.status(500).json({ error: "Server configuration error (TTS Credentials)." });
+              return;
+          }
+      } else {
+           logger.error("TTS_SERVICE_ACCOUNT_KEY secret is not set.");
+           res.status(500).json({ error: "Server configuration error (TTS Secret missing)." });
+           return;
+      }
+
+      const client = new TextToSpeech.TextToSpeechClient(clientOptions);
+      // --- End TTS Client Init ---
+
+
+      // Construct the request
+      const request = {
+        input: { text: text },
+        // Select the language code and SSML voice gender (optional)
+        voice: { languageCode: 'en-US', ssmlGender: 'NEUTRAL' as const }, // Or 'FEMALE' / 'MALE'
+        // Select the type of audio encoding
+        audioConfig: { audioEncoding: 'MP3' as const },
+      };
+
+      // Performs the text-to-speech request
+      const [response] = await client.synthesizeSpeech(request);
+
+      if (!response.audioContent) {
+          logger.error("TTS API returned no audio content.");
+          res.status(500).json({ error: "Failed to generate audio." });
+          return;
+      }
+
+      // Send the audio content back as Base64
+      res.status(200).json({
+        audioContent: response.audioContent.toString('base64'),
+      });
+       return; // Explicit return
+
+    } catch (e) {
+      const message = (e as Error).message;
+      logger.error("Function Error (textToSpeech):", e);
+      res.status(500).json({ error: `Audio generation failed: ${message}` });
+      // No return needed here
+    }
+  }
+);

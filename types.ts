@@ -9,6 +9,7 @@ export interface NewsResult {
     link: string;
     source: string;
     date: string;
+    image?: string;
 }
 
 // Re-using NewsResult for consistency in App.tsx
@@ -36,6 +37,7 @@ export interface GrammarFocus {
  */
 export interface Lesson {
     articleTitle: string;
+    summary: string; // <-- ADD THIS LINE
     vocabularyList: VocabularyItem[];
     comprehensionQuestions: string[]; // Array of question strings
     grammarFocus: GrammarFocus;

@@ -22,6 +22,14 @@
         "function": "createLesson"    // To specific function
       },
       {
+        "source": "/api/handleActivity",
+        "function": "handleActivity"
+      },
+      {
+        "source": "/api/textToSpeech",
+        "function": "textToSpeech"
+      },
+      {
         "source": "**", // Added fallback for Single Page App routing
         "destination": "/index.html"
       }
