@@ -7,16 +7,17 @@ export default defineConfig(({ mode }) => {
     return {
       server: {
         port: 3000,
-        host: '0.0.0.0',
-        // CRITICAL FIX: Vite Proxy to bypass CORS issues for Firebase Functions Emulator
+        host: 'localhost', // Standardize on localhost for consistency.
+        // CRITICAL FIX: Vite Proxy to handle CORS and route to the local Functions emulator.
         proxy: {
             '/api': {
-                // The emulator port defined in firebase.json
-                target: 'http://127.0.0.1:5001/streamlearnxyz/us-central1',
-                // Rewrite /api/functionName to /functionName for the target
-                rewrite: (path) => path.replace(/^\/api/, ''),
-                changeOrigin: true, 
-                secure: false,      
+                // Target the Functions emulator directly.
+                target: 'http://localhost:5001',
+                // CRITICAL FIX: Rewrite the path to match the Firebase Functions emulator's expected format.
+                // Example: /api/myFunction -> /streamlearnxyz/us-central1/myFunction
+                rewrite: (path) => path.replace(/^\/api/, `/streamlearnxyz/us-central1`),
+                changeOrigin: true,
+                secure: false,
             }
         }
       },

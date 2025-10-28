@@ -66,6 +66,7 @@ const App: React.FC = () => {
   const db = useMemo(() => getFirestore(initializeApp(firebaseConfig)), []);
   
   // 1. Firebase Initialization & Auth Effect
+  // 1. Firebase Initialization & Auth Effect
   useEffect(() => {
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
@@ -73,8 +74,8 @@ const App: React.FC = () => {
     // CRITICAL FIX: Connect auth emulator explicitly if running locally
     const isDevelopment = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
     if (isDevelopment) {
-        // Default Auth emulator port is 9099
-        connectAuthEmulator(auth, "http://127.0.0.1:9099");
+        // FIX: Use 'localhost' for consistency and to avoid potential OS-level binding issues with 127.0.0.1.
+        connectAuthEmulator(auth, "http://localhost:9099");
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
