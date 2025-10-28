@@ -129,9 +129,9 @@ export const createLesson = onRequest(
     if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
     try {
         const userId = await getAuthenticatedUid(req);
-        const { articleUrl, level } = req.body;
-        if (!articleUrl || !level) {
-          res.status(400).json({error: "Missing article URL or level."});
+        const { articleUrl, level, title, snippet } = req.body;
+        if (!articleUrl || !level || !title || !snippet) {
+          res.status(400).json({error: "Missing article URL, level, title, or snippet."});
           return;
         }
 
@@ -166,40 +166,98 @@ export const createLesson = onRequest(
 		    },
 		];
 
-        logger.info(`Starting Call 1: Fetching summary for ${articleUrl}`);
-        const summaryPrompt = `Please provide a detailed, comprehensive summary of the article at this URL: ${articleUrl}. Extract key facts, names, and concepts.`;
+        let summaryText: string | null = null;
+        let paywallLikely = false;
 
-        const summaryResponse = await ai.models.generateContent({
-        	model: "gemini-2.5-flash",
-            contents: [{ role: "user", parts: [{ text: summaryPrompt }] }],
-            config: {
-                tools: [{urlContext: {}}], // Enable URL fetching
-                safetySettings: safetySettings,
-                // {googleSearch: {}} // You can also add googleSearch if needed
-            },
-        });
+        // ---------- ATTEMPT 1: Get Article Summary via URL Context ----------
+        logger.info(`Attempt 1: Fetching summary via urlContext for ${articleUrl}`);
+        const urlSummaryPrompt = `Please provide a detailed, comprehensive summary of the article at this URL: ${articleUrl}. Extract key facts, names, and concepts. IMPORTANT: Also, explicitly state if the full article content seems to be behind a paywall or requires a subscription/login based on the fetched content.`;
 
-        const summaryText = summaryResponse.text;
+        try {
+            const urlSummaryResponse = await ai.models.generateContent({
+                model: "gemini-2.5-flash", // Or your preferred model
+                contents: [{ role: "user", parts: [{ text: urlSummaryPrompt }] }],
+                config: {
+                    tools: [{urlContext: {}}],
+                    safetySettings: safetySettings,
+                },
+            });
 
-        // --- Error handling for Call 1 ---
-        if (!summaryText) {
-            logger.error("Gemini response (Call 1) was empty or invalid.", JSON.stringify(summaryResponse, null, 2));
-            const metadata = summaryResponse.candidates?.[0]?.urlContextMetadata;
-            let fetchErrorMessage = "Gemini response was empty (Call 1).";
+            const urlSummaryText = urlSummaryResponse.text;
 
-            if (metadata && metadata.urlMetadata && metadata.urlMetadata.length > 0) {
-                const status = metadata.urlMetadata[0].urlRetrievalStatus;
-                if (status !== 'URL_RETRIEVAL_STATUS_SUCCESS') {
-                   fetchErrorMessage = `Gemini failed to fetch URL (${articleUrl}). Status: ${status}`;
-                   logger.error(fetchErrorMessage, metadata);
+            if (!urlSummaryText) {
+                logger.warn("Gemini urlContext response (Attempt 1) was empty.", JSON.stringify(urlSummaryResponse, null, 2));
+                 // Check fetch status specifically
+                 const metadata = urlSummaryResponse.candidates?.[0]?.urlContextMetadata;
+                 if (metadata?.urlMetadata?.[0]?.urlRetrievalStatus !== 'URL_RETRIEVAL_STATUS_SUCCESS') {
+                     logger.warn(`urlContext fetch failed (Status: ${metadata?.urlMetadata?.[0]?.urlRetrievalStatus}), proceeding to Attempt 2.`);
+                     paywallLikely = true; // Treat fetch failure similar to paywall for Attempt 2
+                 }
+                 // If fetch succeeded but text is empty, still try Attempt 2
+                 paywallLikely = true;
+
+            } else {
+                summaryText = urlSummaryText; // Store the summary
+                logger.info("Attempt 1 successful. Received summary via urlContext.");
+
+                // Check for paywall keywords in the successful summary
+                const paywallKeywords = ["paywall", "subscribe", "subscription", "log in to read", "full access", "limited access", "member exclusive", "requires login", "sign in"];
+                const lowerSummary = summaryText.toLowerCase();
+                if (paywallKeywords.some(keyword => lowerSummary.includes(keyword))) {
+                    logger.info(`Paywall likely detected in urlContext summary for ${articleUrl}. Proceeding to Attempt 2.`);
+                    paywallLikely = true;
+                    summaryText = null; // Discard paywalled summary
                 }
             }
-            throw new Error(fetchErrorMessage);
+        } catch (urlError) {
+             logger.error("Error during Attempt 1 (urlContext):", urlError);
+             // Assume potential paywall or access issue, proceed to Attempt 2
+             paywallLikely = true;
         }
 
-        logger.info("Call 1 successful. Received summary.");
+        // ---------- ATTEMPT 2: Generate Summary via Grounding (if Attempt 1 failed or detected paywall) ----------
+        if (paywallLikely && !summaryText) {
+            logger.info(`Attempt 2: Generating summary via grounding using title and snippet for ${articleUrl}`);
+            const groundingSummaryPrompt = `Based *only* on the following title and snippet from a news article, please generate a concise summary. Do not add external information.
 
-        // ---------- CALL 2: Generate Lesson from Summary ----------
+            Title: "${title}"
+            Snippet: "${snippet}"
+
+            Summary:`;
+
+             try {
+                const groundingSummaryResponse = await ai.models.generateContent({
+                    model: "gemini-2.5-flash", // Use a model suitable for text generation
+                    contents: [{ role: "user", parts: [{ text: groundingSummaryPrompt }] }],
+                    config: {
+                        safetySettings: safetySettings,
+                        // NO tools: urlContext needed here
+                    },
+                });
+
+                const groundingSummaryText = groundingSummaryResponse.text;
+
+                if (!groundingSummaryText) {
+                     logger.error("Gemini grounding response (Attempt 2) was empty.", JSON.stringify(groundingSummaryResponse, null, 2));
+                     throw new Error("Failed to generate summary from title/snippet after paywall detection.");
+                } else {
+                    summaryText = groundingSummaryText; // Use the grounded summary
+                    logger.info("Attempt 2 successful. Received summary via grounding.");
+                }
+             } catch (groundingError) {
+                 logger.error("Error during Attempt 2 (grounding):", groundingError);
+                 throw new Error(`Failed to generate summary: ${ (groundingError as Error).message }`); // Propagate error if both attempts fail
+             }
+        }
+
+        // --- Check if we have a summary after both attempts ---
+        if (!summaryText) {
+             // This case should ideally be caught by errors above, but as a fallback:
+             throw new Error("Could not obtain a usable summary from either URL context or grounding.");
+        }
+
+        // ---------- CALL 3 (Previously Call 2): Generate Lesson from Final Summary ----------
+        // This part remains mostly the same, just uses the final `summaryText`
 
         const responseMimeTypeText = "application/json";
         const responseSchemaText = {
@@ -235,41 +293,45 @@ export const createLesson = onRequest(
 
         const systemInstructionText =
               `You are an expert English language teaching assistant. Your ` +
-              `goal is to generate structured learning material based on the content of the provided news article URL. ` +
+              `goal is to generate structured learning material based on the content of the provided news article summary. ` +
               `The user's English level is ${level}. Provide the ` +
-              `following sections in a JSON object format based *only* on the article content fetched from the URL.`;
+              `following sections in a JSON object format based *only* on the provided summary text.`;
 
         const lessonPrompt =
               `Generate the lesson for a ${level} English learner based on the following article summary:
 
               SUMMARY: "${summaryText}"
 
-              Base the lesson *only* on this text.`;
+              Base the lesson *only* on this summary text. Ensure vocabulary examples come directly from the summary.`;
 
-        logger.info("Starting Call 2: Generating lesson from summary.");
-
-        // --- This call uses JSON schema, *not* urlContext ---
+        logger.info("Starting final call: Generating lesson from summary.");
         const lessonResponse = await ai.models.generateContent({
-        	model: "gemini-2.5-flash",
+            model: "gemini-2.5-flash", // Use appropriate model
             contents: [{ role: "user", parts: [{ text: lessonPrompt }] }],
             config: {
                 responseMimeType: responseMimeTypeText,
                 responseSchema: responseSchemaText,
                 safetySettings: safetySettings,
                 systemInstruction: { parts: [{ text: systemInstructionText }] },
-                // NO tools: [{urlContext: {}}] here
             },
         });
 
         const lessonResponseText = lessonResponse.text;
 
         if (!lessonResponseText) {
-            logger.error("Gemini response (Call 2) was empty or invalid.", JSON.stringify(lessonResponse, null, 2));
+            logger.error("Gemini response (Lesson Gen) was empty or invalid.", JSON.stringify(lessonResponse, null, 2));
             throw new Error("Gemini response was empty while generating lesson JSON.");
         }
 
         const lessonJson = JSON.parse(lessonResponseText);
-        res.status(200).json({ success: true, lesson: lessonJson, originalArticleUrl: articleUrl, userId });
+        // Include whether grounding was used in the response for potential debugging/UI indication
+        res.status(200).json({
+            success: true,
+            lesson: lessonJson,
+            originalArticleUrl: articleUrl,
+            userId,
+            summarySource: paywallLikely ? 'grounding' : 'urlContext' // Indicate summary source
+        });
 
     } catch (e) {
         const message = (e as Error).message;

@@ -14,8 +14,16 @@
     ],
     "rewrites": [
       {
-        "source": "/api/**",
-        "function": "api"
+        "source": "/api/fetchNews", // Route specific path
+        "function": "fetchNews"     // To specific function
+      },
+      {
+        "source": "/api/createLesson", // Route specific path
+        "function": "createLesson"    // To specific function
+      },
+      {
+        "source": "**", // Added fallback for Single Page App routing
+        "destination": "/index.html"
       }
     ]
   },
