@@ -15,6 +15,8 @@ import { ErrorMessage } from './components/ErrorMessage';
 import { RestartIcon } from './components/icons/RestartIcon';
 import { ArrowLeftIcon } from './components/icons/ArrowLeftIcon';
 import { VolumeUpIcon } from './components/icons/VolumeUpIcon';
+import { PlayIcon } from './components/icons/PlayIcon';
+import { PauseIcon } from './components/icons/PauseIcon';
 import { Lesson, Article, NewsResult, EnglishLevel, LessonResponse } from './types';
 
 // --- Configuration Variables ---
@@ -95,11 +97,23 @@ interface ActivityState {
   index: number; // Current question/word index
   score: number;
   total: number;
-  // Data for the current step (e.g., definition, grammar question/options, comprehension question)
-  currentData: any;
-  userAnswer: string | number | null; // User's input/selection
+  shuffledIndices?: number[];
+  // Data for the current step (e.g., definition, word, OPTIONS, grammar question/options, comprehension question)
+  currentData: {
+    word?: string; // Correct word (always present for vocab)
+    definition?: string; // Definition (for vocab)
+    options?: string[]; // Multiple choice options (for vocab Beginner/Intermediate)
+    question?: string; // For grammar/comprehension
+    summary?: string; // For comprehension
+    correctAnswer?: string; // Correct letter for grammar MC
+    finished?: boolean; // Flag for completion state
+    // Allow other properties for grammar
+    [key: string]: any;
+  } | null; // Make currentData potentially null initially
+  userAnswer: string | number | null; // User's input/selection (Use string for vocab answers now)
   feedback: { isCorrect: boolean | null; message: string };
   isSubmitting: boolean; // Flag for API call loading
+  _loadingStepKey?: string | null;
 }
 
 const App: React.FC = () => {
@@ -115,14 +129,25 @@ const App: React.FC = () => {
 
   // --- Loading State (for API calls) ---
   const [isApiLoading, setIsApiLoading] = useState(false);
+  const [isLessonGenerating, setIsLessonGenerating] = useState(false);
 
   // --- Activity state ---
   const [activityState, setActivityState] = useState<ActivityState | null>(null);
+  const loadingStepRef = useRef<string | null>(null);
 
   // --- NEW: Audio State ---
-  const [isAudioLoading, setIsAudioLoading] = useState(false);
-  const [audioError, setAudioError] = useState<string | null>(null);
-  const currentAudioRef = useRef<HTMLAudioElement | null>(null); // To manage playback
+  const [isActivityAudioLoading, setIsActivityAudioLoading] = useState(false); // Renamed from isAudioLoading
+  const [activityAudioError, setActivityAudioError] = useState<string | null>(null); // Renamed from audioError
+  const activityAudioRef = useRef<HTMLAudioElement | null>(null); // Renamed from currentAudioRef
+
+  // --- NEW: Summary Audio Player State ---
+  const summaryAudioRef = useRef<HTMLAudioElement | null>(null); // Ref for the audio element
+  const [summaryAudioSrc, setSummaryAudioSrc] = useState<string | null>(null); // Store the audio data URL
+  const [isSummaryPlaying, setIsSummaryPlaying] = useState<boolean>(false);
+  const [summaryAudioProgress, setSummaryAudioProgress] = useState<number>(0);
+  const [summaryAudioDuration, setSummaryAudioDuration] = useState<number>(0);
+  const [isSummaryAudioLoading, setIsSummaryAudioLoading] = useState<boolean>(false);
+  const [summaryAudioError, setSummaryAudioError] = useState<string | null>(null);
 
   // --- Persistent State ---
   const [inputTopic, setInputTopic] = useLocalStorageState<string>('streamlearn_topic', '');
@@ -279,77 +304,122 @@ const App: React.FC = () => {
     }
   }, [authState, user, authenticatedFetch, inputTopic, inputLevel, setNewsResults, setError, goToSearch, goToInput, setCurrentView]); // Added dependencies
 
+  // --- NEW: Helper to fetch summary audio ---
+  const fetchSummaryAudio = useCallback(async (summaryText: string) => {
+    if (!summaryText || isSummaryAudioLoading || summaryAudioSrc) return; // Don't fetch if loading, already have src, or no text
+
+    console.log("Fetching summary audio...");
+    setIsSummaryAudioLoading(true);
+    setSummaryAudioError(null);
+    setError(null); // Clear main error too
+
+    try {
+      const response = await authenticatedFetch('textToSpeech', { text: summaryText });
+      if (response.audioContent) {
+        const audioData = `data:audio/mp3;base64,${response.audioContent}`;
+        setSummaryAudioSrc(audioData); // Set the source, useEffect will create Audio object
+        console.log("Summary audio source set.");
+      } else {
+        throw new Error("Backend did not return audio content for summary.");
+      }
+    } catch (e) {
+      console.error("Summary TTS Fetch Error:", e);
+      setSummaryAudioError(`Failed to get summary audio: ${(e as Error).message}`);
+    } finally {
+      setIsSummaryAudioLoading(false);
+    }
+  }, [authenticatedFetch, isSummaryAudioLoading, summaryAudioSrc]); // Added dependencies
+
   const handleSelectArticle = useCallback(async (article: Article, skipNavigation: boolean = false) => {
-    console.log("handleSelectArticle called for:", article.link); // Add log
+    console.log("handleSelectArticle called for:", article.link);
     if (authState !== 'SIGNED_IN' || !user) {
         setError("Please sign in first.");
         return;
     }
 
-    // --- ADD CHECK FOR EXISTING LESSON ---
-    // If we are navigating (not skipping) AND the clicked article matches the current one AND a lesson exists...
     if (!skipNavigation && currentArticle?.link === article.link && currentLesson) {
         console.log("Clicked same article, lesson exists. Navigating without refetch.");
-        goToLesson(article); // Just navigate to the URL, handleUrlChange will show existing lesson
-        return; // Stop execution here
+        goToLesson(article);
+        return;
     }
-    // --- END CHECK ---
 
-    // --- Proceed with fetching/generating if it's a new article or no lesson exists ---
     console.log("Proceeding to fetch/generate lesson.");
     setIsApiLoading(true);
+    setIsLessonGenerating(true);
     setError(null);
 
-    // Clear the *old* lesson only if we are selecting a *new* article
-    if (!skipNavigation && currentArticle?.link !== article.link) {
-      console.log("Clearing previous lesson for new article selection.");
-      setCurrentLesson(null);
+    if (currentArticle?.link !== article.link) {
+        console.log("Clearing previous lesson/audio state for new article selection.");
+        setCurrentLesson(null);
+        setSummaryAudioSrc(null);
+        setIsSummaryPlaying(false);
+        setSummaryAudioProgress(0);
+        setSummaryAudioDuration(0);
+        setSummaryAudioError(null);
+        if (summaryAudioRef.current) {
+            summaryAudioRef.current.pause();
+            summaryAudioRef.current = null;
+        }
     }
 
-    // Navigate or set view
+    setCurrentArticle(article);
+
     if (!skipNavigation) {
-      goToLesson(article); // Sets currentArticle & navigates (calls handleUrlChange)
+      goToLesson(article);
     } else {
       setCurrentView('LESSON_VIEW');
     }
 
+    // --- FIX: Declare responseData outside the if block ---
+    let responseData: any = null;
+    // --- END FIX ---
+
     try {
-      // --- Fetch only if lesson is null ---
-      // This condition prevents refetching on refresh if lesson is already in localStorage
-      let lessonToSave = currentLesson;
-      if (!lessonToSave) {
-          console.log("No current lesson found, calling API...");
-          const responseData = await authenticatedFetch('createLesson', {
-            articleUrl: article.link,
-            level: inputLevel,
-            title: article.title,
-            snippet: article.snippet || ''
-          });
+        let lessonToSave = (currentArticle?.link === article.link) ? currentLesson : null;
 
-          if (responseData.success && responseData.lesson) {
-            lessonToSave = responseData.lesson as Lesson;
-            setCurrentLesson(lessonToSave); // Save the newly fetched lesson
-          } else {
-             setError(responseData.error || responseData.details || "Lesson generation failed.");
-             goToInput(); // Go back to safety
-             setIsApiLoading(false); // Make sure loading stops on error
-             return; // Stop execution
-          }
-      } else {
-         console.log("Lesson already exists in state, skipping API call.");
-      }
-      // --- End fetch only if needed ---
+        if (!lessonToSave) {
+            console.log("No current lesson found or different article, calling createLesson API...");
+            // --- FIX: Assign to the outer responseData ---
+            responseData = await authenticatedFetch('createLesson', {
+            // --- END FIX ---
+                articleUrl: article.link,
+                level: inputLevel,
+                title: article.title,
+                snippet: article.snippet || ''
+            });
 
-      // Save lesson to Firestore (now uses lessonToSave)
+            if (responseData?.success && responseData?.lesson) { // Added null checks
+                lessonToSave = responseData.lesson as Lesson;
+                console.log("Lesson generated successfully, calling setCurrentLesson.");
+                setCurrentLesson(lessonToSave);
+                if (lessonToSave.summary) {
+                    fetchSummaryAudio(lessonToSave.summary);
+                }
+            } else {
+                setError(responseData?.error || responseData?.details || "Lesson generation failed."); // Added null checks
+                setIsLessonGenerating(false);
+                setIsApiLoading(false);
+                if (!skipNavigation) goToInput();
+                return;
+            }
+        } else {
+           console.log("Lesson already exists in state, potentially fetching audio.");
+           if (lessonToSave.summary && !summaryAudioSrc && !isSummaryAudioLoading) {
+               fetchSummaryAudio(lessonToSave.summary);
+           }
+        }
+
       if (lessonToSave) {
-          const lessonDocId = `${user.uid}-${Date.now()}`; // Use a fresh timestamp for saving
+          const lessonDocId = `${user.uid}-${Date.now()}`;
           await setDoc(doc(db, `users/${user.uid}/lessons`, lessonDocId), {
               userId: user.uid,
               topic: inputTopic,
               level: inputLevel,
               articleUrl: article.link,
-              lessonData: lessonToSave, // Use the fetched or existing lesson
-              summarySource: (lessonToSave as any).summarySource || (currentLesson as any)?.summarySource || 'unknown', // Try to get source if available
+              lessonData: lessonToSave,
+              // --- FIX: Safely access responseData ---
+              summarySource: responseData?.summarySource || (currentLesson as any)?.summarySource || 'unknown',
+              // --- END FIX ---
               createdAt: Timestamp.now()
           });
           console.log("Lesson saved/resaved to Firestore");
@@ -357,17 +427,33 @@ const App: React.FC = () => {
 
     } catch (e) {
       console.error("Error in handleSelectArticle API call block:", e);
-      setError(`Failed to process lesson: ${(e as Error).message}`); // More specific error
-      goToInput(); // Go back to safety on error
+      // Check if the error is the ReferenceError or something else
+      if (e instanceof ReferenceError) {
+          setError(`Programming error: Trying to use a variable before it's defined. (${(e as Error).message})`);
+      } else {
+          setError(`Failed to process lesson: ${(e as Error).message}`);
+      }
+      // --- FIX: Avoid navigating home on error if skipNavigation is true ---
+      if (!skipNavigation) {
+          goToInput(); // Go back only if user initiated this action
+      }
+      // --- END FIX ---
     } finally {
+        console.log("handleSelectArticle finally block.");
+        setIsLessonGenerating(false);
         setIsApiLoading(false);
     }
   }, [
-      inputLevel, authState, user, db, authenticatedFetch,
-      setCurrentArticle, currentLesson, setCurrentLesson, // Added currentLesson
-      setError, goToLesson, goToInput, inputTopic,
-      setCurrentView, setIsApiLoading, currentArticle // Added currentArticle
-  ]); // Added dependencies
+      // --- REMOVE skipNavigation from this list ---
+      authState, user, currentArticle?.link, currentLesson, inputLevel, inputTopic,
+      db, // <-- skipNavigation was here, now removed
+      setError, setIsApiLoading, setIsLessonGenerating, setCurrentLesson,
+      setSummaryAudioSrc, setIsSummaryPlaying, setSummaryAudioProgress,
+      setSummaryAudioDuration, setSummaryAudioError, setCurrentArticle,
+      goToLesson, goToInput, authenticatedFetch, fetchSummaryAudio,
+      summaryAudioSrc, isSummaryAudioLoading
+      // --- END REMOVAL ---
+  ]);
 
   // --- URL Handling Logic ---
   const handleUrlChange = useCallback((path: string, params: URLSearchParams, newState?: { article?: Article | null }) => {
@@ -439,11 +525,25 @@ const App: React.FC = () => {
       }
     }
 
+    if (path.startsWith('/lesson') && authState === 'SIGNED_IN') {
+        const urlParam = params.get('url');
+        const articleForCheck = newState?.article !== undefined ? newState.article : currentArticle;
+
+        if (urlParam && currentLesson && articleForCheck && articleForCheck.link === urlParam) {
+            // Lesson and article match URL, check if audio needs fetching
+            if (currentLesson.summary && !summaryAudioSrc && !isSummaryAudioLoading) {
+               console.log("handleUrlChange: Fetching summary audio for existing lesson on nav/refresh.");
+               fetchSummaryAudio(currentLesson.summary);
+            }
+        }
+     }
+
   }, [
     // Keep all dependencies here
     authState, currentLesson, currentArticle, newsResults, inputTopic, inputLevel, isApiLoading,
     setCurrentView, setInputTopic, setInputLevel, setError, setNewsResults, setCurrentArticle, setCurrentLesson, // Added missing setters
-    handleSelectArticle, handleFindArticles, goToInput // Ensure these are stable (defined with useCallback)
+    handleSelectArticle, handleFindArticles, goToInput, // Ensure these are stable (defined with useCallback)
+    fetchSummaryAudio, summaryAudioSrc, isSummaryAudioLoading,
   ]);
 
   // --- Update the ref with the latest handler ---
@@ -523,10 +623,21 @@ const App: React.FC = () => {
 
   const startActivity = (type: ActivityType) => {
     if (!currentLesson) return;
-    setError(null); // Clear global errors
+    setError(null);
     let totalItems = 0;
-    if (type === 'vocab') totalItems = currentLesson.vocabularyList.length;
-    if (type === 'grammar') totalItems = 5; // Let's aim for 5 grammar questions
+    let shuffledIndices: number[] | undefined = undefined; // <-- Initialize here
+
+    if (type === 'vocab') {
+      totalItems = currentLesson.vocabularyList.length;
+      if (totalItems > 0) {
+        // --- Create and shuffle indices ---
+        const indices = Array.from(Array(totalItems).keys()); // [0, 1, 2, ..., totalItems-1]
+        shuffledIndices = shuffleArray(indices); // Shuffle the indices
+        console.log("Shuffled vocab indices:", shuffledIndices); // Log shuffled order
+        // --- End shuffling ---
+      }
+    }
+    if (type === 'grammar') totalItems = 5;
     if (type === 'comprehension') totalItems = currentLesson.comprehensionQuestions.length;
 
     if (totalItems === 0) {
@@ -539,12 +650,13 @@ const App: React.FC = () => {
       index: 0,
       score: 0,
       total: totalItems,
-      currentData: null, // Will be loaded by useEffect
+      shuffledIndices: shuffledIndices, // <-- Store shuffled indices (will be undefined for non-vocab)
+      currentData: null,
       userAnswer: null,
       feedback: { isCorrect: null, message: '' },
       isSubmitting: false,
     });
-    setCurrentView('ACTIVITY'); // Switch view
+    setCurrentView('ACTIVITY');
   };
 
   const quitActivity = () => {
@@ -552,163 +664,258 @@ const App: React.FC = () => {
     goToLesson(currentArticle!); // Go back to the lesson URL
   };
 
-  // Effect to load data for the current activity step
+  // --- Wrap shuffleArray in useCallback ---
+  const shuffleArray = useCallback(<T,>(array: T[]): T[] => {
+    let currentIndex = array.length, randomIndex;
+    while (currentIndex !== 0) {
+      randomIndex = Math.floor(Math.random() * currentIndex);
+      currentIndex--;
+      [array[currentIndex], array[randomIndex]] = [
+        array[randomIndex], array[currentIndex]];
+    }
+    return array;
+  }, []); // Stable reference needed for dependency array
+
+
+  // Effect to load data for the current activity step (REVISED AGAIN - Simpler Loading Logic)
   useEffect(() => {
-    // Ensure we are in the activity view and have necessary state
+    // --- Early exit if not in the right view or state is missing ---
     if (currentView !== 'ACTIVITY' || !activityState || !currentLesson) {
-        console.log("Activity useEffect: Bailing early", { currentView, activityState, currentLesson });
-        return;
+      console.log("Activity useEffect: Bailing early (not in activity view or missing state)");
+      return;
     }
 
-    const { type, index, total } = activityState;
+    const { type, index, total, shuffledIndices, currentData, isSubmitting } = activityState;
+    const currentStepKey = `${type}-${index}`; // Unique identifier for this step
 
-    // Check if activity is finished
+    // --- Handle activity completion ---
     if (index >= total) {
-        console.log("Activity finished, index >= total.");
-        // Set view to finished state or trigger quit
-         setActivityState(prev => prev ? ({ ...prev, currentData: { finished: true } }) : null); // Mark as finished
-        return;
+      console.log(`Activity finished check: index ${index} >= total ${total}.`);
+      // Only update state if not already marked as finished
+      if (!currentData?.finished) {
+        setActivityState(prev => {
+          if (!prev || prev.index !== index) return prev; // Check relevance
+          if (prev.currentData?.finished) return prev; // Already marked
+          console.log("Setting finished state.");
+          return { ...prev, currentData: { finished: true }, isSubmitting: false }; // Ensure loading is off
+        });
+      }
+      return; // Done
     }
 
-    // Reset answer/feedback for the new step BEFORE loading/generating data
-    setActivityState(prev => prev ? ({
-         ...prev,
-         userAnswer: null,
-         feedback: { isCorrect: null, message: '' },
-         // Keep currentData null only if we need to fetch (grammar)
-         currentData: type === 'grammar' ? null : prev.currentData,
-         isSubmitting: type === 'grammar' // Set submitting true only for grammar fetch
-     }) : null);
+    // --- Check if data loading for this step is already complete OR actively loading ---
+    if (currentData && currentData._stepIdentifier === currentStepKey) {
+        console.log(`Activity useEffect: Data already loaded for ${currentStepKey}, exiting.`);
+        return; // Data already present
+    }
+    if (loadingStepRef.current === currentStepKey) {
+         console.log(`Activity useEffect: Fetch already in progress for ${currentStepKey} (ref check), exiting.`);
+         return; // Fetch is already running for this exact step
+    }
+    // --- End Check ---
 
 
-    console.log(`Activity useEffect: Loading data for type=${type}, index=${index}`);
+    console.log(`Activity useEffect: Proceeding to load data for ${currentStepKey}`);
 
-    let dataForStep: any = null;
+    // --- Prepare Data (Sync or Async) ---
+    let dataPromise: Promise<any>; // Use a promise to handle both sync and async paths
 
-    try { // Wrap data access in try-catch for safety
-        if (type === 'vocab') {
-            if (index < currentLesson.vocabularyList.length) {
-                const vocabItem = currentLesson.vocabularyList[index];
-                // --- ADD VALIDATION ---
-                if (vocabItem && typeof vocabItem.definition === 'string') {
-                    dataForStep = vocabItem; // Contains word, definition
-                } else {
-                    console.error(`Error: Vocab item at index ${index} is invalid or missing definition.`, vocabItem);
-                    setError(`Error loading vocabulary item #${index + 1}.`);
-                    quitActivity(); // Exit activity on bad data
-                    return;
-                }
-                // --- END VALIDATION ---
-            }
-        } else if (type === 'comprehension') {
-            if (index < currentLesson.comprehensionQuestions.length) {
-                const questionText = currentLesson.comprehensionQuestions[index];
-                // --- ADD VALIDATION ---
-                if (typeof questionText === 'string' && questionText.trim() !== '') {
-                    dataForStep = { question: questionText, summary: currentLesson.summary };
-                } else {
-                     console.error(`Error: Comprehension question at index ${index} is invalid or empty.`, questionText);
-                     setError(`Error loading comprehension question #${index + 1}.`);
-                     quitActivity(); // Exit activity on bad data
-                     return;
-                }
-                // --- END VALIDATION ---
-            }
-        } else if (type === 'grammar') {
-            // Grammar data is fetched asynchronously
-            console.log("Activity useEffect: Fetching grammar question...");
-            authenticatedFetch('handleActivity', {
-                activityType: 'grammar_generate',
-                payload: {
-                topic: currentLesson.grammarFocus.topic,
-                explanation: currentLesson.grammarFocus.explanation,
-                level: inputLevel
-                }
-            })
-            .then(data => {
-                 // --- ADD VALIDATION ---
-                if (data && typeof data.question === 'string' && data.options && Array.isArray(data.options)) {
-                    setActivityState(prev => prev ? ({ ...prev, currentData: data, isSubmitting: false }) : null);
-                    console.log("Grammar question received:", data);
-                } else {
-                     console.error("Error: Invalid grammar data received from backend.", data);
-                     setError("Failed to load a valid grammar question.");
-                     setActivityState(prev => prev ? ({ ...prev, isSubmitting: false }) : null); // Stop loading
-                     quitActivity();
-                }
-                 // --- END VALIDATION ---
-            })
-            .catch(err => {
-                console.error("Error fetching grammar question:", err);
-                setError(`Failed to generate grammar question: ${err.message}`);
-                setActivityState(prev => prev ? ({ ...prev, isSubmitting: false }) : null);
-                quitActivity();
-            });
-            return; // Return early for async grammar fetch
+    if (type === 'vocab' && shuffledIndices) {
+      dataPromise = Promise.resolve().then(() => { // Wrap sync logic in resolved promise
+        const actualItemIndex = shuffledIndices[index];
+        if (actualItemIndex >= currentLesson.vocabularyList.length) throw new Error(`Invalid shuffled index ${actualItemIndex}`);
+        const currentVocabItem = currentLesson.vocabularyList[actualItemIndex];
+        if (!currentVocabItem || !currentVocabItem.word || !currentVocabItem.definition) throw new Error(`Invalid vocab item at index ${actualItemIndex}`);
+        let dataForStep: any = { word: currentVocabItem.word, definition: currentVocabItem.definition };
+        if (inputLevel !== 'Advanced') {
+          const numOptions = inputLevel === 'Beginner' ? 2 : 4;
+          const otherIndices = shuffledIndices.filter((_, i) => i !== index);
+          const distractors = shuffleArray(otherIndices).slice(0, numOptions - 1).map(idx => currentLesson.vocabularyList[idx].word);
+          dataForStep.options = shuffleArray([ currentVocabItem.word, ...distractors ]);
         }
-
-        // --- Update state if data was found synchronously ---
-        if (dataForStep) {
-             console.log("Setting currentData for sync step:", dataForStep);
-            setActivityState(prev => prev ? ({ ...prev, currentData: dataForStep, isSubmitting: false }) : null); // Ensure isSubmitting is false
-        } else {
-             // This case might happen if index is out of bounds but wasn't caught earlier
-             console.warn(`Activity useEffect: No data found for type=${type}, index=${index}. Exiting activity.`);
-             setError(`Could not load item #${index + 1}.`);
-             quitActivity();
-        }
-    } catch (dataAccessError) {
-         console.error(`Error accessing lesson data for type=${type}, index=${index}:`, dataAccessError);
-         setError("An error occurred while preparing the activity.");
-         quitActivity();
+        return dataForStep;
+      });
+    } else if (type === 'comprehension') {
+      dataPromise = Promise.resolve().then(() => { // Wrap sync logic in resolved promise
+        if (index >= currentLesson.comprehensionQuestions.length) throw new Error(`Index ${index} out of bounds for comprehension`);
+        const questionText = currentLesson.comprehensionQuestions[index];
+        if (!questionText || typeof questionText !== 'string') throw new Error(`Invalid comprehension question at index ${index}`);
+        return { question: questionText, summary: currentLesson.summary };
+      });
+    } else if (type === 'grammar') {
+      console.log(`Setting loading ref and starting grammar fetch for ${currentStepKey}...`);
+      loadingStepRef.current = currentStepKey; // Mark this step as loading
+      setActivityState(prev => { // Set loading state immediately *before* fetch
+           if (!prev || prev.index !== index || prev.type !== 'grammar') return prev; // Check relevance
+           return { ...prev, isSubmitting: true, currentData: null, userAnswer: null, feedback: {isCorrect: null, message: ''}}; // Clear old data/answer/feedback
+      });
+      dataPromise = authenticatedFetch('handleActivity', {
+          activityType: 'grammar_generate',
+          payload: { topic: currentLesson.grammarFocus.topic, explanation: currentLesson.grammarFocus.explanation, level: inputLevel }
+      }).then(fetchedData => {
+          console.log(`Grammar fetch successful for ${currentStepKey}`);
+          if (fetchedData?.question && fetchedData?.options) { return fetchedData; }
+          else { throw new Error("Invalid grammar data received."); }
+      }); // Error handling happens in the final .catch
+    } else {
+      // Should not happen if type is validated earlier
+      dataPromise = Promise.reject(new Error(`Unhandled activity type: ${type}`));
     }
 
-  }, [currentView, activityState?.type, activityState?.index]);
+    // --- Process the data promise ---
+    dataPromise.then(dataForStep => {
+      // Check if the component is still mounted and focused on the correct step
+      if (loadingStepRef.current !== currentStepKey && type === 'grammar') {
+         console.log(`Data received for ${currentStepKey}, but loading ref changed or cleared. Discarding.`);
+         return; // A new fetch was likely started, ignore this result
+      }
+       // If it's a sync type, loadingStepRef won't be set, rely on index/type check
+      console.log(`Setting final currentData for step ${currentStepKey}`);
+      setActivityState(prev => {
+        // Final relevance check
+        if (!prev || prev.type !== type || prev.index !== index) {
+            console.log(`Final state update for ${currentStepKey} aborted: state changed.`);
+            return prev;
+        }
+        // Avoid setting if data is already somehow present
+        if (prev.currentData?._stepIdentifier === currentStepKey) {
+            console.log(`Final state update for ${currentStepKey} aborted: data already present.`);
+             // Still ensure loading is off if needed
+             if(prev.isSubmitting) return {...prev, isSubmitting: false, _loadingStepKey: null };
+            return prev;
+        }
+
+        console.log(`Executing final state update for ${currentStepKey}`);
+        return {
+          ...prev,
+          currentData: { ...dataForStep, _stepIdentifier: currentStepKey }, // Add step key
+          isSubmitting: false, // Ensure loading is off
+          _loadingStepKey: null // Clear tracking ref value in state if it exists
+        };
+      });
+    })
+    .catch(error => {
+       // Check if the error is for the step we are currently trying to load
+      if (loadingStepRef.current !== currentStepKey && type === 'grammar') {
+         console.log(`Error caught for ${currentStepKey}, but loading ref changed or cleared. Ignoring error.`);
+         return;
+      }
+      // If it's a sync type, check index/type
+      if (activityState?.type !== type || activityState?.index !== index) {
+         console.log(`Error caught for ${currentStepKey}, but state changed. Ignoring error.`);
+         return;
+      }
+
+      console.error(`Error processing/fetching activity data for ${currentStepKey}:`, error);
+      setError(`An error occurred: ${(error as Error).message}`);
+      setActivityState(prev => { // Ensure loading state is turned off on error
+         if (!prev || !(prev.index === index && prev.type === type)) return prev;
+         return {...prev, isSubmitting: false, _loadingStepKey: null };
+      });
+      quitActivity(); // Exit activity on error
+    })
+    .finally(() => {
+        // Clear the loading ref *only if* it currently matches this step's key
+        if (loadingStepRef.current === currentStepKey) {
+            console.log(`Clearing loading ref for ${currentStepKey}`);
+            loadingStepRef.current = null;
+        }
+    });
+
+    // Cleanup function is automatically handled by React for the effect itself
+    // We don't need isCurrentActivityStep flag with the ref approach
+    return () => {
+        console.log(`Activity useEffect cleanup running for ${currentStepKey} (effect instance end)`);
+        // If this cleanup runs *while* its corresponding grammar fetch was active, clear the ref
+        if (loadingStepRef.current === currentStepKey) {
+            console.log(`Cleanup clearing loading ref for ${currentStepKey} because effect instance ended`);
+            loadingStepRef.current = null;
+        }
+    };
+
+  // Keep dependencies tight: Only re-run when the step fundamentally changes
+  }, [
+      currentView, activityState?.type, activityState?.index, // Step definition
+      activityState?.shuffledIndices, // Needed for vocab order
+      inputLevel, currentLesson, // Data sources
+      authenticatedFetch, quitActivity, setError, shuffleArray // Stable functions
+  ]);
 
   const handleSubmitAnswer = async () => {
-    if (!activityState || activityState.userAnswer === null || activityState.feedback.isCorrect !== null) return; // Don't submit if already graded or no answer
+    if (!activityState || !activityState.currentData || activityState.userAnswer === null || activityState.feedback.isCorrect !== null) return;
 
     setActivityState(prev => prev ? ({ ...prev, isSubmitting: true }) : null);
     setError(null);
 
-    const { type, currentData, userAnswer } = activityState;
-    let requestPayload: any = {};
-    let gradeType: string = type; // Default to type
+    const { type, currentData, userAnswer, score } = activityState;
+    let isCorrect: boolean = false;
+    let feedbackMsg: string = '';
 
     try {
-      if (type === 'vocab') {
-        requestPayload = { word: currentData.word, definition: currentData.definition, userAnswer: String(userAnswer) };
-      } else if (type === 'grammar') {
-        gradeType = 'grammar_grade'; // Use specific grading type
-        requestPayload = {
-          question: currentData.question,
-          options: currentData.options,
-          correctAnswer: currentData.correctAnswer,
-          userAnswer: String(userAnswer) // Send selected letter
-        };
-      } else if (type === 'comprehension') {
-        requestPayload = {
-          question: currentData.question,
-          summary: currentData.summary,
-          userAnswer: String(userAnswer)
-        };
-      }
+        if (type === 'vocab') {
+            // --- MODIFIED: Direct check for both MC and Fill-in-the-blank ---
+            isCorrect = String(userAnswer).trim().toLowerCase() === String(currentData.word).trim().toLowerCase();
+            feedbackMsg = isCorrect ? "Correct!" : `Incorrect. The word was "${currentData.word}".`;
 
-      const result = await authenticatedFetch('handleActivity', {
-        activityType: gradeType,
-        payload: requestPayload
-      });
+            // Optional: Add AI check for 'Advanced' level typos here if desired
+            // if (inputLevel === 'Advanced' && !isCorrect) { ... call handleActivity ... }
 
-      setActivityState(prev => {
-        if (!prev) return null;
-        const newScore = result.isCorrect ? prev.score + 1 : prev.score;
-        return {
-          ...prev,
-          feedback: { isCorrect: result.isCorrect, message: result.feedback || (result.isCorrect ? 'Correct!' : 'Incorrect.') },
-          score: newScore,
-          isSubmitting: false
-        };
-      });
+            // Update state directly for vocab
+            setActivityState(prev => {
+                if (!prev) return null;
+                const newScore = isCorrect ? prev.score + 1 : prev.score;
+                return {
+                    ...prev,
+                    feedback: { isCorrect: isCorrect, message: feedbackMsg },
+                    score: newScore,
+                    isSubmitting: false
+                };
+            });
+            // --- END MODIFICATION ---
+
+        } else if (type === 'grammar') {
+            // Grammar grading remains the same (uses backend)
+            const result = await authenticatedFetch('handleActivity', {
+                activityType: 'grammar_grade',
+                payload: {
+                    question: currentData.question,
+                    options: currentData.options,
+                    correctAnswer: currentData.correctAnswer,
+                    userAnswer: String(userAnswer)
+                }
+            });
+            setActivityState(prev => {
+                if (!prev) return null;
+                const newScore = result.isCorrect ? prev.score + 1 : prev.score;
+                return {
+                  ...prev,
+                  feedback: { isCorrect: result.isCorrect, message: result.feedback || (result.isCorrect ? 'Correct!' : 'Incorrect.') },
+                  score: newScore,
+                  isSubmitting: false
+                };
+            });
+
+        } else if (type === 'comprehension') {
+            // Comprehension grading remains the same (uses backend)
+             const result = await authenticatedFetch('handleActivity', {
+                activityType: 'comprehension',
+                payload: {
+                    question: currentData.question,
+                    summary: currentData.summary,
+                    userAnswer: String(userAnswer)
+                }
+             });
+             setActivityState(prev => {
+                 if (!prev) return null;
+                 const newScore = result.isCorrect ? prev.score + 1 : prev.score;
+                 return {
+                   ...prev,
+                   feedback: { isCorrect: result.isCorrect, message: result.feedback || (result.isCorrect ? 'Correct!' : 'Incorrect.') },
+                   score: newScore,
+                   isSubmitting: false
+                 };
+             });
+        }
 
     } catch (err) {
       setError(`Error submitting answer: ${(err as Error).message}`);
@@ -733,21 +940,26 @@ const App: React.FC = () => {
      });
    };
 
-   // --- NEW: Text-to-Speech Handler ---
-  const handleTextToSpeech = async (text: string | undefined | null) => {
-    console.log("handleTextToSpeech called with text:", text);
+   // --- Activity Text-to-Speech Handler (Renamed) ---
+  const handleActivityTextToSpeech = async (text: string | undefined | null) => { // Renamed function
+    console.log("handleActivityTextToSpeech called with text:", text);
 
-    if (!text || isAudioLoading) {
-        console.log("handleTextToSpeech returning early. Reason:", !text ? "No text" : "Audio loading");
-        return; // Don't run if no text or already loading
+    if (!text || isActivityAudioLoading) { // Use renamed state variable
+        console.log("handleActivityTextToSpeech returning early. Reason:", !text ? "No text" : "Activity audio loading");
+        return;
     }
-    if (currentAudioRef.current) {
-        currentAudioRef.current.pause(); // Stop previous audio if playing
-        currentAudioRef.current = null;
+    // Stop OTHER audio if playing
+    if (summaryAudioRef.current) {
+        summaryAudioRef.current.pause();
+        setIsSummaryPlaying(false);
+    }
+    if (activityAudioRef.current) { // Use renamed ref
+        activityAudioRef.current.pause();
+        activityAudioRef.current = null;
     }
 
-    setIsAudioLoading(true);
-    setAudioError(null);
+    setIsActivityAudioLoading(true); // Use renamed state variable
+    setActivityAudioError(null); // Use renamed state variable
     setError(null); // Clear main error
 
     try {
@@ -755,39 +967,126 @@ const App: React.FC = () => {
         if (response.audioContent) {
             const audioData = `data:audio/mp3;base64,${response.audioContent}`;
             const audio = new Audio(audioData);
-            currentAudioRef.current = audio; // Store reference
+            activityAudioRef.current = audio; // Store reference in renamed ref
             audio.play().catch(e => {
-                console.error("Audio play failed:", e);
-                setAudioError("Could not play audio.");
+                console.error("Activity audio play failed:", e);
+                setActivityAudioError("Could not play audio."); // Use renamed state variable
             });
-            // Handle audio ending or error during playback
-            audio.onended = () => { currentAudioRef.current = null; };
+            audio.onended = () => { activityAudioRef.current = null; };
             audio.onerror = () => {
-                console.error("Audio element error");
-                setAudioError("Error playing audio file.");
-                currentAudioRef.current = null;
+                console.error("Activity audio element error");
+                setActivityAudioError("Error playing audio file."); // Use renamed state variable
+                activityAudioRef.current = null;
             };
         } else {
             throw new Error("Backend did not return audio content.");
         }
     } catch (e) {
-        console.error("TTS Fetch Error:", e);
-        setAudioError(`Failed to get audio: ${(e as Error).message}`);
+        console.error("Activity TTS Fetch Error:", e);
+        setActivityAudioError(`Failed to get audio: ${(e as Error).message}`); // Use renamed state variable
     } finally {
-        setIsAudioLoading(false);
+        setIsActivityAudioLoading(false); // Use renamed state variable
     }
+  };
+
+  // --- NEW: Summary Audio Player Logic ---
+  // Effect to create Audio object when src changes
+  useEffect(() => {
+    if (summaryAudioSrc && !summaryAudioRef.current) {
+      console.log("Creating new Audio object for summary");
+      const audio = new Audio(summaryAudioSrc);
+      summaryAudioRef.current = audio;
+
+      const setAudioData = () => {
+        if (summaryAudioRef.current) {
+          setSummaryAudioDuration(summaryAudioRef.current.duration);
+          setSummaryAudioProgress(summaryAudioRef.current.currentTime);
+        }
+      };
+
+      const setAudioTime = () => {
+        if (summaryAudioRef.current) {
+          setSummaryAudioProgress(summaryAudioRef.current.currentTime);
+        }
+      };
+
+      const setAudioEnd = () => {
+        setIsSummaryPlaying(false);
+        setSummaryAudioProgress(0); // Reset progress on end
+      };
+
+      audio.addEventListener("loadedmetadata", setAudioData);
+      audio.addEventListener("timeupdate", setAudioTime);
+      audio.addEventListener("ended", setAudioEnd);
+
+      // Cleanup
+      return () => {
+        audio.removeEventListener("loadedmetadata", setAudioData);
+        audio.removeEventListener("timeupdate", setAudioTime);
+        audio.removeEventListener("ended", setAudioEnd);
+        audio.pause(); // Ensure it stops if component unmounts
+        summaryAudioRef.current = null; // Clean up ref
+      };
+    } else if (!summaryAudioSrc && summaryAudioRef.current) {
+        // If src is cleared, clean up the existing audio object
+        summaryAudioRef.current.pause();
+        summaryAudioRef.current = null;
+    }
+  }, [summaryAudioSrc]); // Re-run only when src changes
+
+  const toggleSummaryPlayPause = () => {
+    if (summaryAudioRef.current) {
+      if (isSummaryPlaying) {
+        summaryAudioRef.current.pause();
+      } else {
+        // --- Pause ACTIVITY audio if it's playing ---
+        if (activityAudioRef.current) {
+            activityAudioRef.current.pause();
+            // Optionally update activity audio state if needed, though pausing is the main goal
+        }
+        // --- End Pause ACTIVITY audio ---
+        summaryAudioRef.current.play().catch(e => {
+            console.error("Summary audio play error:", e);
+            setSummaryAudioError("Could not play audio.");
+        });
+
+      }
+      setIsSummaryPlaying(!isSummaryPlaying);
+    } else if (currentLesson?.summary && !isSummaryAudioLoading) {
+        // If audio not loaded yet, fetch it and then play (will happen via useEffect)
+        fetchSummaryAudio(currentLesson.summary);
+    }
+  };
+
+  const handleSeek = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (summaryAudioRef.current) {
+      const time = Number(event.target.value);
+      summaryAudioRef.current.currentTime = time;
+      setSummaryAudioProgress(time);
+    }
+  };
+
+  // Helper to format time (MM:SS)
+  const formatTime = (timeInSeconds: number): string => {
+    if (isNaN(timeInSeconds) || timeInSeconds < 0) return "00:00";
+    const minutes = Math.floor(timeInSeconds / 60);
+    const seconds = Math.floor(timeInSeconds % 60);
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
   // --- Render Functions ---
 
   const renderInput = () => (
-    <div className="p-6 max-w-lg mx-auto bg-white rounded-xl shadow-2xl space-y-6">
-      <div className="flex justify-between items-center">
-        <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-10" />
+    // Add padding-x for mobile screens to prevent elements touching edges
+    <div className="p-4 sm:p-6 max-w-lg mx-auto bg-white rounded-xl shadow-2xl space-y-6">
+      {/* Use flex-wrap and justify-between for better mobile header layout */}
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" /> {/* Slightly smaller banner on smallest screens */}
         {user && (
           <button
             onClick={handleSignOut}
-            className="text-sm text-red-600 hover:text-red-800 font-medium ml-4 flex-shrink-0"
+            // Adjusted padding and margin for better fit
+            className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1 flex-shrink-0"
           >
             Sign Out ({user.displayName?.split(' ')[0] || user.email?.split('@')[0] || 'User'})
           </button>
@@ -814,20 +1113,22 @@ const App: React.FC = () => {
         <label htmlFor="topic" className="block text-sm font-medium text-gray-700 mb-2">
           Enter a topic or choose one below:
         </label>
-        <div className="flex gap-2">
+        {/* Use flex-wrap for the input and button on small screens */}
+        <div className="flex flex-wrap sm:flex-nowrap gap-2">
           <input
             id="topic"
             type="text"
             value={inputTopic}
             onChange={(e) => setInputTopic(e.target.value)}
             placeholder="e.g., AI, Space, Cooking"
-            className="flex-grow p-3 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+            className="flex-grow p-3 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 w-full sm:w-auto" // Ensure input takes full width on small screens
             onKeyDown={(e) => { if (e.key === 'Enter') handleFindArticles() }}
           />
           <button
             onClick={() => handleFindArticles()}
             disabled={isApiLoading || !inputTopic.trim()}
-            className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            // Make button full width on small screens, adjust padding
+            className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto flex-shrink-0"
             title="Find articles for the entered topic"
           >
             Search
@@ -836,7 +1137,8 @@ const App: React.FC = () => {
       </div>
       <div>
         <p className="text-sm font-medium text-gray-700 mb-3 text-center">Or select a popular topic:</p>
-        <div className="grid grid-cols-4 gap-2">
+        {/* --- CHANGE HERE: grid-cols-2 by default, md:grid-cols-4 for medium and up --- */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {newsTopics.map((topic) => (
             <button
               key={topic}
@@ -857,23 +1159,35 @@ const App: React.FC = () => {
   );
 
   const renderNewsList = () => (
-    <div className="p-6 max-w-3xl mx-auto bg-white rounded-xl shadow-2xl space-y-4">
-      <div className="flex justify-between items-center">
+    <div className="p-4 sm:p-6 max-w-3xl mx-auto bg-white rounded-xl shadow-2xl space-y-4">
+      <div className="flex flex-wrap justify-between items-center gap-2 border-b pb-3 mb-3">
+        {/* Banner on the left */}
+        <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" />
+        {/* Sign out button on the right */}
         <button
-          onClick={goToInput}
-          className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
-        >
-          <ArrowLeftIcon className="w-4 h-4 mr-1" /> Change Topic
-        </button>
-        <h2 className="text-xl font-bold text-gray-800 text-center flex-grow mx-2 truncate">
-          Articles on "{inputTopic}" ({inputLevel})
-        </h2>
-         <button
             onClick={handleSignOut}
-            className="text-sm text-red-600 hover:text-red-800 font-medium"
+            className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1 flex-shrink-0"
           >
             Sign Out
-          </button>
+        </button>
+        {/* Back button and Title on a new line, spanning full width */}
+        <div className="w-full flex justify-between items-center mt-2 gap-2">
+            <button
+              onClick={goToInput}
+              className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium flex-shrink-0"
+              title="Change Topic"
+            >
+              <ArrowLeftIcon className="w-4 h-4 mr-1" /> Back
+            </button>
+            {/* Title - allow wrapping */}
+            <h2 className="text-lg sm:text-xl font-bold text-gray-800 text-center flex-grow min-w-0 break-words px-2"> {/* Added break-words and padding */}
+              Articles on "{inputTopic}" ({inputLevel})
+            </h2>
+            {/* Invisible placeholder to balance the flex layout, matching back button space */}
+            <div className="flex items-center text-sm font-medium flex-shrink-0 invisible">
+                 <ArrowLeftIcon className="w-4 h-4 mr-1" /> Back
+            </div>
+        </div>
       </div>
       <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
         {isApiLoading && !newsResults.length ? ( // Show loading only if results aren't already displayed
@@ -915,40 +1229,76 @@ const App: React.FC = () => {
 
   const renderLessonView = () => {
     // Show loading spinner if lesson is being generated or hasn't loaded from state yet
-    if (isApiLoading || !currentLesson) {
+    if (isLessonGenerating || (!currentLesson && currentView === 'LESSON_VIEW')) {
         return (
-             <div className="p-6 max-w-4xl mx-auto bg-white rounded-xl shadow-2xl space-y-6">
-                <button
-                    onClick={() => goToSearch(inputTopic, inputLevel)}
+             <div className="p-4 sm:p-6 max-w-4xl mx-auto bg-white rounded-xl shadow-2xl space-y-6">
+                {/* Header for Loading State */}
+                <div className="flex flex-wrap justify-between items-center gap-2 border-b pb-3 mb-3">
+                     <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" />
+                     {user && ( <button onClick={handleSignOut} className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1"> Sign Out </button> )}
+                 </div>
+                 <button
+                    // Go back to search results if possible, otherwise input
+                    onClick={() => newsResults.length > 0 ? goToSearch(inputTopic, inputLevel) : goToInput()}
                     className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
                 >
-                    <ArrowLeftIcon className="w-4 h-4 mr-1" /> Back to Articles
+                    <ArrowLeftIcon className="w-4 h-4 mr-1" /> Back
                 </button>
                 <LoadingSpinner text="Generating your lesson, this may take a moment..." />
              </div>
         );
     }
 
+    // Render the lesson content (ensure currentLesson exists here)
+    if (!currentLesson) {
+       // Fallback case - should ideally not be reached if loading check is correct
+       console.error("RenderLessonView: currentLesson is null after loading check.");
+       setError("Failed to load lesson data. Please try again.");
+       goToInput(); // Navigate back safely
+       return null; // Don't render anything
+    }
+
     // Render the lesson content
     return (
-      <div className="p-6 max-w-4xl mx-auto bg-white rounded-xl shadow-2xl space-y-6">
-        <div className="flex justify-between items-center border-b pb-4 gap-4">
-          <button
-            onClick={() => goToSearch(inputTopic, inputLevel)}
-            className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium flex-shrink-0"
-          >
-            <ArrowLeftIcon className="w-4 h-4 mr-1" /> Back
-          </button>
-          <h2 className="text-2xl font-extrabold text-blue-700 text-center flex-grow min-w-0 truncate">
-            {currentLesson?.articleTitle || "Generated Lesson"}
-          </h2>
-          <button
-            onClick={goToInput}
-            className="flex items-center text-indigo-600 hover:text-indigo-800 text-sm font-medium flex-shrink-0"
-            title="Start New Topic"
-          >
-            <RestartIcon className="w-4 h-4 mr-1" /> New Topic
-          </button>
+      <div className="p-4 sm:p-6 max-w-4xl mx-auto bg-white rounded-xl shadow-2xl space-y-6">
+        {/* --- MODIFIED HEADER --- */}
+        <div className="flex flex-wrap justify-between items-center gap-2 border-b pb-3 mb-3">
+            {/* Banner on the left */}
+            <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" />
+             {/* Action buttons on the right */}
+            <div className="flex gap-2 flex-shrink-0">
+                 <button
+                    onClick={goToInput}
+                    className="flex items-center text-indigo-600 hover:text-indigo-800 text-sm font-medium p-1 rounded hover:bg-indigo-50"
+                    title="Start New Topic"
+                  >
+                    <RestartIcon className="w-4 h-4 sm:mr-1" /> <span className="hidden sm:inline">New Topic</span>
+                  </button>
+                 <button
+                    onClick={handleSignOut}
+                    className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1"
+                  >
+                    Sign Out
+                 </button>
+            </div>
+            {/* Back button and Title on a new line, spanning full width */}
+            <div className="w-full flex items-center mt-2 gap-2">
+                 <button
+                    onClick={() => goToSearch(inputTopic, inputLevel)}
+                    className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium flex-shrink-0"
+                    title="Back to Articles"
+                  >
+                    <ArrowLeftIcon className="w-4 h-4 mr-1" /> Back
+                  </button>
+                {/* Title - allow wrapping */}
+                 <h2 className="text-xl sm:text-2xl font-bold text-blue-700 text-center flex-grow min-w-0 break-words px-2"> {/* Added break-words and padding */}
+                   {currentLesson?.articleTitle || "Generated Lesson"}
+                 </h2>
+                 {/* Invisible placeholder to balance */}
+                 <div className="flex items-center text-sm font-medium flex-shrink-0 invisible">
+                      <ArrowLeftIcon className="w-4 h-4 mr-1" /> Back
+                 </div>
+            </div>
         </div>
 
         <p className="text-sm text-gray-600">
@@ -958,19 +1308,54 @@ const App: React.FC = () => {
         {/* Article Summary Section */}
         <div className="space-y-2 border-l-4 border-blue-500 pl-4 bg-blue-50 p-3 rounded-lg">
           <h3 className="text-xl font-bold text-blue-700">Article Summary</h3>
-          <div className="flex flex-col sm:flex-row gap-4"> {/* Stack on small screens */}
-            {currentArticle?.image && (
-              <img
-                src={currentArticle.image}
-                alt=""
-                className="w-20 h-20 object-cover rounded flex-shrink-0"
-                onError={(e) => (e.currentTarget.style.display = 'none')}
-              />
-            )}
-            <p className="text-gray-800 whitespace-pre-wrap flex-grow min-w-0">
-              {currentLesson?.summary}
-            </p>
-          </div>
+           {isSummaryAudioLoading && <LoadingSpinner className="w-5 h-5 inline-block mr-2"/>}
+           {summaryAudioError && <span className="text-red-600 text-xs ml-2">{summaryAudioError}</span>}
+
+           {/* --- Summary Audio Player MODIFIED --- */}
+           {summaryAudioSrc && summaryAudioDuration > 0 && (
+             // Reduce gap slightly, keep padding reasonable
+             <div className="flex items-center gap-2 bg-gray-100 p-2 rounded border border-gray-300">
+                <button
+                   onClick={toggleSummaryPlayPause}
+                   // Add flex-shrink-0 to prevent button from shrinking excessively
+                   className="p-1 text-blue-600 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded flex-shrink-0"
+                   aria-label={isSummaryPlaying ? 'Pause summary' : 'Play summary'}
+                 >
+                   {isSummaryPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />} {/* Slightly smaller icon */}
+                 </button>
+                 {/* Remove fixed width (w-10), add flex-shrink-0 */}
+                 <span className="text-xs font-mono text-gray-600 text-center flex-shrink-0">
+                     {formatTime(summaryAudioProgress)}
+                 </span>
+                 <input
+                     type="range"
+                     min="0"
+                     max={summaryAudioDuration}
+                     value={summaryAudioProgress}
+                     onChange={handleSeek}
+                     // flex-grow allows it to take remaining space, min-w-0 prevents it from causing overflow issues with flex siblings
+                     className="flex-grow h-1.5 bg-gray-300 rounded-lg appearance-none cursor-pointer range-sm dark:bg-gray-700 accent-blue-600 min-w-0"
+                 />
+                 {/* Remove fixed width (w-10), add flex-shrink-0 */}
+                 <span className="text-xs font-mono text-gray-600 text-center flex-shrink-0">
+                     {formatTime(summaryAudioDuration)}
+                 </span>
+             </div>
+           )}
+          <div className="mt-2 clearfix"> {/* Added clearfix utility */}
+             {currentArticle?.image && (
+               <img
+                 src={currentArticle.image}
+                 alt=""
+                 // Apply float, margin, and size constraints
+                 className="float-left w-20 h-20 sm:w-24 sm:h-24 object-cover rounded mr-4 mb-2" // Added float-left, margins (mr-4, mb-2), responsive size
+                 onError={(e) => (e.currentTarget.style.display = 'none')}
+               />
+             )}
+             <p className="text-gray-800 whitespace-pre-wrap"> {/* Text will now wrap */}
+               {currentLesson?.summary}
+             </p>
+           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4">
@@ -1082,25 +1467,24 @@ const App: React.FC = () => {
     if (feedback.isCorrect === true) feedbackColor = 'border-green-500 bg-green-50';
     if (feedback.isCorrect === false) feedbackColor = 'border-red-500 bg-red-50';
     
-    // Helper Button Component for TTS
-    const SpeakButton = ({ text }: { text: string | undefined | null }) => (
-        <button
-            onClick={() => {
-                console.log("SpeakButton clicked. Text:", text); // Log click and text
-                handleTextToSpeech(text);
-            }}
-            disabled={isAudioLoading || !text}
-            // --- ADD cursor-pointer ---
-            className="ml-2 p-1 text-gray-500 hover:text-blue-600 disabled:opacity-50 inline-block align-middle cursor-pointer disabled:cursor-not-allowed" // Added cursor-pointer and disabled:cursor-not-allowed
-            title="Read aloud"
+    // --- Use Renamed TTS Handler in SpeakButton ---
+     const SpeakButton = ({ text }: { text: string | undefined | null }) => (
+       <button
+          onClick={() => {
+              console.log("Activity SpeakButton clicked. Text:", text);
+              handleActivityTextToSpeech(text); // <-- Use renamed handler
+          }}
+          disabled={isActivityAudioLoading || !text} // <-- Use renamed state
+          className="ml-2 p-1 text-gray-500 hover:text-blue-600 disabled:opacity-50 inline-block align-middle cursor-pointer disabled:cursor-not-allowed"
+          title="Read aloud"
         >
-            {isAudioLoading ? (
-                 <LoadingSpinner className="w-4 h-4 inline-block" />
-            ) : (
-                 <VolumeUpIcon className="w-5 h-5" />
-            )}
-        </button>
-    );
+          {isActivityAudioLoading ? ( // <-- Use renamed state
+               <LoadingSpinner className="w-4 h-4 inline-block" />
+          ) : (
+               <VolumeUpIcon className="w-5 h-5" />
+          )}
+       </button>
+     );
 
     return (
       <div className={`p-6 max-w-2xl mx-auto bg-white rounded-xl shadow-2xl space-y-4 border-2 ${feedbackColor}`}>
@@ -1114,30 +1498,71 @@ const App: React.FC = () => {
         <hr/>
 
         {/* --- ADD Audio Error Display --- */}
-        {audioError && <ErrorMessage message={audioError} />}
+        {activityAudioError && <ErrorMessage message={activityAudioError} />}
 
         {/* Activity Content */}
         <div className="mt-4 space-y-4">
           {/* Vocabulary Flashcard */}
-          {type === 'vocab' && (
-            <div>
-              <p className="text-lg font-semibold text-gray-700 mb-2">
-                Definition:
-                {currentData.definition && <SpeakButton text={currentData.definition} />}
-              </p>
-              <p className="p-3 bg-gray-100 text-gray-900 rounded mb-4">{currentData.definition}</p>
-              <label htmlFor="vocab-guess" className="block text-sm font-medium text-gray-700 mb-1">Guess the word:</label>
-              <input
-                id="vocab-guess"
-                type="text"
-                value={String(userAnswer ?? '')}
-                onChange={(e) => setActivityState(prev => prev ? { ...prev, userAnswer: e.target.value } : null)}
-                disabled={feedback.isCorrect !== null || isSubmitting}
-                className="w-full p-2 border border-gray-300 text-gray-900 rounded disabled:bg-gray-100"
-                onKeyDown={(e) => { if (e.key === 'Enter' && feedback.isCorrect === null) handleSubmitAnswer() }}
-              />
-            </div>
-          )}
+          {type === 'vocab' && currentData && ( // Added currentData check
+             <div>
+               <p className="text-lg font-semibold text-gray-700 mb-2">
+                 Definition:
+                 {currentData.definition && <SpeakButton text={currentData.definition} />}
+               </p>
+               <p className="p-3 bg-gray-100 text-gray-900 rounded mb-4">{currentData.definition}</p>
+
+               {/* Conditional Rendering based on Level */}
+               {inputLevel === 'Advanced' ? (
+                 <>
+                   <label htmlFor="vocab-guess" className="block text-sm font-medium text-gray-700 mb-1">Type the word:</label>
+                   <input
+                     id="vocab-guess"
+                     type="text"
+                     value={String(userAnswer ?? '')}
+                     onChange={(e) => setActivityState(prev => prev ? { ...prev, userAnswer: e.target.value } : null)}
+                     disabled={feedback.isCorrect !== null || isSubmitting}
+                     className="w-full p-2 border border-gray-300 text-gray-900 rounded disabled:bg-gray-100"
+                     onKeyDown={(e) => { if (e.key === 'Enter' && feedback.isCorrect === null) handleSubmitAnswer() }}
+                   />
+                 </>
+               ) : ( // Beginner or Intermediate (Multiple Choice)
+                 <>
+                    <p className="block text-sm font-medium text-gray-700 mb-2">Choose the correct word:</p>
+                    <div className="space-y-2">
+                        {currentData.options?.map((option: string) => {
+                            let buttonClass = "w-full text-left text-gray-900 p-3 border rounded transition duration-150 ";
+                            const isSelected = userAnswer === option;
+
+                            if (feedback.isCorrect !== null) { // After grading
+                                if (option === currentData.word) {
+                                    buttonClass += "bg-green-300 border-green-400"; // Correct answer
+                                } else if (isSelected && !feedback.isCorrect) {
+                                    buttonClass += "bg-red-200 border-red-400"; // Incorrect selection
+                                } else {
+                                    buttonClass += "bg-gray-200 border-gray-300 opacity-70"; // Other options
+                                }
+                            } else { // Before grading
+                                 buttonClass += isSelected
+                                                 ? "bg-blue-300 border-blue-400" // Selected
+                                                 : "bg-white border-gray-300 hover:bg-gray-50"; // Not selected
+                            }
+
+                            return (
+                                 <button
+                                    key={option}
+                                    onClick={() => setActivityState(prev => prev ? { ...prev, userAnswer: option } : null)}
+                                    disabled={feedback.isCorrect !== null || isSubmitting}
+                                    className={buttonClass}
+                                  >
+                                    {option}
+                                 </button>
+                            );
+                        })}
+                    </div>
+                 </>
+               )}
+             </div>
+           )}
 
           {/* Grammar Quiz */}
           {type === 'grammar' && (

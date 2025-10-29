@@ -557,8 +557,8 @@ export const textToSpeech = onRequest(
         res.status(400).json({ error: "Missing 'text' in request body." });
         return;
       }
-      if (typeof text !== 'string' || text.length > 500) { // Limit input length
-         res.status(400).json({ error: "'text' must be a string under 500 characters." });
+      if (typeof text !== 'string' || text.length > 1500) { // Limit input length
+         res.status(400).json({ error: "'text' must be a string under 1500 characters." });
          return;
       }
 
