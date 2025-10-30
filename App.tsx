@@ -12,7 +12,8 @@ import {
 import { 
   getFirestore, doc, setDoc, Timestamp,
   collection, query, orderBy, getDocs, limit,
-  deleteDoc
+  deleteDoc, where, addDoc,
+  connectFirestoreEmulator, onSnapshot
 } from 'firebase/firestore';
 import { HistoryIcon } from './components/icons/HistoryIcon';
 import { LoadingSpinner } from './components/LoadingSpinner';
@@ -27,6 +28,7 @@ import { ArrowLeftIcon } from './components/icons/ArrowLeftIcon';
 import { VolumeUpIcon } from './components/icons/VolumeUpIcon';
 import { PlayIcon } from './components/icons/PlayIcon';
 import { PauseIcon } from './components/icons/PauseIcon';
+import { CheckCircleIcon } from './components/icons/CheckCircleIcon';
 import { Lesson, Article, NewsResult, EnglishLevel, LessonResponse, SavedWord, VocabularyItem, StripeSubscription } from './types';
 
 // --- Configuration Variables ---
@@ -34,11 +36,14 @@ const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET, // Use the correct value from .env
+  storageBucket: import.meta.env.VITE_FIREBASE_SfilteredLessonHistoryTORAGE_BUCKET, // Use the correct value from .env
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID // Optional
 };
+
+const FREE_LESSON_LIMIT = 25;
+const STRIPE_PRICE_ID = import.meta.env.VITE_STRIPE_PRICE_ID;
 
 // Initialize Firebase only if it hasn't been initialized yet
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -221,11 +226,19 @@ const App: React.FC = () => {
            connectAuthEmulator(auth, "http://localhost:9099", { disableWarnings: true });
            console.log("Auth emulator connected.");
         }
+        // --- ADD THIS BLOCK ---
+        try {
+          connectFirestoreEmulator(db, 'localhost', 8080);
+          console.log("Firestore emulator connected.");
+        } catch (e) {
+          console.warn("Could not connect firestore emulator (might already be connected).", e)
+        }
+        // --- END ADD ---
       } catch (e) {
         console.warn("Could not connect auth emulator (might already be connected or emulator not running).", e);
       }
     }
-  }, [auth]); // Run only when auth instance changes
+  }, [auth, db]);
 
   // --- Forward declaration for handleUrlChange ---
   // We need this because navigate uses it, and it uses navigate (via goToInput etc.)
@@ -299,6 +312,20 @@ const App: React.FC = () => {
     }
   }, [user]); // Depends only on user
 
+  const monthlyLessonCount = useMemo(() => {
+    if (!lessonHistory) return 0;
+    const currentMonthISO = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+    return lessonHistory.filter(lesson => {
+      // Make sure createdAt is a Timestamp before calling .toDate()
+      if (lesson.createdAt && typeof lesson.createdAt.toDate === 'function') {
+        const lessonDate = lesson.createdAt.toDate();
+        const lessonMonthISO = lessonDate.toISOString().slice(0, 7);
+        return lessonMonthISO === currentMonthISO;
+      }
+      return false;
+    }).length;
+  }, [lessonHistory]);
+
   // --- API Call Handlers ---
   const handleFindArticles = useCallback(async (topicOverride?: string, skipNavigation: boolean = false) => {
     const topicToUse = topicOverride !== undefined ? topicOverride : inputTopic;
@@ -312,6 +339,11 @@ const App: React.FC = () => {
     if (authState !== 'SIGNED_IN' || !user) {
         setError("Please sign in first.");
         return;
+    }
+
+    if (!isSubscribed && monthlyLessonCount >= FREE_LESSON_LIMIT) {
+      setError(`You have used all ${FREE_LESSON_LIMIT} of your free lessons for this month. Please upgrade to create more.`);
+      return; // Stop the search
     }
 
     setIsApiLoading(true);
@@ -345,7 +377,11 @@ const App: React.FC = () => {
     } finally {
       setIsApiLoading(false);
     }
-  }, [authState, user, authenticatedFetch, inputTopic, inputLevel, setNewsResults, setError, goToSearch, goToInput, setCurrentView]); // Added dependencies
+  }, [
+      authState, user, authenticatedFetch, inputTopic, inputLevel, setNewsResults, 
+      setError, goToSearch, goToInput, setCurrentView, 
+      isSubscribed, monthlyLessonCount // <-- ADD isSubscribed and monthlyLessonCount
+  ]);
 
   // --- NEW: Helper to fetch summary audio ---
   const fetchSummaryAudio = useCallback(async (summaryText: string) => {
@@ -673,6 +709,106 @@ const App: React.FC = () => {
       setIsBillingLoading(false);
     }
     // No finally needed, as user is redirected on success
+  };
+
+  const handleCheckout = async () => {
+    if (!user) {
+      setError("You must be signed in to upgrade.");
+      return;
+    }
+
+    if (!STRIPE_PRICE_ID.includes("price_")) {
+       console.error("Stripe Price ID is not configured. Using placeholder alert.");
+       alert("Stripe Checkout is not yet configured by the developer.");
+       return;
+    }
+
+    console.log("Creating checkout session...");
+    setIsBillingLoading(true); // Reuse billing loading state
+    setError(null);
+
+    try {
+      // Create a new checkout session document
+      const checkoutSessionRef = await addDoc(
+        collection(db, `users/${user.uid}/checkout_sessions`),
+        {
+          price: STRIPE_PRICE_ID, // Your Price ID
+          success_url: window.location.origin, // Return to dashboard on success
+          cancel_url: window.location.href,    // Return to pricing page on cancel
+          mode: 'subscription',
+        }
+      );
+
+      // Listen for the URL generated by the Stripe extension
+      onSnapshot(checkoutSessionRef, (snap) => {
+        const { error, url } = snap.data() || {};
+        if (error) {
+          setError(`Stripe error: ${error.message}`);
+          setIsBillingLoading(false);
+        }
+        if (url) {
+          // Redirect to Stripe checkout
+          window.location.href = url;
+        }
+      });
+    } catch (err) {
+      console.error("Error creating checkout session:", err);
+      setError(`Could not create checkout session: ${(err as Error).message}`);
+      setIsBillingLoading(false);
+    }
+    // No finally, as user is redirected on success
+  };
+
+  // --- NEW: Function to start the checkout process ---
+  const handleStartSubscription = async () => {
+    if (!user) {
+      setError("You must be signed in to subscribe.");
+      return;
+    }
+    if (!STRIPE_PRICE_ID) {
+      setError("Pricing is not configured correctly. Please contact support.");
+      console.error("VITE_STRIPE_PRICE_ID is not set in .env");
+      return;
+    }
+
+    setIsBillingLoading(true); // Reuse billing loading state
+    setError(null);
+
+    try {
+      // Create a new checkout session document in Firestore
+      // The Stripe extension listens for this
+      const checkoutSessionRef = collection(db, `users/${user.uid}/checkout_sessions`);
+      const docRef = await addDoc(checkoutSessionRef, {
+        price: STRIPE_PRICE_ID,
+        success_url: window.location.origin, // Return to dashboard on success
+        cancel_url: window.location.href,    // Return to this pricing page on cancel
+      });
+
+      // Listen to the new document for the redirect URL
+      const unsubscribe = onSnapshot(docRef, (snap) => {
+        const data = snap.data();
+        if (data) {
+          const { error, url } = data;
+          if (error) {
+            setError(`Stripe Error: ${error.message}`);
+            setIsBillingLoading(false);
+            unsubscribe(); // Stop listening
+          } else if (url) {
+            // We have a Stripe URL, redirect the user
+            window.location.href = url;
+            // No need to set loading false, we are navigating away
+            unsubscribe(); // Stop listening
+          }
+        }
+      });
+
+    } catch (err) {
+      console.error("Error creating checkout session:", err);
+      setError(`Failed to start subscription: ${(err as Error).message}`);
+      setIsBillingLoading(false);
+    }
+    // Note: We don't set isBillingLoading to false here,
+    // because the onSnapshot listener will handle it (or we navigate away)
   };
 
   // --- URL Handling Logic ---
@@ -1431,23 +1567,6 @@ const App: React.FC = () => {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <button
-          onClick={goToInput}
-          className="flex items-center justify-center gap-2 bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-lg"
-        >
-          <RestartIcon className="w-5 h-5" /> Start New Lesson
-        </button>
-        <button
-          onClick={() => navigate('/wordbank')}
-          disabled={isWordBankLoading}
-          className="flex items-center justify-center gap-2 bg-purple-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-purple-600 transition duration-150 shadow-lg disabled:opacity-50"
-        >
-          <BookOpenIcon className="w-5 h-5" />
-          My Word Bank ({wordBank.length})
-        </button>
-      </div>
-
       {/* --- START: Updated Quick Actions --- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <button
@@ -1674,38 +1793,127 @@ const App: React.FC = () => {
   );
 
   const renderPricingPage = () => (
-    <StaticPageWrapper title="Pricing">
-      {/* This is where you would add the Stripe Checkout button.
-        The Stripe extension listens for a document write to /users/{userId}/checkout_sessions
-        See the extension docs for the exact fields to add.
-      */}
-      <h2>StreamLearn Pro</h2>
-      <p>Get unlimited access to everything StreamLearn has to offer for one simple price.</p>
-      
-      <div className="p-6 border rounded-lg bg-blue-50 border-blue-200 text-center">
-        <h3 className="text-2xl font-bold">$20 / month</h3>
-        <p className="text-gray-600">Billed monthly. Cancel anytime.</p>
-        <ul className="text-left list-disc list-inside my-4 space-y-2">
-          <li>Unlimited lesson generation.</li>
-          <li>Unlimited vocabulary practice.</li>
-          <li>Unlimited writing practice.</li>
-          <li>Full access to your lesson history.</li>
-        </ul>
-        <button 
-          onClick={() => alert("Stripe Checkout not implemented. See extension docs.")}
-          className="mt-4 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition"
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto bg-white rounded-xl shadow-2xl space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap justify-between items-center gap-2 border-b pb-4">
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
+          title="Back to Dashboard"
         >
-          Get Started with Pro
+          <ArrowLeftIcon className="w-4 h-4 mr-1" /> Dashboard
         </button>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 text-center">
+          Plans & Pricing
+        </h1>
+        {user ? (
+          <button
+            onClick={handleSignOut}
+            className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1 flex-shrink-0"
+          >
+            Sign Out
+          </button>
+        ) : (
+          <div className="w-24"></div> // Spacer to balance the header
+        )}
       </div>
+      
+      <p className="text-lg text-gray-600 text-center">
+        Choose the plan that's right for your learning journey.
+      </p>
 
-      <h2 className="mt-6">Free Plan</h2>
-      <p>Perfect for trying out the app.</p>
-      <ul className="list-disc list-inside space-y-2">
-        <li><strong>{FREE_LESSON_LIMIT} free lessons</strong> per month.</li>
-        <li>Full access to all activity types.</li>
-      </ul>
-    </StaticPageWrapper>
+      {/* Pricing Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
+        
+        {/* Free Plan Card */}
+        <div className="border border-gray-200 rounded-xl p-6 shadow-lg flex flex-col">
+          <h2 className="text-2xl font-semibold text-gray-800">Free Plan</h2>
+          <p className="text-gray-500 mt-2">Perfect for trying out the app.</p>
+          
+          <div className="my-6">
+            <span className="text-4xl font-extrabold text-gray-900">$0</span>
+            <span className="text-lg font-medium text-gray-500">/ month</span>
+          </div>
+          
+          <ul className="space-y-3 mb-8">
+            <li className="flex items-center gap-3">
+              <CheckCircleIcon className="w-6 h-6 text-green-500 flex-shrink-0" />
+              <span className="text-gray-700"><strong>{FREE_LESSON_LIMIT} free lessons</strong> per month</span>
+            </li>
+            <li className="flex items-center gap-3">
+              <CheckCircleIcon className="w-6 h-6 text-green-500 flex-shrink-0" />
+              <span className="text-gray-700">Full access to all activity types</span>
+            </li>
+          </ul>
+          
+          {/* Spacer to push button to bottom */}
+          <div className="flex-grow"></div> 
+          
+          <button
+            onClick={() => navigate('/')} // Just go back to dashboard
+            className="w-full bg-white text-blue-600 border border-blue-600 font-bold py-3 px-6 rounded-lg hover:bg-blue-50 transition duration-150"
+          >
+            Your Current Plan
+          </button>
+        </div>
+
+        {/* Pro Plan Card (Featured) */}
+        <div className="border-2 border-blue-600 rounded-xl p-6 shadow-2xl relative flex flex-col bg-gray-50">
+          {/* "Most Popular" Badge */}
+          <div className="absolute top-0 -translate-y-1/2 left-1/2 -translate-x-1/2">
+            <span className="inline-flex items-center px-4 py-1 rounded-full text-sm font-semibold text-white bg-blue-600 shadow-md">
+              Most Popular
+            </span>
+          </div>
+
+          <h2 className="text-2xl font-semibold text-blue-700">StreamLearn Pro</h2>
+          <p className="text-gray-500 mt-2">Unlimited access to all features.</p>
+          
+          <div className="my-6">
+            <span className="text-4xl font-extrabold text-gray-900">$20</span>
+            <span className="text-lg font-medium text-gray-500">/ month</span>
+          </div>
+          
+          <p className="text-sm text-gray-500 -mt-2 text-center">Cancel anytime.</p>
+          
+          <ul className="space-y-3 my-8">
+            <li className="flex items-center gap-3">
+              <CheckCircleIcon className="w-6 h-6 text-blue-600 flex-shrink-0" />
+              <span className="text-gray-700"><strong>Unlimited</strong> lesson generation</span>
+            </li>
+            <li className="flex items-center gap-3">
+              <CheckCircleIcon className="w-6 h-6 text-blue-600 flex-shrink-0" />
+              <span className="text-gray-700"><strong>Unlimited</strong> vocabulary practice</span>
+            </li>
+            <li className="flex items-center gap-3">
+              <CheckCircleIcon className="w-6 h-6 text-blue-600 flex-shrink-0" />
+              <span className="text-gray-700"><strong>Unlimited</strong> writing practice</span>
+            </li>
+            <li className="flex items-center gap-3">
+              <CheckCircleIcon className="w-6 h-6 text-blue-600 flex-shrink-0" />
+              <span className="text-gray-700"><strong>Full access</strong> to your lesson history</span>
+            </li>
+            <li className="flex items-center gap-3">
+              <CheckCircleIcon className="w-6 h-6 text-blue-600 flex-shrink-0" />
+              <span className="text-gray-700"><strong>Full access</strong> to your Word Bank</span>
+            </li>
+          </ul>
+          
+          {/* Spacer */}
+          <div className="flex-grow"></div>
+          
+          <button
+            onClick={handleCheckout}
+            disabled={isBillingLoading}
+            className="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition duration-150 shadow-lg disabled:opacity-50"
+          >
+            {isBillingLoading ? (
+              <LoadingSpinner className="w-5 h-5 inline-block" />
+            ) : "Get Started with Pro"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 
   const renderTermsPage = () => (
@@ -1730,94 +1938,106 @@ const App: React.FC = () => {
     </StaticPageWrapper>
   );
 
-  const renderInput = () => (
-    // Add padding-x for mobile screens to prevent elements touching edges
-    <div className="p-4 sm:p-6 max-w-lg mx-auto bg-white rounded-xl shadow-2xl space-y-6">
-      {/* Use flex-wrap and justify-between for better mobile header layout */}
-      <div className="flex flex-wrap justify-between items-center gap-2">
-        {/* --- ADD A BACK TO DASHBOARD BUTTON --- */}
-        <button
-            onClick={() => navigate('/')} // <-- Takes user back to dashboard
-            className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
-            title="Back to Dashboard"
-          >
-            <ArrowLeftIcon className="w-4 h-4 mr-1" /> Dashboard
-        </button>
-        {user && (
+  const renderInput = () => {
+    const isFreeTierLimitReached = !isSubscribed && monthlyLessonCount >= FREE_LESSON_LIMIT;
+
+    return (
+      // Add padding-x for mobile screens to prevent elements touching edges
+      <div className="p-4 sm:p-6 max-w-lg mx-auto bg-white rounded-xl shadow-2xl space-y-6">
+        {/* Use flex-wrap and justify-between for better mobile header layout */}
+        <div className="flex flex-wrap justify-between items-center gap-2">
+          {/* --- ADD A BACK TO DASHBOARD BUTTON --- */}
           <button
-            onClick={handleSignOut}
-            // Adjusted padding and margin for better fit
-            className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1 flex-shrink-0"
-          >
-            Sign Out ({user.displayName?.split(' ')[0] || user.email?.split('@')[0] || 'User'})
-          </button>
-        )}
-      </div>
-       <p className="text-gray-500 text-center">
-         Learn English with articles tailored to your interests and level.
-       </p>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Your English Level
-        </label>
-        <select
-          value={inputLevel}
-          onChange={(e) => setInputLevel(e.target.value as EnglishLevel)}
-          className="w-full p-3 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
-        >
-          {['Beginner', 'Intermediate', 'Advanced'].map(level => (
-            <option key={level} value={level}>{level}</option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label htmlFor="topic" className="block text-sm font-medium text-gray-700 mb-2">
-          Enter a topic or choose one below:
-        </label>
-        {/* Use flex-wrap for the input and button on small screens */}
-        <div className="flex flex-wrap sm:flex-nowrap gap-2">
-          <input
-            id="topic"
-            type="text"
-            value={inputTopic}
-            onChange={(e) => setInputTopic(e.target.value)}
-            placeholder="e.g., AI, Space, Cooking"
-            className="flex-grow p-3 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 w-full sm:w-auto" // Ensure input takes full width on small screens
-            onKeyDown={(e) => { if (e.key === 'Enter') handleFindArticles() }}
-          />
-          <button
-            onClick={() => handleFindArticles()}
-            disabled={isApiLoading || !inputTopic.trim()}
-            // Make button full width on small screens, adjust padding
-            className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto flex-shrink-0"
-            title="Find articles for the entered topic"
-          >
-            Search
-          </button>
-        </div>
-      </div>
-      <div>
-        <p className="text-sm font-medium text-gray-700 mb-3 text-center">Or select a popular topic:</p>
-        {/* --- CHANGE HERE: grid-cols-2 by default, md:grid-cols-4 for medium and up --- */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          {newsTopics.map((topic) => (
-            <button
-              key={topic}
-              onClick={() => {
-                setInputTopic(topic);
-                handleFindArticles(topic, false); // Pass false for skipNavigation
-              }}
-              disabled={isApiLoading}
-              className="bg-gray-100 text-gray-700 text-sm font-medium py-2 px-1 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition duration-150 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed text-center truncate"
-              title={`Find articles about ${topic}`}
+              onClick={() => navigate('/')} // <-- Takes user back to dashboard
+              className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
+              title="Back to Dashboard"
             >
-              {topic}
+              <ArrowLeftIcon className="w-4 h-4 mr-1" /> Dashboard
+          </button>
+          {user && (
+            <button
+              onClick={handleSignOut}
+              // Adjusted padding and margin for better fit
+              className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1 flex-shrink-0"
+            >
+              Sign Out ({user.displayName?.split(' ')[0] || user.email?.split('@')[0] || 'User'})
             </button>
-          ))}
+          )}
+        </div>
+         <p className="text-gray-500 text-center">
+           Learn English with articles tailored to your interests and level.
+         </p>
+        {isFreeTierLimitReached && (
+          <div className="p-3 bg-yellow-100 border border-yellow-300 text-yellow-800 rounded-lg text-sm text-center">
+            You have used all {FREE_LESSON_LIMIT} free lessons for this month. 
+            <button onClick={() => navigate('/pricing')} className="font-bold underline ml-1 hover:text-yellow-900">
+              Upgrade to Pro
+            </button> to search for more.
+          </div>
+        )}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Your English Level
+          </label>
+          <select
+            value={inputLevel}
+            onChange={(e) => setInputLevel(e.target.value as EnglishLevel)}
+            className="w-full p-3 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+          >
+            {['Beginner', 'Intermediate', 'Advanced'].map(level => (
+              <option key={level} value={level}>{level}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="topic" className="block text-sm font-medium text-gray-700 mb-2">
+            Enter a topic or choose one below:
+          </label>
+          {/* Use flex-wrap for the input and button on small screens */}
+          <div className="flex flex-wrap sm:flex-nowrap gap-2">
+            <input
+              id="topic"
+              type="text"
+              value={inputTopic}
+              onChange={(e) => setInputTopic(e.target.value)}
+              placeholder="e.g., AI, Space, Cooking"
+              className="flex-grow p-3 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 w-full sm:w-auto" // Ensure input takes full width on small screens
+              onKeyDown={(e) => { if (e.key === 'Enter') handleFindArticles() }}
+            />
+            <button
+              onClick={() => handleFindArticles()}
+              disabled={isApiLoading || !inputTopic.trim() || isFreeTierLimitReached}
+              // Make button full width on small screens, adjust padding
+              className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto flex-shrink-0"
+              title={isFreeTierLimitReached ? "Free lesson limit reached" : "Find articles for the entered topic"}
+            >
+              Search
+            </button>
+          </div>
+        </div>
+        <div>
+          <p className="text-sm font-medium text-gray-700 mb-3 text-center">Or select a popular topic:</p>
+          {/* --- CHANGE HERE: grid-cols-2 by default, md:grid-cols-4 for medium and up --- */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {newsTopics.map((topic) => (
+              <button
+                key={topic}
+                onClick={() => {
+                  setInputTopic(topic);
+                  handleFindArticles(topic, false); // Pass false for skipNavigation
+                }}
+                disabled={isApiLoading || isFreeTierLimitReached}
+                className="bg-gray-100 text-gray-700 text-sm font-medium py-2 px-1 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition duration-150 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed text-center truncate"
+                title={isFreeTierLimitReached ? "Free lesson limit reached" : `Find articles about ${topic}`}
+              >
+                {topic}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+}
 
   const renderNewsList = () => (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto bg-white rounded-xl shadow-2xl space-y-4">

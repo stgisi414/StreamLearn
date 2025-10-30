@@ -23,7 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 
-# Credentials
+# Credentials and sensitve information
 .env.local
 .env
 .env.production
+pricing.csv
