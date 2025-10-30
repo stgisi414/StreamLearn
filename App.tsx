@@ -134,6 +134,7 @@ const App: React.FC = () => {
   // --- Activity state ---
   const [activityState, setActivityState] = useState<ActivityState | null>(null);
   const loadingStepRef = useRef<string | null>(null);
+  const activityCancellationRef = useRef(false);
 
   // --- NEW: Audio State ---
   const [isActivityAudioLoading, setIsActivityAudioLoading] = useState(false); // Renamed from isAudioLoading
@@ -623,6 +624,7 @@ const App: React.FC = () => {
 
   const startActivity = (type: ActivityType) => {
     if (!currentLesson) return;
+    activityCancellationRef.current = false; // <<< ADD THIS LINE: Reset cancellation flag
     setError(null);
     let totalItems = 0;
     let shuffledIndices: number[] | undefined = undefined; // <-- Initialize here
@@ -659,10 +661,20 @@ const App: React.FC = () => {
     setCurrentView('ACTIVITY');
   };
 
-  const quitActivity = () => {
-    setActivityState(null);
-    goToLesson(currentArticle!); // Go back to the lesson URL
-  };
+  const quitActivity = useCallback(() => {
+      activityCancellationRef.current = true; // Signal cancellation
+      setActivityState(null);
+
+      // Stop and clear any active activity audio
+      if (activityAudioRef.current) {
+          activityAudioRef.current.pause();
+          activityAudioRef.current = null;
+      }
+      setIsActivityAudioLoading(false); // Reset loading state
+      setActivityAudioError(null);    // Reset error state
+
+      goToLesson(currentArticle!); // Go back to the lesson URL
+  }, [goToLesson, currentArticle]);
 
   // --- Wrap shuffleArray in useCallback ---
   const shuffleArray = useCallback(<T,>(array: T[]): T[] => {
@@ -743,84 +755,120 @@ const App: React.FC = () => {
         return { question: questionText, summary: currentLesson.summary };
       });
     } else if (type === 'grammar') {
-      console.log(`Setting loading ref and starting grammar fetch for ${currentStepKey}...`);
-      loadingStepRef.current = currentStepKey; // Mark this step as loading
-      setActivityState(prev => { // Set loading state immediately *before* fetch
-           if (!prev || prev.index !== index || prev.type !== 'grammar') return prev; // Check relevance
-           return { ...prev, isSubmitting: true, currentData: null, userAnswer: null, feedback: {isCorrect: null, message: ''}}; // Clear old data/answer/feedback
-      });
-      dataPromise = authenticatedFetch('handleActivity', {
-          activityType: 'grammar_generate',
-          payload: { topic: currentLesson.grammarFocus.topic, explanation: currentLesson.grammarFocus.explanation, level: inputLevel }
-      }).then(fetchedData => {
+    console.log(`Setting loading ref and starting grammar fetch for ${currentStepKey}...`);
+    loadingStepRef.current = currentStepKey;
+    setActivityState(prev => { // Set loading state immediately *before* fetch
+         if (!prev || prev.index !== index || prev.type !== 'grammar') return prev; // Check relevance
+         return { ...prev, isSubmitting: true, currentData: null, userAnswer: null, feedback: {isCorrect: null, message: ''}}; // Clear old data/answer/feedback
+    });
+
+    // *** ADD SAFETY CHECKS & LOGGING HERE ***
+    const grammarPayload = {
+        topic: currentLesson?.grammarFocus?.topic, // Use optional chaining
+        explanation: currentLesson?.grammarFocus?.explanation, // Use optional chaining
+        level: inputLevel
+    };
+    console.log("Attempting grammar generation with payload:", JSON.stringify(grammarPayload));
+
+    // Explicitly check if essential parts are missing BEFORE sending the request
+    if (!currentLesson || !grammarPayload.topic || !grammarPayload.explanation) {
+        console.error("Cannot generate grammar question: currentLesson, topic, or explanation is missing.", { currentLessonExists: !!currentLesson, topic: grammarPayload.topic, explanation: grammarPayload.explanation });
+        setError("Failed to prepare grammar activity data (missing topic/explanation). Please try returning to the lesson and starting the activity again.");
+        // Use a Promise.reject to trigger the .catch block cleanly
+        dataPromise = Promise.reject(new Error("Missing grammar topic/explanation"));
+    } else {
+    // *** END SAFETY CHECKS & LOGGING ***
+
+        // Only proceed with the fetch if the payload is valid
+        dataPromise = authenticatedFetch('handleActivity', {
+            activityType: 'grammar_generate',
+            payload: grammarPayload // Use the checked payload
+        }).then(fetchedData => {
+          // *** ADD CANCELLATION CHECK HERE ***
+          if (activityCancellationRef.current) {
+              console.log(`Grammar fetch successful for ${currentStepKey}, BUT activity was cancelled. Discarding.`);
+              // Reject the promise chain so the .then(dataForStep => ...) block doesn't run
+              return Promise.reject(new Error("Activity cancelled"));
+          }
+          // *** END CANCELLATION CHECK ***
+
           console.log(`Grammar fetch successful for ${currentStepKey}`);
           if (fetchedData?.question && fetchedData?.options) { return fetchedData; }
           else { throw new Error("Invalid grammar data received."); }
-      }); // Error handling happens in the final .catch
-    } else {
-      // Should not happen if type is validated earlier
-      dataPromise = Promise.reject(new Error(`Unhandled activity type: ${type}`));
-    }
+      });
+    } // <-- Close the new else block
+  } else {
+    // Should not happen
+    dataPromise = Promise.reject(new Error(`Unhandled activity type: ${type}`));
+  }
 
     // --- Process the data promise ---
     dataPromise.then(dataForStep => {
-      // Check if the component is still mounted and focused on the correct step
-      if (loadingStepRef.current !== currentStepKey && type === 'grammar') {
-         console.log(`Data received for ${currentStepKey}, but loading ref changed or cleared. Discarding.`);
-         return; // A new fetch was likely started, ignore this result
-      }
-       // If it's a sync type, loadingStepRef won't be set, rely on index/type check
-      console.log(`Setting final currentData for step ${currentStepKey}`);
-      setActivityState(prev => {
-        // Final relevance check
-        if (!prev || prev.type !== type || prev.index !== index) {
-            console.log(`Final state update for ${currentStepKey} aborted: state changed.`);
-            return prev;
-        }
-        // Avoid setting if data is already somehow present
-        if (prev.currentData?._stepIdentifier === currentStepKey) {
-            console.log(`Final state update for ${currentStepKey} aborted: data already present.`);
-             // Still ensure loading is off if needed
-             if(prev.isSubmitting) return {...prev, isSubmitting: false, _loadingStepKey: null };
-            return prev;
-        }
+     // *** ADD ANOTHER CANCELLATION CHECK (safety) ***
+     if (activityCancellationRef.current) {
+         console.log(`Final state update for ${currentStepKey} aborted: Activity cancelled.`);
+         return; // Don't update state if cancelled
+     }
+     // *** END CANCELLATION CHECK ***
 
-        console.log(`Executing final state update for ${currentStepKey}`);
-        return {
-          ...prev,
-          currentData: { ...dataForStep, _stepIdentifier: currentStepKey }, // Add step key
-          isSubmitting: false, // Ensure loading is off
-          _loadingStepKey: null // Clear tracking ref value in state if it exists
-        };
-      });
-    })
-    .catch(error => {
-       // Check if the error is for the step we are currently trying to load
-      if (loadingStepRef.current !== currentStepKey && type === 'grammar') {
-         console.log(`Error caught for ${currentStepKey}, but loading ref changed or cleared. Ignoring error.`);
-         return;
+     if (loadingStepRef.current !== currentStepKey && type === 'grammar') {
+        console.log(`Data received for ${currentStepKey}, but loading ref changed or cleared. Discarding.`);
+        return;
+     }
+
+     console.log(`Setting final currentData for step ${currentStepKey}`);
+     setActivityState(prev => {
+       // ... (keep existing relevance checks) ...
+       console.log(`Executing final state update for ${currentStepKey}`);
+       return {
+         ...prev,
+         currentData: { ...dataForStep, _stepIdentifier: currentStepKey },
+         isSubmitting: false, // Ensure loading is off
+         _loadingStepKey: null
+       };
+     });
+   })
+   .catch(error => {
+      // *** ADD HANDLING FOR THE NEW ERROR CASE ***
+       if ((error as Error).message === "Missing grammar topic/explanation") {
+           console.warn("Grammar generation aborted due to missing data.");
+           // Make sure loading state is off, but don't quitActivity here,
+           // as setError and the console.error above already informed the user.
+           setActivityState(prev => {
+               if (!prev || !(prev.index === index && prev.type === type && prev.isSubmitting)) return prev;
+               return {...prev, isSubmitting: false, _loadingStepKey: null };
+           });
+           return; // Stop further error processing
+       }
+      // *** GRACEFULLY HANDLE CANCELLATION ERROR ***
+      if ((error as Error).message === "Activity cancelled") {
+          console.log(`Caught cancellation signal for ${currentStepKey}. No error state needed.`);
+          // Ensure loading spinner stops if it was running for this cancelled step
+          setActivityState(prev => {
+              if (!prev || !(prev.index === index && prev.type === type && prev.isSubmitting)) return prev; // Check relevance *and* if submitting
+              return {...prev, isSubmitting: false, _loadingStepKey: null };
+          });
+          return; // Stop further error processing
       }
-      // If it's a sync type, check index/type
-      if (activityState?.type !== type || activityState?.index !== index) {
-         console.log(`Error caught for ${currentStepKey}, but state changed. Ignoring error.`);
-         return;
-      }
+      // *** END CANCELLATION HANDLING ***
+
+
+      // ... (keep existing relevance checks for error) ...
 
       console.error(`Error processing/fetching activity data for ${currentStepKey}:`, error);
       setError(`An error occurred: ${(error as Error).message}`);
-      setActivityState(prev => { // Ensure loading state is turned off on error
+      setActivityState(prev => {
          if (!prev || !(prev.index === index && prev.type === type)) return prev;
          return {...prev, isSubmitting: false, _loadingStepKey: null };
       });
-      quitActivity(); // Exit activity on error
-    })
-    .finally(() => {
-        // Clear the loading ref *only if* it currently matches this step's key
-        if (loadingStepRef.current === currentStepKey) {
-            console.log(`Clearing loading ref for ${currentStepKey}`);
-            loadingStepRef.current = null;
-        }
-    });
+      quitActivity(); // Exit activity on actual error
+   })
+   .finally(() => {
+      if (loadingStepRef.current === currentStepKey) {
+          console.log(`Clearing loading ref for ${currentStepKey}`);
+          loadingStepRef.current = null;
+      }
+   });
 
     // Cleanup function is automatically handled by React for the effect itself
     // We don't need isCurrentActivityStep flag with the ref approach
