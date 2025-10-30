@@ -1,7 +1,9 @@
 import * as functions from "firebase-functions";
 import {onRequest} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
+import { getFunctions, getCallableFunction } from "firebase-admin/functions";
 import fetch, { RequestInit } from "node-fetch"; // For fetchNews
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold, Type } from "@google/genai";
 import * as logger from "firebase-functions/logger";
 import * as TextToSpeech from '@google-cloud/text-to-speech';
@@ -32,6 +34,81 @@ async function getAuthenticatedUid(req: functions.https.Request): Promise<string
         logger.error("Token Verification Failed:", e);
         throw new Error("Invalid or expired authentication token.");
     }
+}
+
+const FREE_LESSON_LIMIT = 5;
+
+/**
+ * Checks a user's subscription status and lesson usage.
+ */
+async function checkUsageAndSubscription(userId: string): Promise<{
+  canCreate: boolean;
+  isSubscribed: boolean;
+  message: string;
+}> {
+  const db = admin.firestore();
+  
+  // 1. Check for an active subscription
+  try {
+    const subscriptionsRef = db.collection(`users/${userId}/subscriptions`);
+    const activeSubSnapshot = await subscriptionsRef
+                                .where("status", "in", ["active", "trialing"])
+                                .limit(1)
+                                .get();
+
+    if (!activeSubSnapshot.empty) {
+      logger.info(`User ${userId} has an active subscription.`);
+      return { canCreate: true, isSubscribed: true, message: "Subscribed user." };
+    }
+  } catch (err) {
+    logger.error(`Error checking subscription for ${userId}:`, err);
+    // Don't block creation, just log the error and proceed as a free user
+  }
+
+  // 2. If no subscription, check free tier usage
+  logger.info(`User ${userId} is a free user. Checking usage limit.`);
+  const currentMonth = new Date().toISOString().slice(0, 7); // Format: "YYYY-MM"
+  const usageRef = db.doc(`users/${userId}/usage/${currentMonth}`);
+  
+  try {
+    const usageDoc = await usageRef.get();
+    const lessonCount = usageDoc.exists ? (usageDoc.data()?.lessonCount || 0) : 0;
+
+    if (lessonCount >= FREE_LESSON_LIMIT) {
+      logger.warn(`User ${userId} has reached free limit of ${FREE_LESSON_LIMIT} lessons for ${currentMonth}.`);
+      return { 
+        canCreate: false, 
+        isSubscribed: false, 
+        message: `You have used all ${FREE_LESSON_LIMIT} of your free lessons for this month. Please upgrade to create more.` 
+      };
+    }
+
+    logger.info(`User ${userId} has used ${lessonCount}/${FREE_LESSON_LIMIT} lessons.`);
+    return { canCreate: true, isSubscribed: false, message: `Free user. ${lessonCount}/${FREE_LESSON_LIMIT} lessons used.` };
+
+  } catch (err) {
+    logger.error(`Error checking usage for ${userId}:`, err);
+    // Fail safe: If we can't check usage, block creation to prevent abuse
+    return { canCreate: false, isSubscribed: false, message: "Could not verify your lesson usage. Please try again." };
+  }
+}
+
+/**
+ * Increments the lesson count for a free user.
+ */
+async function incrementLessonUsage(userId: string) {
+  const db = admin.firestore();
+  const currentMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+  const usageRef = db.doc(`users/${userId}/usage/${currentMonth}`);
+
+  try {
+    await usageRef.set({
+      lessonCount: admin.firestore.FieldValue.increment(1)
+    }, { merge: true });
+    logger.info(`Incremented lesson count for user ${userId} for month ${currentMonth}.`);
+  } catch (err) {
+    logger.error(`Failed to increment usage for ${userId}:`, err);
+  }
 }
 
 // --- fetchNews Function ---
@@ -132,6 +209,12 @@ export const createLesson = onRequest(
     if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
     try {
         const userId = await getAuthenticatedUid(req);
+        const { canCreate, isSubscribed, message } = await checkUsageAndSubscription(userId);
+        if (!canCreate) {
+          // Send 402 Payment Required status
+          res.status(402).json({ error: message });
+          return;
+        }
         const { articleUrl, level, title, snippet } = req.body;
         if (!articleUrl || !level || !title) {
           res.status(400).json({error: "Missing article URL, level and title."});
@@ -174,7 +257,7 @@ export const createLesson = onRequest(
 
         // ---------- ATTEMPT 1: Get Article Summary via URL Context ----------
         logger.info(`Attempt 1: Fetching summary via urlContext for ${articleUrl}`);
-        const urlSummaryPrompt = `Please provide a detailed, comprehensive summary of the article at this URL: ${articleUrl}, ensuring the summary is between 5 and 10 sentences long. Extract key facts, names, and concepts. IMPORTANT: Also, explicitly state if the full article content seems to be behind a paywall or requires a subscription/login based on the fetched content.`;
+        const urlSummaryPrompt = `Act as a news reporter. Report the key facts, events, and information from the content at this URL: ${articleUrl}. Your report should be between 5 and 10 sentences long. Do not use words like 'article', 'summary', or 'this text'. Report the information directly. IMPORTANT: After your news report, on a new line, explicitly state if the full content seems to be behind a paywall or requires a subscription/login based on the fetched content.`;
 
         try {
             const urlSummaryResponse = await ai.models.generateContent({
@@ -223,15 +306,15 @@ export const createLesson = onRequest(
             logger.info(`Attempt 2: Generating summary via grounding for ${articleUrl}`);
 
             // --- MODIFY Prompt 2 ---
-            let groundingSummaryPrompt = `Based *only* on the following title`;
+            let groundingSummaryPrompt = `Act as a news reporter. Based *only* on the following title`;
             if (snippet && snippet.trim() !== "") {
                 groundingSummaryPrompt += ` and snippet`;
             }
-            groundingSummaryPrompt += ` from a news article, please generate a concise summary between 5 and 10 sentences long. Do not add external information.\n\nTitle: "${title}"`;
+            groundingSummaryPrompt += `, report the key facts and information in 5 to 10 sentences. Do not add external information. Do not use words like 'article' or 'summary'. Report the information directly.\n\nTitle: "${title}"`;
             if (snippet && snippet.trim() !== "") {
                 groundingSummaryPrompt += `\nSnippet: "${snippet}"`;
             }
-            groundingSummaryPrompt += `\n\nSummary:`;
+            groundingSummaryPrompt += `\n\nNews Report:`;
 
              try {
                 const groundingSummaryResponse = await ai.models.generateContent({
@@ -271,8 +354,8 @@ export const createLesson = onRequest(
         const responseSchemaText = {
             type: Type.OBJECT,
             properties: {
-              articleTitle: { type: Type.STRING, description: "The title of the article fetched from the URL." },
-              summary: { type: Type.STRING, description: "A detailed summary of the article content." },
+              articleTitle: { type: Type.STRING, description: "The title of the news item." },
+              summary: { type: Type.STRING, description: "A detailed news report of the content." },
               vocabularyList: {
                 type: Type.ARRAY,
                 items: {
@@ -280,13 +363,13 @@ export const createLesson = onRequest(
                   properties: {
                     word: {type: Type.STRING},
                     definition: {type: Type.STRING},
-                    articleExample: {type: Type.STRING, description: "A sentence from the article using the word."},
+                    articleExample: {type: Type.STRING, description: "A sentence from the report text using the word."},
                   },
                   required: ["word", "definition", "articleExample"],
                 },
-                 description: "A list of key vocabulary words from the article with definitions and example sentences from the text."
+                 description: "A list of key vocabulary words from the news report with definitions and example sentences from the text."
                },
-              comprehensionQuestions: { type: "ARRAY", items: {type: Type.STRING}, description: "Questions to check understanding of the article."},
+              comprehensionQuestions: { type: "ARRAY", items: {type: Type.STRING}, description: "Questions to check understanding of the news report."},
               grammarFocus: {
                 type: Type.OBJECT,
                 properties: {
@@ -294,7 +377,7 @@ export const createLesson = onRequest(
                   explanation: {type: Type.STRING},
                 },
                 required: ["topic", "explanation"],
-                description: "A specific grammar point highlighted in the article, with an explanation."
+                description: "A specific grammar point highlighted in the news report, with an explanation."
               },
             },
             required: ["articleTitle", "vocabularyList", "comprehensionQuestions", "grammarFocus"],
@@ -302,23 +385,23 @@ export const createLesson = onRequest(
 
         const systemInstructionText =
               `You are an expert English language teaching assistant. Your ` +
-              `goal is to generate structured learning material based on the content of the provided news article summary. ` +
+              `goal is to generate structured learning material based on the content of the provided news report. ` +
               `The user's English level is ${level}. Provide the ` +
-              `following sections in a JSON object format based *only* on the provided summary text.`;
+              `following sections in a JSON object format based *only* on the provided news report text.`;
 
         const lessonPrompt =
-              `Generate the lesson for a ${level} English learner based on the following article summary:
+              `Generate the lesson for a ${level} English learner based on the following news report:
 
-              SUMMARY: "${summaryText}"
+              REPORT: "${summaryText}"
 
               Your JSON output must include:
-              1. "articleTitle": The title of the article (or the provided title if it's just a summary).
-              2. "summary": The detailed summary text provided above.
-              3. "vocabularyList": Based *only* on the summary text.
-              4. "comprehensionQuestions": Based *only* on the summary text.
-              5. "grammarFocus": Based *only* on the summary text.
+              1. "articleTitle": The original title.
+              2. "summary": The detailed news report text provided above.
+              3. "vocabularyList": Based *only* on the report text.
+              4. "comprehensionQuestions": Based *only* on the report text.
+              5. "grammarFocus": Based *only* on the report text.
               
-              Ensure vocabulary examples come directly from the summary text.`;
+              Ensure vocabulary examples come directly from the report text.`;
 
         logger.info("Starting final call: Generating lesson from summary.");
         const lessonResponse = await ai.models.generateContent({
@@ -337,6 +420,10 @@ export const createLesson = onRequest(
         if (!lessonResponseText) {
             logger.error("Gemini response (Lesson Gen) was empty or invalid.", JSON.stringify(lessonResponse, null, 2));
             throw new Error("Gemini response was empty while generating lesson JSON.");
+        }
+
+        if (!isSubscribed) {
+          await incrementLessonUsage(userId);
         }
 
         const lessonJson = JSON.parse(lessonResponseText);
@@ -374,6 +461,8 @@ export const handleActivity = onRequest(
         - grammar_generate: { topic: string, explanation: string, level: string }
         - grammar_grade: { question: string, options: string[], correctAnswer: string, userAnswer: string }
         - comprehension: { question: string, summary: string, userAnswer: string }
+        - writing_generate: { summary: string, level: string, vocabularyList: string[] }
+        - writing_grade: { prompt: string, summary: string, userAnswer: string, level: string }
       */
 
       if (!activityType || !payload) {
@@ -453,7 +542,7 @@ export const handleActivity = onRequest(
 
         // --- Comprehension Grading ---
         case 'comprehension':
-          if (!payload.question || !payload.summary || payload.userAnswer === undefined || payload.userAnswer === null) {
+          if (!payload.question || !payload.summary || payload.userAnswer === undefined || payload.userAnswer === null || !payload.level) {
               res.status(400).json({ error: "Missing question, summary, or userAnswer for comprehension activity." });
               return;
           }
@@ -465,6 +554,53 @@ export const handleActivity = onRequest(
                     Is the user's answer correct based on the summary? Provide brief feedback explaining why or why not (1-2 sentences). Respond ONLY with a JSON object with keys "isCorrect" (boolean) and "feedback" (string).`;
            // For comprehension, we expect a specific JSON back, but won't use responseSchema for flexibility.
            break; // Proceed to Gemini call
+
+        // --- NEW: Writing Prompt Generation ---
+        case 'writing_generate':
+           if (!payload.summary || !payload.level || !payload.vocabularyList) {
+             res.status(400).json({ error: "Missing summary, level, or vocabularyList for writing generation." });
+             return;
+           }
+           const vocabHint = payload.vocabularyList.slice(0, 3).join(', '); // Get 3 words
+           
+           prompt = `You are an English teacher. Generate one short writing prompt for a ${payload.level} learner.
+           The prompt should ask them to write 2-3 sentences based on the following news report:
+           """
+           ${payload.summary}
+           """
+           The prompt should encourage them to use one or two of these words: ${vocabHint}.
+           Respond ONLY with a JSON object following the specified schema.`;
+           
+           responseSchema = {
+            type: Type.OBJECT,
+            properties: {
+              prompt: { type: Type.STRING, description: "The writing prompt for the user." },
+              vocabularyHint: { type: Type.STRING, description: "A string containing the vocabulary words to suggest (e.g., 'word1, word2')." }
+            },
+            required: ["prompt", "vocabularyHint"]
+          };
+          break; // Proceed to Gemini call
+
+        // --- NEW: Writing Grading ---
+        case 'writing_grade':
+          if (!payload.prompt || !payload.summary || payload.userAnswer === undefined || payload.userAnswer === null || !payload.level) {
+              res.status(400).json({ error: "Missing prompt, summary, userAnswer, or level for writing grading." });
+              return;
+          }
+          
+          prompt = `You are an English teacher grading a ${payload.level} learner.
+          Based *only* on the summary and prompt provided, evaluate the user's writing.
+          
+          Summary: "${payload.summary}"
+          Writing Prompt: "${payload.prompt}"
+          User's Answer: "${payload.userAnswer}"
+
+          Is the user's answer a reasonable and relevant response to the prompt?
+          Provide 1-2 sentences of constructive feedback, praising what they did well and suggesting one simple correction if needed.
+          Respond ONLY with a JSON object with keys "isCorrect" (boolean, true if the response is on-topic and makes sense) and "feedback" (string).`;
+          
+          // No responseSchema needed, will parse JSON like comprehension
+          break; // Proceed to Gemini call
 
         default:
           res.status(400).json({ error: "Invalid activityType." });
@@ -490,7 +626,7 @@ export const handleActivity = onRequest(
         throw new Error(`AI generation failed for ${activityType}.`);
       }
 
-      if (activityType === 'comprehension') {
+      if (activityType === 'comprehension' || activityType === 'writing_grade') {
           // Remove potential markdown fences (```json ... ```) and trim whitespace
           responseText = responseText.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
       }
@@ -498,7 +634,7 @@ export const handleActivity = onRequest(
       try {
         const jsonResponse = JSON.parse(responseText);
 
-        if (activityType === 'comprehension' && jsonResponse.feedback && typeof jsonResponse.feedback === 'string') {
+        if ((activityType === 'comprehension' || activityType === 'writing_grade') && jsonResponse.feedback && typeof jsonResponse.feedback === 'string') {
             jsonResponse.feedback = jsonResponse.feedback.replace(/`/g, ''); // Remove all backticks
         }
 
@@ -614,6 +750,94 @@ export const textToSpeech = onRequest(
       logger.error("Function Error (textToSpeech):", e);
       res.status(500).json({ error: `Audio generation failed: ${message}` });
       // No return needed here
+    }
+  }
+);
+
+// --- NEW: enforceLessonLimit Function ---
+// This function triggers when a new lesson is created.
+// It checks if the user has more than 50 lessons and deletes the oldest ones.
+const LESSON_LIMIT = 50;
+
+export const enforceLessonLimit = onDocumentCreated("users/{userId}/lessons/{lessonId}", async (event) => {
+    const { userId } = event.params;
+    if (!userId) {
+        logger.error("No userId found in event params.");
+        return;
+    }
+
+    const lessonsRef = admin.firestore()
+                             .collection(`users/${userId}/lessons`);
+
+    try {
+        // Query for all lessons, ordered by creation time (oldest first)
+        const snapshot = await lessonsRef.orderBy("createdAt", "asc").get();
+
+        const lessonCount = snapshot.size;
+        const lessonsToDelete = lessonCount - LESSON_LIMIT;
+
+        if (lessonsToDelete > 0) {
+            logger.info(`User ${userId} has ${lessonCount} lessons. Deleting ${lessonsToDelete} oldest lessons.`);
+            
+            // Get the oldest documents to delete
+            const batch = admin.firestore().batch();
+            snapshot.docs.slice(0, lessonsToDelete).forEach(doc => {
+                batch.delete(doc.ref);
+            });
+
+            await batch.commit();
+            logger.info(`Successfully deleted ${lessonsToDelete} old lessons for user ${userId}.`);
+        } else {
+            logger.info(`User ${userId} has ${lessonCount} lessons. No cleanup needed.`);
+        }
+    } catch (error) {
+        logger.error(`Error enforcing lesson limit for user ${userId}:`, error);
+    }
+});
+
+/**
+ * Creates a Stripe Customer Portal link for the user.
+ */
+export const createPortalLink = onRequest(
+  {cors: true},
+  async (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+    
+    try {
+      const userId = await getAuthenticatedUid(req);
+      const { returnUrl } = req.body;
+      if (!returnUrl) {
+        res.status(400).json({ error: "Missing 'returnUrl' parameter." });
+        return;
+      }
+
+      const db = admin.firestore();
+      const customerDoc = await db.collection('users').doc(userId).get();
+      const customerId = customerDoc.data()?.stripeId;
+
+      if (!customerId) {
+        logger.warn(`User ${userId} tried to create portal link but has no stripeId.`);
+        res.status(404).json({ error: "No subscription information found for this user." });
+        return;
+      }
+
+      // This is the function name configured in the Stripe Extension
+      const functionName = "ext-firestore-stripe-payments-createPortalLink";
+      
+      // --- FIX: Use getFunctions() ---
+      const portalLinkResponse = await getCallableFunction(getFunctions(), functionName)({
+          customerId: customerId,
+          returnUrl: returnUrl,
+      });
+      
+      res.status(200).json({ url: portalLinkResponse.data.url });
+
+    } catch (error) {
+      const message = (error as Error).message;
+      const status = message.includes("Unauthenticated") || message.includes("Invalid") ? 401 : 500;
+      logger.error("Function Error (createPortalLink):", error);
+      res.status(status).json({error: `Failed to create portal link: ${message}`});
     }
   }
 );

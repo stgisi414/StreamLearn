@@ -14,12 +14,12 @@
     ],
     "rewrites": [
       {
-        "source": "/api/fetchNews", // Route specific path
-        "function": "fetchNews"     // To specific function
+        "source": "/api/fetchNews",
+        "function": "fetchNews"
       },
       {
-        "source": "/api/createLesson", // Route specific path
-        "function": "createLesson"    // To specific function
+        "source": "/api/createLesson",
+        "function": "createLesson"
       },
       {
         "source": "/api/handleActivity",
@@ -30,7 +30,11 @@
         "function": "textToSpeech"
       },
       {
-        "source": "**", // Added fallback for Single Page App routing
+        "source": "/api/createPortalLink",
+        "function": "createPortalLink"
+      },
+      {
+        "source": "**",
         "destination": "/index.html"
       }
     ]

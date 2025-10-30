@@ -1,3 +1,5 @@
+import { Timestamp } from 'firebase/firestore';
+
 export type EnglishLevel = 'Beginner' | 'Intermediate' | 'Advanced';
 
 /**
@@ -49,4 +51,38 @@ export interface LessonResponse {
     lesson: Lesson;
     originalArticleUrl: string;
     userId: string;
+}
+
+/**
+ * Interface for a word saved to the user's Word Bank.
+ * It uses the word itself as the ID.
+ */
+export interface SavedWord extends VocabularyItem {
+  id: string; // Will be the same as 'word' for easy lookup/deletion
+  createdAt: Timestamp;
+  userId: string;
+}
+
+/**
+ * Represents the possible statuses of a Stripe subscription.
+ */
+export type StripeSubscriptionStatus =
+  | 'active'
+  | 'trialing'
+  | 'past_due'
+  | 'canceled'
+  | 'unpaid'
+  | 'incomplete'
+  | 'incomplete_expired'
+  | 'paused';
+
+/**
+ * Represents the subscription document created by the Stripe Firebase Extension.
+ * Located at: /users/{userId}/subscriptions/{subscriptionId}
+ */
+export interface StripeSubscription {
+  id: string;
+  status: StripeSubscriptionStatus;
+  // ... (the extension adds many more fields, but status is the key one)
+  [key: string]: any;
 }

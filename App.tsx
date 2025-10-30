@@ -9,15 +9,25 @@ import {
   signOut,
   connectAuthEmulator
 } from 'firebase/auth';
-import { getFirestore, doc, setDoc, Timestamp } from 'firebase/firestore';
+import { 
+  getFirestore, doc, setDoc, Timestamp,
+  collection, query, orderBy, getDocs, limit,
+  deleteDoc
+} from 'firebase/firestore';
+import { HistoryIcon } from './components/icons/HistoryIcon';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { ErrorMessage } from './components/ErrorMessage';
 import { RestartIcon } from './components/icons/RestartIcon';
+import { BookmarkIcon } from './components/icons/BookmarkIcon';
+import { BookOpenIcon } from './components/icons/BookOpenIcon';
+import { PencilSquareIcon } from './components/icons/PencilSquareIcon';
+import { SearchIcon } from './components/icons/SearchIcon';
+import { CreditCardIcon } from './components/icons/CreditCardIcon';
 import { ArrowLeftIcon } from './components/icons/ArrowLeftIcon';
 import { VolumeUpIcon } from './components/icons/VolumeUpIcon';
 import { PlayIcon } from './components/icons/PlayIcon';
 import { PauseIcon } from './components/icons/PauseIcon';
-import { Lesson, Article, NewsResult, EnglishLevel, LessonResponse } from './types';
+import { Lesson, Article, NewsResult, EnglishLevel, LessonResponse, SavedWord, VocabularyItem, StripeSubscription } from './types';
 
 // --- Configuration Variables ---
 const firebaseConfig = {
@@ -88,10 +98,25 @@ function useLocalStorageState<T>(key: string, defaultValue: T): [T, React.Dispat
 
 
 // --- Main App Component ---
-type AppView = 'LOADING' | 'SIGN_OUT' | 'INPUT' | 'NEWS_LIST' | 'LESSON_VIEW' | 'ACTIVITY'; // Added ACTIVITY view
+type AppView = 'LOADING' | 'SIGN_OUT' | 'DASHBOARD' | 'INPUT' | 'NEWS_LIST' | 'LESSON_VIEW' | 'ACTIVITY' | 'WORD_BANK'
+             | 'PRICING' | 'TERMS' | 'PRIVACY';
+
+// Interface for lessons fetched from Firestore
+interface SavedLesson {
+  id: string;
+  userId: string;
+  topic: string;
+  level: EnglishLevel;
+  articleUrl: string;
+  lessonData: Lesson;
+  source: string;
+  date: string;
+  image?: string;
+  createdAt: Timestamp;
+}
 
 // Type for activity state
-type ActivityType = 'vocab' | 'grammar' | 'comprehension';
+type ActivityType = 'vocab' | 'grammar' | 'comprehension' | 'writing';
 interface ActivityState {
   type: ActivityType;
   index: number; // Current question/word index
@@ -123,6 +148,24 @@ const App: React.FC = () => {
 
   // --- View State (derived from URL and authState) ---
   const [currentView, setCurrentView] = useState<AppView>('LOADING');
+
+  // --- NEW: Lesson History State ---
+  const [lessonHistory, setLessonHistory] = useState<SavedLesson[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+
+  // --- NEW: Word Bank State ---
+  const [wordBank, setWordBank] = useState<SavedWord[]>([]);
+  const [isWordBankLoading, setIsWordBankLoading] = useState(false);
+  const [wordBankMessage, setWordBankMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+
+  // --- NEW: Dashboard Filter State ---
+  const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
+
+  // --- NEW: Subscription State ---
+  const [subscription, setSubscription] = useState<StripeSubscription | null>(null);
+  const [isSubLoading, setIsSubLoading] = useState(true); // Start true on load
+  const [isBillingLoading, setIsBillingLoading] = useState(false);
+  const isSubscribed = subscription?.status === 'active' || subscription?.status === 'trialing';
 
   // --- Global Error ---
   const [error, setError] = useState<string | null>(null);
@@ -205,7 +248,7 @@ const App: React.FC = () => {
   }, []); // navigate itself has no dependencies now
 
   const goToInput = useCallback(() => {
-    navigate('/');
+    navigate('/new');
   }, [navigate]);
 
   const goToSearch = useCallback((query: string, level: EnglishLevel) => {
@@ -216,7 +259,6 @@ const App: React.FC = () => {
     setCurrentArticle(article); // Set localStorage immediately
     navigate('/lesson', `?url=${encodeURIComponent(article.link)}`, { article });
   }, [navigate, setCurrentArticle]);
-
 
   // --- Core Fetch Helper ---
   const authenticatedFetch = useCallback(async (functionName: string, body: any) => {
@@ -417,10 +459,11 @@ const App: React.FC = () => {
               topic: inputTopic,
               level: inputLevel,
               articleUrl: article.link,
+              source: article.source,
+              date: article.date,
+              image: article.image || null,
               lessonData: lessonToSave,
-              // --- FIX: Safely access responseData ---
               summarySource: responseData?.summarySource || (currentLesson as any)?.summarySource || 'unknown',
-              // --- END FIX ---
               createdAt: Timestamp.now()
           });
           console.log("Lesson saved/resaved to Firestore");
@@ -455,6 +498,182 @@ const App: React.FC = () => {
       summaryAudioSrc, isSummaryAudioLoading
       // --- END REMOVAL ---
   ]);
+
+  const fetchLessonHistory = useCallback(async (user: User) => {
+    if (!user) return;
+    console.log("Fetching lesson history...");
+    setIsHistoryLoading(true);
+    try {
+      const lessonsRef = collection(db, `users/${user.uid}/lessons`);
+      const q = query(lessonsRef, orderBy("createdAt", "desc"), limit(50));
+      const querySnapshot = await getDocs(q);
+      const lessons = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as SavedLesson));
+      setLessonHistory(lessons);
+      console.log(`Fetched ${lessons.length} lessons.`);
+    } catch (err) {
+      console.error("Error fetching lesson history:", err);
+      setError(`Failed to load lesson history: ${(err as Error).message}`);
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  }, [db]); // Add db dependency
+
+  const fetchWordBank = useCallback(async (user: User) => {
+    if (!user) return;
+    console.log("Fetching word bank...");
+    setIsWordBankLoading(true); // We can reuse history loading, or add a new state
+    try {
+      const wordsRef = collection(db, `users/${user.uid}/wordBank`);
+      const q = query(wordsRef, orderBy("createdAt", "desc"));
+      const querySnapshot = await getDocs(q);
+      const words = querySnapshot.docs.map(doc => doc.data() as SavedWord);
+      setWordBank(words);
+      console.log(`Fetched ${words.length} words.`);
+    } catch (err) {
+      console.error("Error fetching word bank:", err);
+      setError(`Failed to load word bank: ${(err as Error).message}`);
+    } finally {
+      setIsWordBankLoading(false);
+    }
+  }, [db]);
+
+  const handleSaveWord = async (vocabItem: VocabularyItem) => {
+    if (!user) return;
+
+    // Use the word itself as the document ID to prevent duplicates
+    const docId = vocabItem.word;
+    
+    // Check local state first for instant feedback
+    if (wordBank.some(w => w.word === docId)) {
+      setWordBankMessage({ text: "Already saved!", type: 'error' });
+      setTimeout(() => setWordBankMessage(null), 2000);
+      return;
+    }
+
+    const newSavedWord: SavedWord = {
+      ...vocabItem,
+      id: docId,
+      userId: user.uid,
+      createdAt: Timestamp.now()
+    };
+
+    try {
+      await setDoc(doc(db, `users/${user.uid}/wordBank`, newSavedWord.id), newSavedWord);
+      
+      // Add to local state (at the top of the list)
+      setWordBank(prev => [newSavedWord, ...prev]);
+      setWordBankMessage({ text: "Word Saved!", type: 'success' });
+
+    } catch (err) {
+      console.error("Error saving word:", err);
+      setWordBankMessage({ text: `Error: ${(err as Error).message}`, type: 'error' });
+    } finally {
+      setTimeout(() => setWordBankMessage(null), 2000);
+    }
+  };
+
+  const handleDeleteWord = async (word: string) => {
+    if (!user) return;
+
+    if (activityAudioRef.current) {
+        activityAudioRef.current.pause();
+        activityAudioRef.current = null;
+    }
+
+    try {
+      await deleteDoc(doc(db, `users/${user.uid}/wordBank`, word));
+      
+      // Remove from local state
+      setWordBank(prev => prev.filter(w => w.word !== word));
+      setWordBankMessage({ text: "Word Deleted.", type: 'success' });
+      
+    } catch (err) {
+      console.error("Error deleting word:", err);
+      setWordBankMessage({ text: `Error: ${(err as Error).message}`, type: 'error' });
+    } finally {
+      setTimeout(() => setWordBankMessage(null), 2000);
+    }
+  };
+
+  const handleSelectPastLesson = useCallback((lesson: SavedLesson) => {
+    console.log("Loading past lesson:", lesson.lessonData.articleTitle);
+    // Re-construct the 'Article' object needed for the lesson view
+    const article: Article = {
+      title: lesson.lessonData.articleTitle,
+      link: lesson.articleUrl,
+      source: lesson.source,
+      date: lesson.date,
+      snippet: '', // Snippet isn't critical for re-opening a lesson
+      image: lesson.image // Keep image if it's somehow already in state, otherwise undefined
+    };
+
+    // Set all the state required to open the lesson
+    setCurrentArticle(article);
+    setCurrentLesson(lesson.lessonData);
+    setInputTopic(lesson.topic);
+    setInputLevel(lesson.level);
+
+    // Navigate to the lesson view
+    navigate('/lesson', `?url=${encodeURIComponent(lesson.articleUrl)}`, { article });
+
+  }, [navigate, setCurrentArticle, setCurrentLesson, setInputTopic, setInputLevel, currentArticle?.image]);
+
+  // --- NEW: Subscription Functions ---
+  const fetchSubscriptionStatus = useCallback(async (user: User) => {
+    if (!user) return;
+    console.log("Fetching subscription status...");
+    setIsSubLoading(true);
+    try {
+      // Note: This query is simple. The Stripe extension *overwrites* docs,
+      // so we just look for the first active/trialing one.
+      const subRef = collection(db, `users/${user.uid}/subscriptions`);
+      const q = query(subRef, where("status", "in", ["active", "trialing"]), limit(1));
+      
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        setSubscription(null);
+        setIsSubLoading(true);
+        console.log("No active subscription found.");
+      } else {
+        const sub = querySnapshot.docs[0].data() as StripeSubscription;
+        setSubscription(sub);
+        console.log("Active subscription found. Status:", sub.status);
+      }
+    } catch (err) {
+      console.error("Error fetching subscription:", err);
+      // Don't block app, just assume user is free
+      setSubscription(null);
+    } finally {
+      setIsSubLoading(false);
+    }
+  }, [db]); // Add db dependency
+
+  const handleManageBilling = async () => {
+    if (!user) return;
+    setIsBillingLoading(true);
+    setError(null);
+    try {
+      const response = await authenticatedFetch('createPortalLink', {
+        returnUrl: window.location.origin + '/' // Return to dashboard
+      });
+      
+      if (response.url) {
+        // Redirect user to the Stripe portal
+        window.location.href = response.url;
+      } else {
+        throw new Error("No portal URL returned from server.");
+      }
+    } catch (err) {
+      console.error("Error creating portal link:", err);
+      setError(`Could not open billing portal: ${(err as Error).message}`);
+      setIsBillingLoading(false);
+    }
+    // No finally needed, as user is redirected on success
+  };
 
   // --- URL Handling Logic ---
   const handleUrlChange = useCallback((path: string, params: URLSearchParams, newState?: { article?: Article | null }) => {
@@ -510,8 +729,18 @@ const App: React.FC = () => {
         goToInput(); // Triggers navigation
         return; // Stop processing this path
       }
-    } else { // Default path '/'
+    } else if (path.startsWith('/new')) { // <-- ADD THIS ELSE IF BLOCK
       nextView = 'INPUT';
+    } else if (path.startsWith('/wordbank')) { // <-- ADD THIS BLOCK
+      nextView = 'WORD_BANK';
+    } else if (path.startsWith('/pricing')) { // <-- ADD THIS
+      nextView = 'PRICING';
+    } else if (path.startsWith('/terms')) { // <-- ADD THIS
+      nextView = 'TERMS';
+    } else if (path.startsWith('/privacy')) { // <-- ADD THIS
+      nextView = 'PRIVACY';
+    } else { // Default path '/'
+      nextView = 'DASHBOARD'; // <-- CHANGE HERE
     }
 
     // Always call setCurrentView if a nextView was determined.
@@ -572,23 +801,44 @@ const App: React.FC = () => {
     };
   }, [authState]); // Rerun only when authState changes
 
+  // --- NEW: Memoized filter for lesson history ---
+  const filteredLessonHistory = useMemo(() => {
+    if (!dashboardSearchTerm.trim()) {
+      return lessonHistory; // No filter, return all
+    }
+    const lowerCaseSearch = dashboardSearchTerm.toLowerCase();
+    
+    return lessonHistory.filter(lesson =>
+      // Check title
+      lesson.lessonData.articleTitle.toLowerCase().includes(lowerCaseSearch) ||
+      // Check topic
+      lesson.topic.toLowerCase().includes(lowerCaseSearch) ||
+      // Check source
+      (lesson.source && lesson.source.toLowerCase().includes(lowerCaseSearch))
+    );
+  }, [lessonHistory, dashboardSearchTerm]);
+
   // --- Auth state listener ---
    useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
         setAuthState('SIGNED_IN');
-        // Let the useEffect above handle the initial URL check based on authState change
+        fetchLessonHistory(currentUser); //
+        fetchWordBank(currentUser);
+        fetchSubscriptionStatus(currentUser);
         setError(null);
       } else {
         setUser(null);
         setAuthState('SIGNED_OUT');
         setCurrentView('SIGN_OUT');
+        setLessonHistory([]); //
+        setWordBank([]);
+        setDashboardSearchTerm('');
       }
     });
     return () => unsubscribe();
-  }, [auth, setCurrentView]); // Added setCurrentView
-
+  }, [auth, setCurrentView, fetchLessonHistory, fetchWordBank, fetchSubscriptionStatus]);
 
   // --- Google Sign-In Handler ---
   const signInWithGoogle = async () => {
@@ -621,7 +871,6 @@ const App: React.FC = () => {
   };
 
   // --- NEW: Activity Logic ---
-
   const startActivity = (type: ActivityType) => {
     if (!currentLesson) return;
     activityCancellationRef.current = false; // <<< ADD THIS LINE: Reset cancellation flag
@@ -641,6 +890,7 @@ const App: React.FC = () => {
     }
     if (type === 'grammar') totalItems = 5;
     if (type === 'comprehension') totalItems = currentLesson.comprehensionQuestions.length;
+    if (type === 'writing') totalItems = 1;
 
     if (totalItems === 0) {
         setError(`No ${type} items available for this lesson.`);
@@ -797,6 +1047,37 @@ const App: React.FC = () => {
           else { throw new Error("Invalid grammar data received."); }
       });
     } // <-- Close the new else block
+  } else if (type === 'writing') {
+      console.log(`Setting loading ref and starting writing fetch for ${currentStepKey}...`);
+      loadingStepRef.current = currentStepKey;
+      setActivityState(prev => {
+         if (!prev || prev.index !== index || prev.type !== 'writing') return prev;
+         return { ...prev, isSubmitting: true, currentData: null, userAnswer: null, feedback: {isCorrect: null, message: ''}};
+      });
+
+      const payload = {
+        summary: currentLesson.summary,
+        level: inputLevel,
+        vocabularyList: currentLesson.vocabularyList.map(v => v.word)
+      };
+
+      if (!payload.summary || !payload.level || !payload.vocabularyList) {
+          console.error("Cannot generate writing prompt: missing summary, level, or vocab list.");
+          setError("Failed to prepare writing activity data.");
+          dataPromise = Promise.reject(new Error("Missing writing_generate payload data."));
+      } else {
+          dataPromise = authenticatedFetch('handleActivity', {
+              activityType: 'writing_generate',
+              payload: payload
+          }).then(fetchedData => {
+            if (activityCancellationRef.current) {
+                return Promise.reject(new Error("Activity cancelled"));
+            }
+            console.log(`Writing prompt fetch successful for ${currentStepKey}`);
+            if (fetchedData?.prompt) { return fetchedData; }
+            else { throw new Error("Invalid writing prompt data received."); }
+        });
+      }
   } else {
     // Should not happen
     dataPromise = Promise.reject(new Error(`Unhandled activity type: ${type}`));
@@ -811,14 +1092,15 @@ const App: React.FC = () => {
      }
      // *** END CANCELLATION CHECK ***
 
-     if (loadingStepRef.current !== currentStepKey && type === 'grammar') {
+     if (loadingStepRef.current !== currentStepKey && (type === 'grammar' || type === 'writing')) {
         console.log(`Data received for ${currentStepKey}, but loading ref changed or cleared. Discarding.`);
         return;
      }
 
      console.log(`Setting final currentData for step ${currentStepKey}`);
      setActivityState(prev => {
-       // ... (keep existing relevance checks) ...
+       if (!prev || prev.index !== index || prev.type !== type) return prev; // Relevance check
+       
        console.log(`Executing final state update for ${currentStepKey}`);
        return {
          ...prev,
@@ -829,31 +1111,22 @@ const App: React.FC = () => {
      });
    })
    .catch(error => {
-      // *** ADD HANDLING FOR THE NEW ERROR CASE ***
-       if ((error as Error).message === "Missing grammar topic/explanation") {
-           console.warn("Grammar generation aborted due to missing data.");
-           // Make sure loading state is off, but don't quitActivity here,
-           // as setError and the console.error above already informed the user.
+       if ((error as Error).message === "Missing grammar topic/explanation" || (error as Error).message === "Missing writing_generate payload data.") {
+           console.warn("Activity generation aborted due to missing data.");
            setActivityState(prev => {
                if (!prev || !(prev.index === index && prev.type === type && prev.isSubmitting)) return prev;
                return {...prev, isSubmitting: false, _loadingStepKey: null };
            });
            return; // Stop further error processing
        }
-      // *** GRACEFULLY HANDLE CANCELLATION ERROR ***
       if ((error as Error).message === "Activity cancelled") {
           console.log(`Caught cancellation signal for ${currentStepKey}. No error state needed.`);
-          // Ensure loading spinner stops if it was running for this cancelled step
           setActivityState(prev => {
-              if (!prev || !(prev.index === index && prev.type === type && prev.isSubmitting)) return prev; // Check relevance *and* if submitting
+              if (!prev || !(prev.index === index && prev.type === type && prev.isSubmitting)) return prev;
               return {...prev, isSubmitting: false, _loadingStepKey: null };
           });
           return; // Stop further error processing
       }
-      // *** END CANCELLATION HANDLING ***
-
-
-      // ... (keep existing relevance checks for error) ...
 
       console.error(`Error processing/fetching activity data for ${currentStepKey}:`, error);
       setError(`An error occurred: ${(error as Error).message}`);
@@ -870,11 +1143,8 @@ const App: React.FC = () => {
       }
    });
 
-    // Cleanup function is automatically handled by React for the effect itself
-    // We don't need isCurrentActivityStep flag with the ref approach
     return () => {
         console.log(`Activity useEffect cleanup running for ${currentStepKey} (effect instance end)`);
-        // If this cleanup runs *while* its corresponding grammar fetch was active, clear the ref
         if (loadingStepRef.current === currentStepKey) {
             console.log(`Cleanup clearing loading ref for ${currentStepKey} because effect instance ended`);
             loadingStepRef.current = null;
@@ -959,6 +1229,27 @@ const App: React.FC = () => {
                  return {
                    ...prev,
                    feedback: { isCorrect: result.isCorrect, message: result.feedback || (result.isCorrect ? 'Correct!' : 'Incorrect.') },
+                   score: newScore,
+                   isSubmitting: false
+                 };
+             });
+        } else if (type === 'writing') {
+             const result = await authenticatedFetch('handleActivity', {
+                activityType: 'writing_grade',
+                payload: {
+                    prompt: currentData.prompt,
+                    summary: currentLesson.summary,
+                    userAnswer: String(userAnswer),
+                    level: inputLevel // <-- Pass the level for grading context
+                }
+             });
+             setActivityState(prev => {
+                 if (!prev) return null;
+                 // For writing, "isCorrect" is more of a "pass/fail". The feedback is what matters.
+                 const newScore = result.isCorrect ? prev.score + 1 : prev.score;
+                 return {
+                   ...prev,
+                   feedback: { isCorrect: result.isCorrect, message: result.feedback || (result.isCorrect ? 'Great job!' : 'Good try, see feedback.') },
                    score: newScore,
                    isSubmitting: false
                  };
@@ -1124,12 +1415,334 @@ const App: React.FC = () => {
 
   // --- Render Functions ---
 
+  const renderDashboard = () => (
+    <div className="p-4 sm:p-6 max-w-3xl mx-auto bg-white rounded-xl shadow-2xl space-y-5">
+      {/* Header */}
+      <div className="flex flex-wrap justify-between items-center gap-2 border-b pb-3">
+        <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" />
+        {user && (
+          <button
+            onClick={handleSignOut}
+            className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1 flex-shrink-0"
+          >
+            Sign Out ({user.displayName?.split(' ')[0] || user.email?.split('@')[0] || 'User'})
+          </button>
+        )}
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <button
+          onClick={goToInput}
+          className="flex items-center justify-center gap-2 bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-lg"
+        >
+          <RestartIcon className="w-5 h-5" /> Start New Lesson
+        </button>
+        <button
+          onClick={() => navigate('/wordbank')}
+          disabled={isWordBankLoading}
+          className="flex items-center justify-center gap-2 bg-purple-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-purple-600 transition duration-150 shadow-lg disabled:opacity-50"
+        >
+          <BookOpenIcon className="w-5 h-5" />
+          My Word Bank ({wordBank.length})
+        </button>
+      </div>
+
+      {/* --- START: Updated Quick Actions --- */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <button
+          onClick={goToInput}
+          className="flex items-center justify-center gap-2 bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-lg"
+        >
+          <RestartIcon className="w-5 h-5" /> Start New Lesson
+        </button>
+        <button
+          onClick={() => navigate('/wordbank')}
+          disabled={isWordBankLoading}
+          className="flex items-center justify-center gap-2 bg-purple-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-purple-600 transition duration-150 shadow-lg disabled:opacity-50"
+        >
+          <BookOpenIcon className="w-5 h-5" />
+          My Word Bank ({wordBank.length})
+        </button>
+
+        {/* Subscription Button */}
+        {isBillingLoading ? (
+            <button disabled className="flex items-center justify-center gap-2 bg-gray-400 text-white font-bold py-3 px-4 rounded-lg shadow-lg disabled:opacity-50">
+              <LoadingSpinner className="w-5 h-5" /> Loading...
+            </button>
+        ) : isSubscribed ? (
+            <button
+              onClick={handleManageBilling}
+              className="flex items-center justify-center gap-2 bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 transition duration-150 shadow-lg"
+            >
+              <CreditCardIcon className="w-5 h-5" /> Manage Billing
+            </button>
+        ) : (
+            <button
+              onClick={() => navigate('/pricing')}
+              className="flex items-center justify-center gap-2 bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition duration-150 shadow-lg"
+            >
+              <CreditCardIcon className="w-5 h-5" /> Upgrade to Pro
+            </button>
+        )}
+      </div>
+      {/* --- END: Updated Quick Actions --- */}
+      
+      {/* Footer for TOS/Privacy */}
+      <div className="text-center text-xs text-gray-400 space-x-4 pt-2">
+        <a href="/terms" onClick={(e) => { e.preventDefault(); navigate('/terms'); }} className="hover:underline">Terms of Service</a>
+        <span>&bull;</span>
+        <a href="/privacy" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }} className="hover:underline">Privacy Policy</a>
+      </div>
+
+      {/* Lesson History */}
+      <div className="space-y-3">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 border-t pt-4">Your Lesson History</h2>
+
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <SearchIcon className="w-5 h-5 text-gray-400" />
+          </div>
+          <input
+            type="text"
+            value={dashboardSearchTerm}
+            onChange={(e) => setDashboardSearchTerm(e.target.value)}
+            placeholder="Search by title, topic, or source..."
+            className="w-full p-3 pl-10 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+
+        {isHistoryLoading ? (
+          <LoadingSpinner text="Loading your lessons..." />
+        ) : lessonHistory.length === 0 ? (
+          <p className="text-center text-gray-500 py-4">You haven't completed any lessons yet. Start a new one!</p>
+        ) : (
+          <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
+            {filteredLessonHistory.map((lesson) => (
+              <button
+                key={lesson.id}
+                onClick={() => handleSelectPastLesson(lesson)}
+                className="w-full flex gap-3 items-center p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-blue-50 transition duration-150 text-left"
+              >
+                {lesson.image ? (
+                  <img
+                    src={lesson.image}
+                    alt=""
+                    className="w-16 h-16 object-cover rounded flex-shrink-0"
+                    onError={(e) => (e.currentTarget.style.display = 'none')}
+                  />
+                ) : (
+                  <div className="w-16 h-16 flex items-center justify-center bg-gray-100 rounded flex-shrink-0">
+                    <HistoryIcon className="w-8 h-8 text-blue-400" />
+                  </div>
+                )}
+                <div className="flex-grow min-w-0">
+                  <p className="text-lg font-semibold text-gray-900 line-clamp-2">
+                    {lesson.lessonData.articleTitle}
+                  </p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Topic: <span className="font-medium text-gray-800">{lesson.topic}</span>
+                    <span className="mx-2">|</span>
+                    Level: <span className="font-medium text-gray-800">{lesson.level}</span>
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Source: {lesson.source} ({lesson.date})
+                  </p>
+                </div>
+                <ArrowLeftIcon className="w-5 h-5 text-gray-400 transform rotate-180 flex-shrink-0" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderWordBank = () => (
+    <div className="p-4 sm:p-6 max-w-3xl mx-auto bg-white rounded-xl shadow-2xl space-y-5">
+      {/* Header */}
+      <div className="flex flex-wrap justify-between items-center gap-2 border-b pb-3">
+        {/* Back button */}
+        <button
+            onClick={() => {
+              // --- ADD AUDIO STOP ---
+              if (activityAudioRef.current) {
+                  activityAudioRef.current.pause();
+                  activityAudioRef.current = null;
+              }
+              // --- END ADD ---
+              navigate('/');
+            }}
+            className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
+            title="Back to Dashboard"
+          >
+            <ArrowLeftIcon className="w-4 h-4 mr-1" /> Dashboard
+        </button>
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">My Word Bank</h2>
+        {user && (
+          <button
+            onClick={handleSignOut}
+            className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1 flex-shrink-0"
+          >
+            Sign Out
+          </button>
+        )}
+      </div>
+
+      {/* Temporary Message */}
+      {wordBankMessage && (
+        <div className={`p-2 text-sm text-center rounded ${wordBankMessage.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+          {wordBankMessage.text}
+        </div>
+      )}
+
+      {/* Word List */}
+      <div className="space-y-3">
+        {isWordBankLoading ? (
+          <LoadingSpinner text="Loading your saved words..." />
+        ) : wordBank.length === 0 ? (
+          <p className="text-center text-gray-500 py-4">You haven't saved any words yet. Save words from the vocabulary list in your lessons!</p>
+        ) : (
+          <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
+            {wordBank.map((item) => (
+              <div
+                key={item.id}
+                className="flex gap-3 items-start p-4 border border-gray-200 rounded-lg"
+              >
+                <div className="flex-grow min-w-0">
+                  <strong className="text-lg text-purple-800">{item.word}</strong>
+                  <p className="text-gray-700">{item.definition}</p>
+                  <p className="text-sm italic text-gray-500 mt-1">
+                    Example: "{item.articleExample}"
+                    <SpeakButton text={item.articleExample} />
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleDeleteWord(item.word)}
+                  title="Delete word"
+                  className="p-1 text-gray-400 hover:text-red-600 flex-shrink-0"
+                >
+                  {/* Simple 'X' icon for delete */}
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // --- NEW: Reusable SpeakButton ---
+  const SpeakButton = ({ text }: { text: string | undefined | null }) => (
+    <button
+       onClick={() => {
+           console.log("SpeakButton clicked. Text:", text);
+           handleActivityTextToSpeech(text);
+       }}
+       disabled={isActivityAudioLoading || !text}
+       className="ml-2 p-1 text-gray-500 hover:text-blue-600 disabled:opacity-50 inline-block align-middle cursor-pointer disabled:cursor-not-allowed"
+       title="Read aloud"
+     >
+       {isActivityAudioLoading ? (
+            <LoadingSpinner className="w-4 h-4 inline-block" />
+       ) : (
+            <VolumeUpIcon className="w-5 h-5" />
+       )}
+    </button>
+  );
+
+  const StaticPageWrapper: React.FC<{ title: string, children: React.ReactNode }> = ({ title, children }) => (
+    <div className="p-4 sm:p-6 max-w-3xl mx-auto bg-white rounded-xl shadow-2xl space-y-5">
+      <div className="flex justify-between items-center gap-2 border-b pb-3">
+        <button
+            onClick={() => navigate('/')} // Back to Dashboard
+            className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
+            title="Back to Dashboard"
+          >
+            <ArrowLeftIcon className="w-4 h-4 mr-1" /> Dashboard
+        </button>
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">{title}</h2>
+        <div className="w-24"></div> {/* Spacer */}
+      </div>
+      <div className="prose prose-lg max-w-none text-gray-700">
+        {children}
+      </div>
+    </div>
+  );
+
+  const renderPricingPage = () => (
+    <StaticPageWrapper title="Pricing">
+      {/* This is where you would add the Stripe Checkout button.
+        The Stripe extension listens for a document write to /users/{userId}/checkout_sessions
+        See the extension docs for the exact fields to add.
+      */}
+      <h2>StreamLearn Pro</h2>
+      <p>Get unlimited access to everything StreamLearn has to offer for one simple price.</p>
+      
+      <div className="p-6 border rounded-lg bg-blue-50 border-blue-200 text-center">
+        <h3 className="text-2xl font-bold">$20 / month</h3>
+        <p className="text-gray-600">Billed monthly. Cancel anytime.</p>
+        <ul className="text-left list-disc list-inside my-4 space-y-2">
+          <li>Unlimited lesson generation.</li>
+          <li>Unlimited vocabulary practice.</li>
+          <li>Unlimited writing practice.</li>
+          <li>Full access to your lesson history.</li>
+        </ul>
+        <button 
+          onClick={() => alert("Stripe Checkout not implemented. See extension docs.")}
+          className="mt-4 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition"
+        >
+          Get Started with Pro
+        </button>
+      </div>
+
+      <h2 className="mt-6">Free Plan</h2>
+      <p>Perfect for trying out the app.</p>
+      <ul className="list-disc list-inside space-y-2">
+        <li><strong>{FREE_LESSON_LIMIT} free lessons</strong> per month.</li>
+        <li>Full access to all activity types.</li>
+      </ul>
+    </StaticPageWrapper>
+  );
+
+  const renderTermsPage = () => (
+    <StaticPageWrapper title="Terms of Service">
+      <p>Please replace this placeholder text with your real Terms of Service.</p>
+      <p>Last updated: October 30, 2025</p>
+      <h3>1. Acceptance of Terms</h3>
+      <p>By accessing or using StreamLearn, you agree to be bound by these terms...</p>
+      <h3>2. Subscription and Payment</h3>
+      <p>Our "Pro" plan is a recurring monthly subscription. Payments are handled by Stripe...</p>
+    </StaticPageWrapper>
+  );
+
+  const renderPrivacyPage = () => (
+    <StaticPageWrapper title="Privacy Policy">
+      <p>Please replace this placeholder text with your real Privacy Policy.</p>
+      <p>Last updated: October 30, 2025</p>
+      <h3>1. Information We Collect</h3>
+      <p>We collect information you provide directly to us, such as your Google account email and name. We also store data you generate, such as saved lessons and vocabulary words...</p>
+      <h3>2. How We Use Information</h3>
+      <p>We use your information to operate and improve our service, process payments (via Stripe), and communicate with you...</p>
+    </StaticPageWrapper>
+  );
+
   const renderInput = () => (
     // Add padding-x for mobile screens to prevent elements touching edges
     <div className="p-4 sm:p-6 max-w-lg mx-auto bg-white rounded-xl shadow-2xl space-y-6">
       {/* Use flex-wrap and justify-between for better mobile header layout */}
       <div className="flex flex-wrap justify-between items-center gap-2">
-        <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" /> {/* Slightly smaller banner on smallest screens */}
+        {/* --- ADD A BACK TO DASHBOARD BUTTON --- */}
+        <button
+            onClick={() => navigate('/')} // <-- Takes user back to dashboard
+            className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
+            title="Back to Dashboard"
+          >
+            <ArrowLeftIcon className="w-4 h-4 mr-1" /> Dashboard
+        </button>
         {user && (
           <button
             onClick={handleSignOut}
@@ -1406,7 +2019,7 @@ const App: React.FC = () => {
            </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 border-t pt-4">
           <button
             onClick={() => startActivity('vocab')}
             disabled={!currentLesson?.vocabularyList || currentLesson.vocabularyList.length === 0}
@@ -1428,18 +2041,53 @@ const App: React.FC = () => {
           >
             Comprehension Test ({currentLesson?.comprehensionQuestions?.length || 0})
           </button>
+          {/* --- ADD: Writing Practice Button --- */}
+          <button
+            onClick={() => startActivity('writing')}
+            disabled={!currentLesson?.summary}
+            className="bg-sky-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-sky-600 transition duration-150 disabled:opacity-50"
+          >
+            Writing Practice (1 Q)
+          </button>
         </div>
 
         {/* Vocabulary Section */}
         <div className="space-y-3 border-l-4 border-yellow-500 pl-4 bg-yellow-50 p-3 rounded-lg">
-          <h3 className="text-xl font-bold text-yellow-700">Vocabulary Builder</h3>
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-bold text-yellow-700">Vocabulary Builder</h3>
+            {/* --- START ADD: Show feedback message --- */}
+            {wordBankMessage && (
+              <span className={`text-sm ${wordBankMessage.type === 'success' ? 'text-green-700' : 'text-red-700'}`}>
+                {wordBankMessage.text}
+              </span>
+            )}
+            {/* --- END ADD --- */}
+          </div>
           <ul className="space-y-3">
-            {currentLesson?.vocabularyList?.map((item, index) => (
-              <li key={index} className="text-gray-800">
-                <strong className="text-yellow-900">{item.word}:</strong> {item.definition}
-                <p className="text-sm italic text-gray-600 mt-1">Example: "{item.articleExample}"</p>
-              </li>
-            ))}
+            {currentLesson?.vocabularyList?.map((item, index) => {
+              // --- START ADD: Check if word is saved ---
+              const isSaved = wordBank.some(w => w.word === item.word);
+              // --- END ADD ---
+              
+              return (
+                <li key={index} className="text-gray-800 flex justify-between items-start gap-2">
+                  <div className="flex-grow">
+                    <strong className="text-yellow-900">{item.word}:</strong> {item.definition}
+                    <p className="text-sm italic text-gray-600 mt-1">Example: "{item.articleExample}"</p>
+                  </div>
+                  {/* --- START ADD: Save Button --- */}
+                  <button
+                    onClick={() => handleSaveWord(item)}
+                    disabled={isSaved}
+                    title={isSaved ? "Saved" : "Save word"}
+                    className="p-1 text-purple-600 hover:text-purple-800 disabled:text-gray-400 disabled:cursor-default flex-shrink-0"
+                  >
+                    <BookmarkIcon className="w-5 h-5" isSolid={isSaved} />
+                  </button>
+                  {/* --- END ADD --- */}
+                </li>
+              );
+            })}
           </ul>
         </div>
 
@@ -1514,25 +2162,6 @@ const App: React.FC = () => {
     let feedbackColor = 'border-gray-300'; // Default
     if (feedback.isCorrect === true) feedbackColor = 'border-green-500 bg-green-50';
     if (feedback.isCorrect === false) feedbackColor = 'border-red-500 bg-red-50';
-    
-    // --- Use Renamed TTS Handler in SpeakButton ---
-     const SpeakButton = ({ text }: { text: string | undefined | null }) => (
-       <button
-          onClick={() => {
-              console.log("Activity SpeakButton clicked. Text:", text);
-              handleActivityTextToSpeech(text); // <-- Use renamed handler
-          }}
-          disabled={isActivityAudioLoading || !text} // <-- Use renamed state
-          className="ml-2 p-1 text-gray-500 hover:text-blue-600 disabled:opacity-50 inline-block align-middle cursor-pointer disabled:cursor-not-allowed"
-          title="Read aloud"
-        >
-          {isActivityAudioLoading ? ( // <-- Use renamed state
-               <LoadingSpinner className="w-4 h-4 inline-block" />
-          ) : (
-               <VolumeUpIcon className="w-5 h-5" />
-          )}
-       </button>
-     );
 
     return (
       <div className={`p-6 max-w-2xl mx-auto bg-white rounded-xl shadow-2xl space-y-4 border-2 ${feedbackColor}`}>
@@ -1673,6 +2302,30 @@ const App: React.FC = () => {
               />
             </div>
           )}
+
+          {/* --- NEW: Writing Practice --- */}
+          {type === 'writing' && currentData && (
+            <div>
+              <p className="text-lg font-semibold text-gray-700 mb-2">
+                Writing Prompt:
+                {currentData.prompt && <SpeakButton text={currentData.prompt} />}
+              </p>
+              <p className="p-3 bg-gray-100 text-gray-900 rounded mb-2">{currentData.prompt}</p>
+              {currentData.vocabularyHint && (
+                <p className="text-sm text-gray-600 mb-3">
+                  Try to use these words: <span className="font-medium">{currentData.vocabularyHint}</span>
+                </p>
+              )}
+              <textarea
+                value={String(userAnswer ?? '')}
+                onChange={(e) => setActivityState(prev => prev ? { ...prev, userAnswer: e.target.value } : null)}
+                disabled={feedback.isCorrect !== null || isSubmitting}
+                rows={6}
+                className="w-full p-2 border border-gray-300 text-gray-900 rounded disabled:bg-gray-100"
+                placeholder="Write your response here..."
+              />
+            </div>
+          )}
         </div>
 
         {/* Feedback Area */}
@@ -1712,10 +2365,10 @@ const App: React.FC = () => {
         {/* Global error bar - always show if error exists */}
         {error && <ErrorMessage message={error} />}
 
-        {/* Auth loading */}
-        {authState === 'LOADING' && (
+        {/* --- MODIFIED: Updated Loading Check --- */}
+        {(authState === 'LOADING' || (authState === 'SIGNED_IN' && isSubLoading)) && (
              <div className="min-h-screen flex items-center justify-center bg-gray-100">
-                <LoadingSpinner text="Initializing..." />
+                <LoadingSpinner text={authState === 'LOADING' ? "Initializing..." : "Loading your account..."} />
              </div>
         )}
 
@@ -1740,14 +2393,19 @@ const App: React.FC = () => {
              </div>
         )}
 
-        {/* Main app view, rendered based on URL-driven currentView */}
-        {authState === 'SIGNED_IN' && (
+        {/* --- MODIFIED: Main app view --- */}
+        {authState === 'SIGNED_IN' && !isSubLoading && (
             <>
+                {currentView === 'DASHBOARD' && renderDashboard()}
+                {currentView === 'WORD_BANK' && renderWordBank()} 
                 {currentView === 'INPUT' && renderInput()}
                 {currentView === 'NEWS_LIST' && renderNewsList()}
                 {currentView === 'LESSON_VIEW' && renderLessonView()}
                 {currentView === 'ACTIVITY' && renderActivityView()}
-                {/* General loading state if view hasn't resolved after sign in */}
+                {currentView === 'PRICING' && renderPricingPage()}
+                {currentView === 'TERMS' && renderTermsPage()}
+                {currentView === 'PRIVACY' && renderPrivacyPage()}
+                
                 {currentView === 'LOADING' && (
                     <div className="min-h-screen flex items-center justify-center bg-gray-100">
                         <LoadingSpinner text="Loading..." />
