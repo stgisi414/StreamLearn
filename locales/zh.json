@@ -1,0 +1,138 @@
+{
+  "translation": {
+    "common": {
+      "signOut": "登出",
+      "loading": "加载中...",
+      "initializing": "初始化...",
+      "back": "返回",
+      "error": "错误：",
+      "cancel": "取消",
+      "submit": "提交",
+      "finish": "完成",
+      "next": "下一个",
+      "score": "得分：",
+      "question": "问题：",
+      "quit": "退出",
+      "level": "级别：",
+      "source": "来源：",
+      "example": "例子：",
+      "of": "之",
+      "save": "保存",
+      "saved": "已保存",
+      "saveWord": "保存单词",
+      "deleteWord": "删除单词",
+      "wordSaved": "单词已保存！",
+      "wordDeleted": "单词已删除。",
+      "alreadySaved": "已保存！"
+    },
+    "signIn": {
+      "welcome": "欢迎来到 StreamLearn AI",
+      "prompt": "请使用 Google 登录以继续。",
+      "button": "使用 Google 登录",
+      "signOutUser": "登出 ({user})"
+    },
+    "dashboard": {
+      "title": "仪表板",
+      "startLesson": "开始新课程",
+      "wordBank": "我的单词库 ({count})",
+      "manageBilling": "管理账单",
+      "upgradePro": "升级到 Pro",
+      "tos": "服务条款",
+      "privacy": "隐私政策",
+      "langSettings": "语言设置",
+      "uiLang": "我的UI语言 (我看到的)",
+      "targetLang": "目标语言 (我想学的)",
+      "historyTitle": "你的课程历史",
+      "historySearch": "按标题、主题或来源搜索...",
+      "historyLoading": "正在加载你的课程...",
+      "historyEmpty": "你还没有完成任何课程。开始新的课程吧！",
+      "historyNoResults": "没有找到与 “{term}” 匹配的课程。"
+    },
+    "wordBank": {
+      "title": "我的单词库",
+      "loading": "正在加载你保存的单词...",
+      "empty": "你还没有保存任何单词。从课程的词汇列表中保存单词吧！"
+    },
+    "input": {
+      "levelLabel": "你的英语水平",
+      "topicLabel": "输入一个主题或从下面选择：",
+      "topicPlaceholder": "例如：人工智能、太空、烹饪",
+      "search": "搜索",
+      "popularTopics": "或选择一个热门主题："
+    },
+    "news": {
+      "title": "关于 “{topic}” 的文章 ({level})",
+      "back": "返回文章列表",
+      "loading": "正在获取文章...",
+      "empty": "未找到此主题的相关文章。"
+    },
+    "lesson": {
+      "generating": "正在生成你的课程，请稍候...",
+      "loadFail": "加载课程数据失败。请重试。",
+      "newTopic": "新主题",
+      "summaryTitle": "文章摘要",
+      "audioFail": "获取摘要音频失败：",
+      "playAudio": "播放摘要",
+      "pauseAudio": "暂停摘要",
+      "reviewVocab": "复习词汇 ({count})",
+      "grammarQuiz": "语法测验 ({count} 题)",
+      "comprehensionTest": "理解测试 ({count})",
+      "writingPractice": "写作练习 (1 题)",
+      "vocabBuilder": "词汇生成器",
+      "grammarFocus": "语法重点：",
+      "comprehensionQuestions": "理解问题"
+    },
+    "activity": {
+      "title": "{type} 活动",
+      "complete": "活动完成！",
+      "yourScore": "你的得分：{score} / {total}",
+      "backToLesson": "返回课程",
+      "init": "正在初始化活动...",
+      "generatingGrammar": "正在生成语法问题...",
+      "generatingWriting": "正在生成写作提示...",
+      "readAloud": "朗读",
+      "definition": "定义：",
+      "typeWord": "输入单词：",
+      "chooseWord": "选择正确的单词：",
+      "writingPrompt": "写作提示：",
+      "tryWords": "尝试使用这些词：{words}",
+      "typeAnswer": "在此输入你的答案...",
+      "writeResponse": "在此写下你的回答...",
+      "correct": "正确！",
+      "incorrectWord": "不正确。正确的单词是 “{word}”。"
+    },
+    "pricing": {
+      "title": "定价",
+      "proTitle": "StreamLearn Pro",
+      "description": "以一个简单的价格无限制地使用 StreamLearn 提供的所有功能。",
+      "price": "每月 $20",
+      "billing": "按月计费。随时取消。",
+      "feature1": "无限制的课程生成。",
+      "feature2": "无限制的词汇练习。",
+      "feature3": "无限制的写作练习。",
+      "feature4": "完全访问你的课程历史。",
+      "button": "开始使用 Pro",
+      "freeTitle": "免费计划",
+      "freeDescription": "非常适合试用本应用。",
+      "freeFeature": "每月 {count} 节免费课程。"
+    },
+    "tos": {
+      "title": "服务条款",
+      "placeholder": "请将此占位符文本替换为您的真实服务条款。",
+      "lastUpdated": "最后更新：2025年10月30日",
+      "h1": "1. 接受条款",
+      "p1": "访问或使用 StreamLearn，即表示您同意受这些条款的约束...",
+      "h2": "2. 订阅和付款",
+      "p2": "我们的 “Pro” 计划是按月循环订阅。付款由 Stripe 处理..."
+    },
+    "privacy": {
+      "title": "隐私政策",
+      "placeholder": "请将此占位符文本替换为您的真实隐私政策。",
+      "lastUpdated": "最后更新：2025年10月30日",
+      "h1": "1. 我们收集的信息",
+      "p1": "我们收集您直接提供给我们的信息，例如您的 Google 帐户电子邮件和姓名。我们还存储您生成的数据，例如保存的课程和词汇...",
+      "h2": "2. 我们如何使用信息",
+      "p2": "我们使用您的信息来运营和改进我们的服务、处理付款（通过 Stripe）以及与您沟通..."
+    }
+  }
+}

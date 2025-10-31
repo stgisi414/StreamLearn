@@ -15,6 +15,7 @@ import {
   deleteDoc, where, addDoc,
   connectFirestoreEmulator, onSnapshot
 } from 'firebase/firestore';
+import { useTranslation } from 'react-i18next';
 import { 
   getFunctions, 
   httpsCallable, 
@@ -29,12 +30,27 @@ import { BookOpenIcon } from './components/icons/BookOpenIcon';
 import { PencilSquareIcon } from './components/icons/PencilSquareIcon';
 import { SearchIcon } from './components/icons/SearchIcon';
 import { CreditCardIcon } from './components/icons/CreditCardIcon';
+import { LanguageIcon } from './components/icons/LanguageIcon';
 import { ArrowLeftIcon } from './components/icons/ArrowLeftIcon';
 import { VolumeUpIcon } from './components/icons/VolumeUpIcon';
 import { PlayIcon } from './components/icons/PlayIcon';
 import { PauseIcon } from './components/icons/PauseIcon';
 import { CheckCircleIcon } from './components/icons/CheckCircleIcon';
 import { Lesson, Article, NewsResult, EnglishLevel, LessonResponse, SavedWord, VocabularyItem, StripeSubscription } from './types';
+
+// --- NEW: Language Configuration ---
+const languageOptions = {
+  en: "English",
+  es: "Español (Spanish)",
+  fr: "Français (French)",
+  de: "Deutsch (German)",
+  it: "Italiano (Italian)",
+  ko: "한국어 (Korean)",
+  ja: "日本語 (Japanese)",
+  zh: "中文 (Chinese)",
+};
+
+type LanguageCode = keyof typeof languageOptions;
 
 // --- Configuration Variables ---
 const firebaseConfig = {
@@ -152,6 +168,8 @@ interface ActivityState {
 }
 
 const App: React.FC = () => {
+  const { t, i18n } = useTranslation();
+
   // --- Auth State ---
   const [user, setUser] = useState<User | null>(null);
   const [authState, setAuthState] = useState<'LOADING' | 'SIGNED_OUT' | 'SIGNED_IN'>('LOADING');
@@ -170,6 +188,11 @@ const App: React.FC = () => {
 
   // --- NEW: Dashboard Filter State ---
   const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
+
+  // --- NEW: Language State ---
+  // Default to English UI, learning Spanish
+  const [uiLanguage, setUiLanguage] = useLocalStorageState<LanguageCode>('streamlearn_uiLang', 'en');
+  const [targetLanguage, setTargetLanguage] = useLocalStorageState<LanguageCode>('streamlearn_targetLang', 'es');
 
   // --- NEW: Subscription State ---
   const [subscription, setSubscription] = useState<StripeSubscription | null>(null);
@@ -222,6 +245,12 @@ const App: React.FC = () => {
   const db = useMemo(() => getFirestore(app), []);
   const auth = useMemo(() => getAuth(app), []);
   const functions = useMemo(() => getFunctions(app), []);
+
+  useEffect(() => {
+    if (i18n.language !== uiLanguage) {
+      i18n.changeLanguage(uiLanguage);
+    }
+  }, [uiLanguage, i18n]);
 
   // --- Emulator Connection ---
   useEffect(() => {
@@ -1074,7 +1103,7 @@ const App: React.FC = () => {
     if (type === 'writing') totalItems = 1;
 
     if (totalItems === 0) {
-        setError(`No ${type} items available for this lesson.`);
+        setError(t('activity.noItemsError', { type }));
         return;
     }
 
@@ -1354,7 +1383,7 @@ const App: React.FC = () => {
         if (type === 'vocab') {
             // --- MODIFIED: Direct check for both MC and Fill-in-the-blank ---
             isCorrect = String(userAnswer).trim().toLowerCase() === String(currentData.word).trim().toLowerCase();
-            feedbackMsg = isCorrect ? "Correct!" : `Incorrect. The word was "${currentData.word}".`;
+            feedbackMsg = isCorrect ? t('activity.correct') : t('activity.incorrectWord', { word: currentData.word });
 
             // Optional: Add AI check for 'Advanced' level typos here if desired
             // if (inputLevel === 'Advanced' && !isCorrect) { ... call handleActivity ... }
@@ -1388,7 +1417,7 @@ const App: React.FC = () => {
                 const newScore = result.isCorrect ? prev.score + 1 : prev.score;
                 return {
                   ...prev,
-                  feedback: { isCorrect: result.isCorrect, message: result.feedback || (result.isCorrect ? 'Correct!' : 'Incorrect.') },
+                  feedback: { isCorrect: result.isCorrect, message: result.feedback || (result.isCorrect ? t('activity.correct') : 'Incorrect.') },
                   score: newScore,
                   isSubmitting: false
                 };
@@ -1409,7 +1438,7 @@ const App: React.FC = () => {
                  const newScore = result.isCorrect ? prev.score + 1 : prev.score;
                  return {
                    ...prev,
-                   feedback: { isCorrect: result.isCorrect, message: result.feedback || (result.isCorrect ? 'Correct!' : 'Incorrect.') },
+                   feedback: { isCorrect: result.isCorrect, message: result.feedback || (result.isCorrect ? t('activity.correct') : 'Incorrect.') },
                    score: newScore,
                    isSubmitting: false
                  };
@@ -1664,6 +1693,43 @@ const App: React.FC = () => {
         <a href="/privacy" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }} className="hover:underline">Privacy Policy</a>
       </div>
 
+      {/* --- NEW: Language Settings --- */}
+      <div className="space-y-3 border-t pt-4">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <LanguageIcon className="w-6 h-6" /> Language Settings
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              My UI Language (What I see)
+            </label>
+            <select
+              value={uiLanguage}
+              onChange={(e) => setUiLanguage(e.target.value as LanguageCode)}
+              className="w-full p-3 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+            >
+              {Object.entries(languageOptions).map(([code, name]) => (
+                <option key={code} value={code}>{name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              My Target Language (What I want to learn)
+            </label>
+            <select
+              value={targetLanguage}
+              onChange={(e) => setTargetLanguage(e.target.value as LanguageCode)}
+              className="w-full p-3 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+            >
+              {Object.entries(languageOptions).map(([code, name]) => (
+                <option key={code} value={code}>{name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
       {/* Lesson History */}
       <div className="space-y-3">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-800 border-t pt-4">Your Lesson History</h2>
@@ -1829,9 +1895,9 @@ const App: React.FC = () => {
         <button
             onClick={() => navigate('/')} // Back to Dashboard
             className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
-            title="Back to Dashboard"
+            title={t('dashboard.title')}
           >
-            <ArrowLeftIcon className="w-4 h-4 mr-1" /> Dashboard
+            <ArrowLeftIcon className="w-4 h-4 mr-1" /> {t('dashboard.title')}
         </button>
         <h2 className="text-xl sm:text-2xl font-bold text-gray-800">{title}</h2>
         <div className="w-24"></div> {/* Spacer */}
@@ -1965,8 +2031,6 @@ const App: React.FC = () => {
       </div>
     </div>
   );
-
-    // ... (code around line 1183) ...
 
   const renderTermsPage = () => (
     <StaticPageWrapper title="Terms of Service">

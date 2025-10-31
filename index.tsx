@@ -33,6 +33,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import './i18n';
+import { LoadingSpinner } from './components/LoadingSpinner';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -42,6 +44,12 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <React.Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <LoadingSpinner text="Loading..." />
+      </div>
+    }>
+      <App />
+    </React.Suspense>
   </React.StrictMode>
 );

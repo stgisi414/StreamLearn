@@ -1,0 +1,139 @@
+{
+  "translation": {
+    "common": {
+      "signOut": "Sign Out",
+      "loading": "Loading...",
+      "initializing": "Initializing...",
+      "back": "Back",
+      "error": "Error:",
+      "cancel": "Cancel",
+      "submit": "Submit",
+      "finish": "Finish",
+      "next": "Next",
+      "score": "Score:",
+      "question": "Question:",
+      "quit": "Quit",
+      "level": "Level:",
+      "source": "Source:",
+      "example": "Example:",
+      "of": "of",
+      "save": "Save",
+      "saved": "Saved",
+      "saveWord": "Save word",
+      "deleteWord": "Delete word",
+      "wordSaved": "Word Saved!",
+      "wordDeleted": "Word Deleted.",
+      "alreadySaved": "Already saved!"
+    },
+    "signIn": {
+      "welcome": "Welcome to StreamLearn AI",
+      "prompt": "Please sign in with Google to continue.",
+      "button": "Sign In with Google",
+      "signOutUser": "Sign Out ({user})"
+    },
+    "dashboard": {
+      "title": "Dashboard",
+      "startLesson": "Start New Lesson",
+      "wordBank": "My Word Bank ({count})",
+      "manageBilling": "Manage Billing",
+      "upgradePro": "Upgrade to Pro",
+      "tos": "Terms of Service",
+      "privacy": "Privacy Policy",
+      "langSettings": "Language Settings",
+      "uiLang": "My UI Language (What I see)",
+      "targetLang": "My Target Language (What I want to learn)",
+      "historyTitle": "Your Lesson History",
+      "historySearch": "Search by title, topic, or source...",
+      "historyLoading": "Loading your lessons...",
+      "historyEmpty": "You haven't completed any lessons yet. Start a new one!",
+      "historyNoResults": "No lessons match your search for \"{term}\".",
+      "topic": "Topic:"
+    },
+    "wordBank": {
+      "title": "My Word Bank",
+      "loading": "Loading your saved words...",
+      "empty": "You haven't saved any words yet. Save words from the vocabulary list in your lessons!"
+    },
+    "input": {
+      "levelLabel": "Your English Level",
+      "topicLabel": "Enter a topic or choose one below:",
+      "topicPlaceholder": "e.g., AI, Space, Cooking",
+      "search": "Search",
+      "popularTopics": "Or select a popular topic:"
+    },
+    "news": {
+      "title": "Articles on \"{topic}\" ({level})",
+      "back": "Back to Articles",
+      "loading": "Fetching articles...",
+      "empty": "No articles found for this topic."
+    },
+    "lesson": {
+      "generating": "Generating your lesson, this may take a moment...",
+      "loadFail": "Failed to load lesson data. Please try again.",
+      "newTopic": "New Topic",
+      "summaryTitle": "Article Summary",
+      "audioFail": "Failed to get summary audio:",
+      "playAudio": "Play summary",
+      "pauseAudio": "Pause summary",
+      "reviewVocab": "Review Vocabulary ({count})",
+      "grammarQuiz": "Grammar Quiz ({count} Qs)",
+      "comprehensionTest": "Comprehension Test ({count})",
+      "writingPractice": "Writing Practice (1 Q)",
+      "vocabBuilder": "Vocabulary Builder",
+      "grammarFocus": "Grammar Focus:",
+      "comprehensionQuestions": "Comprehension Questions"
+    },
+    "activity": {
+      "title": "{type} Activity",
+      "complete": "Activity Complete!",
+      "yourScore": "Your score: {score} / {total}",
+      "backToLesson": "Back to Lesson",
+      "init": "Initializing activity...",
+      "generatingGrammar": "Generating grammar question...",
+      "generatingWriting": "Generating writing prompt...",
+      "readAloud": "Read aloud",
+      "definition": "Definition:",
+      "typeWord": "Type the word:",
+      "chooseWord": "Choose the correct word:",
+      "writingPrompt": "Writing Prompt:",
+      "tryWords": "Try to use these words: {words}",
+      "typeAnswer": "Type your answer here...",
+      "writeResponse": "Write your response here...",
+      "correct": "Correct!",
+      "incorrectWord": "Incorrect. The word was \"{word}\"."
+    },
+    "pricing": {
+      "title": "Pricing",
+      "proTitle": "StreamLearn Pro",
+      "description": "Get unlimited access to everything StreamLearn has to offer for one simple price.",
+      "price": "$20 / month",
+      "billing": "Billed monthly. Cancel anytime.",
+      "feature1": "Unlimited lesson generation.",
+      "feature2": "Unlimited vocabulary practice.",
+      "feature3": "Unlimited writing practice.",
+      "feature4": "Full access to your lesson history.",
+      "button": "Get Started with Pro",
+      "freeTitle": "Free Plan",
+      "freeDescription": "Perfect for trying out the app.",
+      "freeFeature": "{count} free lessons per month."
+    },
+    "tos": {
+      "title": "Terms of Service",
+      "placeholder": "Please replace this placeholder text with your real Terms of Service.",
+      "lastUpdated": "Last updated: October 30, 2025",
+      "h1": "1. Acceptance of Terms",
+      "p1": "By accessing or using StreamLearn, you agree to be bound by these terms...",
+      "h2": "2. Subscription and Payment",
+      "p2": "Our \"Pro\" plan is a recurring monthly subscription. Payments are handled by Stripe..."
+    },
+    "privacy": {
+      "title": "Privacy Policy",
+      "placeholder": "Please replace this placeholder text with your real Privacy Policy.",
+      "lastUpdated": "Last updated: October 30, 2025",
+      "h1": "1. Information We Collect",
+      "p1": "We collect information you provide directly to us, such as your Google account email and name. We also store data you generate, such as saved lessons and vocabulary words...",
+      "h2": "2. How We Use Information",
+      "p2": "We use your information to operate and improve our service, process payments (via Stripe), and communicate with you..."
+    }
+  }
+}

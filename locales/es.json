@@ -1,0 +1,138 @@
+{
+  "translation": {
+    "common": {
+      "signOut": "Cerrar sesión",
+      "loading": "Cargando...",
+      "initializing": "Inicializando...",
+      "back": "Atrás",
+      "error": "Error:",
+      "cancel": "Cancelar",
+      "submit": "Enviar",
+      "finish": "Terminar",
+      "next": "Siguiente",
+      "score": "Puntuación:",
+      "question": "Pregunta:",
+      "quit": "Salir",
+      "level": "Nivel:",
+      "source": "Fuente:",
+      "example": "Ejemplo:",
+      "of": "de",
+      "save": "Guardar",
+      "saved": "Guardado",
+      "saveWord": "Guardar palabra",
+      "deleteWord": "Eliminar palabra",
+      "wordSaved": "¡Palabra guardada!",
+      "wordDeleted": "Palabra eliminada.",
+      "alreadySaved": "¡Ya guardada!"
+    },
+    "signIn": {
+      "welcome": "Bienvenido a StreamLearn AI",
+      "prompt": "Por favor, inicia sesión con Google para continuar.",
+      "button": "Iniciar sesión con Google",
+      "signOutUser": "Cerrar sesión ({user})"
+    },
+    "dashboard": {
+      "title": "Panel",
+      "startLesson": "Empezar nueva lección",
+      "wordBank": "Mi banco de palabras ({count})",
+      "manageBilling": "Gestionar facturación",
+      "upgradePro": "Actualizar a Pro",
+      "tos": "Términos de servicio",
+      "privacy": "Política de privacidad",
+      "langSettings": "Configuración de idioma",
+      "uiLang": "Idioma de mi UI (Lo que veo)",
+      "targetLang": "Idioma objetivo (Lo que quiero aprender)",
+      "historyTitle": "Tu historial de lecciones",
+      "historySearch": "Buscar por título, tema o fuente...",
+      "historyLoading": "Cargando tus lecciones...",
+      "historyEmpty": "Aún no has completado ninguna lección. ¡Empieza una nueva!",
+      "historyNoResults": "Ninguna lección coincide con tu búsqueda de \"{term}\"."
+    },
+    "wordBank": {
+      "title": "Mi banco de palabras",
+      "loading": "Cargando tus palabras guardadas...",
+      "empty": "Aún no has guardado ninguna palabra. ¡Guarda palabras de la lista de vocabulario en tus lecciones!"
+    },
+    "input": {
+      "levelLabel": "Tu nivel de inglés",
+      "topicLabel": "Introduce un tema o elige uno de abajo:",
+      "topicPlaceholder": "p.ej., IA, Espacio, Cocina",
+      "search": "Buscar",
+      "popularTopics": "O selecciona un tema popular:"
+    },
+    "news": {
+      "title": "Artículos sobre \"{topic}\" ({level})",
+      "back": "Volver a artículos",
+      "loading": "Buscando artículos...",
+      "empty": "No se encontraron artículos para este tema."
+    },
+    "lesson": {
+      "generating": "Generando tu lección, esto puede tardar un momento...",
+      "loadFail": "Error al cargar los datos de la lección. Por favor, inténtalo de nuevo.",
+      "newTopic": "Nuevo tema",
+      "summaryTitle": "Resumen del artículo",
+      "audioFail": "Error al obtener el audio del resumen:",
+      "playAudio": "Reproducir resumen",
+      "pauseAudio": "Pausar resumen",
+      "reviewVocab": "Repasar vocabulario ({count})",
+      "grammarQuiz": "Prueba de gramática ({count} pregs.)",
+      "comprehensionTest": "Prueba de comprensión ({count})",
+      "writingPractice": "Práctica de escritura (1 preg.)",
+      "vocabBuilder": "Constructor de vocabulario",
+      "grammarFocus": "Enfoque gramatical:",
+      "comprehensionQuestions": "Preguntas de comprensión"
+    },
+    "activity": {
+      "title": "Actividad de {type}",
+      "complete": "¡Actividad completada!",
+      "yourScore": "Tu puntuación: {score} / {total}",
+      "backToLesson": "Volver a la lección",
+      "init": "Inicializando actividad...",
+      "generatingGrammar": "Generando pregunta de gramática...",
+      "generatingWriting": "Generando ejercicio de escritura...",
+      "readAloud": "Leer en voz alta",
+      "definition": "Definición:",
+      "typeWord": "Escribe la palabra:",
+      "chooseWord": "Elige la palabra correcta:",
+      "writingPrompt": "Ejercicio de escritura:",
+      "tryWords": "Intenta usar estas palabras: {words}",
+      "typeAnswer": "Escribe tu respuesta aquí...",
+      "writeResponse": "Escribe tu respuesta aquí...",
+      "correct": "¡Correcto!",
+      "incorrectWord": "Incorrecto. La palabra era \"{word}\"."
+    },
+    "pricing": {
+      "title": "Precios",
+      "proTitle": "StreamLearn Pro",
+      "description": "Obtén acceso ilimitado a todo lo que StreamLearn ofrece por un simple precio.",
+      "price": "$20 / mes",
+      "billing": "Facturado mensualmente. Cancela en cualquier momento.",
+      "feature1": "Generación ilimitada de lecciones.",
+      "feature2": "Práctica ilimitada de vocabulario.",
+      "feature3": "Práctica ilimitada de escritura.",
+      "feature4": "Acceso completo a tu historial de lecciones.",
+      "button": "Empezar con Pro",
+      "freeTitle": "Plan gratuito",
+      "freeDescription": "Perfecto para probar la aplicación.",
+      "freeFeature": "{count} lecciones gratuitas al mes."
+    },
+    "tos": {
+      "title": "Términos de servicio",
+      "placeholder": "Por favor, reemplaza este texto con tus Términos de Servicio reales.",
+      "lastUpdated": "Última actualización: 30 de octubre de 2025",
+      "h1": "1. Aceptación de los términos",
+      "p1": "Al acceder o utilizar StreamLearn, aceptas estar sujeto a estos términos...",
+      "h2": "2. Suscripción y pago",
+      "p2": "Nuestro plan \"Pro\" es una suscripción mensual recurrente. Los pagos son gestionados por Stripe..."
+    },
+    "privacy": {
+      "title": "Política de privacidad",
+      "placeholder": "Por favor, reemplaza este texto con tu Política de Privacidad real.",
+      "lastUpdated": "Última actualización: 30 de octubre de 2025",
+      "h1": "1. Información que recopilamos",
+      "p1": "Recopilamos la información que nos proporcionas directamente, como tu correo electrónico y nombre de tu cuenta de Google. También almacenamos datos que generas, como lecciones guardadas y palabras de vocabulario...",
+      "h2": "2. Cómo usamos la información",
+      "p2": "Usamos tu información para operar y mejorar nuestro servicio, procesar pagos (a través de Stripe) y comunicarnos contigo..."
+    }
+  }
+}

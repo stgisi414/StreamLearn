@@ -1,0 +1,138 @@
+{
+  "translation": {
+    "common": {
+      "signOut": "Déconnexion",
+      "loading": "Chargement...",
+      "initializing": "Initialisation...",
+      "back": "Retour",
+      "error": "Erreur :",
+      "cancel": "Annuler",
+      "submit": "Soumettre",
+      "finish": "Terminer",
+      "next": "Suivant",
+      "score": "Score :",
+      "question": "Question :",
+      "quit": "Quitter",
+      "level": "Niveau :",
+      "source": "Source :",
+      "example": "Exemple :",
+      "of": "sur",
+      "save": "Enregistrer",
+      "saved": "Enregistré",
+      "saveWord": "Enregistrer le mot",
+      "deleteWord": "Supprimer le mot",
+      "wordSaved": "Mot enregistré !",
+      "wordDeleted": "Mot supprimé.",
+      "alreadySaved": "Déjà enregistré !"
+    },
+    "signIn": {
+      "welcome": "Bienvenue sur StreamLearn AI",
+      "prompt": "Veuillez vous connecter avec Google pour continuer.",
+      "button": "Se connecter avec Google",
+      "signOutUser": "Déconnexion ({user})"
+    },
+    "dashboard": {
+      "title": "Tableau de bord",
+      "startLesson": "Commencer une nouvelle leçon",
+      "wordBank": "Ma banque de mots ({count})",
+      "manageBilling": "Gérer la facturation",
+      "upgradePro": "Passer à Pro",
+      "tos": "Conditions d'utilisation",
+      "privacy": "Politique de confidentialité",
+      "langSettings": "Paramètres de langue",
+      "uiLang": "Langue de mon UI (Ce que je vois)",
+      "targetLang": "Langue cible (Ce que je veux apprendre)",
+      "historyTitle": "Votre historique de leçons",
+      "historySearch": "Rechercher par titre, sujet ou source...",
+      "historyLoading": "Chargement de vos leçons...",
+      "historyEmpty": "Vous n'avez encore terminé aucune leçon. Commencez-en une nouvelle !",
+      "historyNoResults": "Aucune leçon ne correspond à votre recherche pour \"{term}\"."
+    },
+    "wordBank": {
+      "title": "Ma banque de mots",
+      "loading": "Chargement de vos mots enregistrés...",
+      "empty": "Vous n'avez encore enregistré aucun mot. Enregistrez des mots depuis la liste de vocabulaire de vos leçons !"
+    },
+    "input": {
+      "levelLabel": "Votre niveau d'anglais",
+      "topicLabel": "Entrez un sujet ou choisissez-en un ci-dessous :",
+      "topicPlaceholder": "ex: IA, Espace, Cuisine",
+      "search": "Rechercher",
+      "popularTopics": "Ou sélectionnez un sujet populaire :"
+    },
+    "news": {
+      "title": "Articles sur \"{topic}\" ({level})",
+      "back": "Retour aux articles",
+      "loading": "Recherche d'articles...",
+      "empty": "Aucun article trouvé pour ce sujet."
+    },
+    "lesson": {
+      "generating": "Génération de votre leçon, cela peut prendre un moment...",
+      "loadFail": "Échec du chargement des données de la leçon. Veuillez réessayer.",
+      "newTopic": "Nouveau sujet",
+      "summaryTitle": "Résumé de l'article",
+      "audioFail": "Échec de l'obtention de l'audio du résumé :",
+      "playAudio": "Lire le résumé",
+      "pauseAudio": "Mettre le résumé en pause",
+      "reviewVocab": "Réviser le vocabulaire ({count})",
+      "grammarQuiz": "Quiz de grammaire ({count} q.)",
+      "comprehensionTest": "Test de compréhension ({count})",
+      "writingPractice": "Pratique de l'écriture (1 q.)",
+      "vocabBuilder": "Constructeur de vocabulaire",
+      "grammarFocus": "Point de grammaire :",
+      "comprehensionQuestions": "Questions de compréhension"
+    },
+    "activity": {
+      "title": "Activité de {type}",
+      "complete": "Activité terminée !",
+      "yourScore": "Votre score : {score} / {total}",
+      "backToLesson": "Retour à la leçon",
+      "init": "Initialisation de l'activité...",
+      "generatingGrammar": "Génération de la question de grammaire...",
+      "generatingWriting": "Génération du sujet d'écriture...",
+      "readAloud": "Lire à voix haute",
+      "definition": "Définition :",
+      "typeWord": "Écrivez le mot :",
+      "chooseWord": "Choisissez le bon mot :",
+      "writingPrompt": "Sujet d'écriture :",
+      "tryWords": "Essayez d'utiliser ces mots : {words}",
+      "typeAnswer": "Écrivez votre réponse ici...",
+      "writeResponse": "Écrivez votre réponse ici...",
+      "correct": "Correct !",
+      "incorrectWord": "Incorrect. Le mot était \"{word}\"."
+    },
+    "pricing": {
+      "title": "Tarifs",
+      "proTitle": "StreamLearn Pro",
+      "description": "Obtenez un accès illimité à tout ce que StreamLearn offre pour un prix unique.",
+      "price": "20 $ / mois",
+      "billing": "Facturé mensuellement. Annulez à tout moment.",
+      "feature1": "Génération illimitée de leçons.",
+      "feature2": "Pratique illimitée du vocabulaire.",
+      "feature3": "Pratique illimitée de l'écriture.",
+      "feature4": "Accès complet à votre historique de leçons.",
+      "button": "Commencer avec Pro",
+      "freeTitle": "Plan gratuit",
+      "freeDescription": "Parfait pour essayer l'application.",
+      "freeFeature": "{count} leçons gratuites par mois."
+    },
+    "tos": {
+      "title": "Conditions d'utilisation",
+      "placeholder": "Veuillez remplacer ce texte par vos véritables Conditions d'utilisation.",
+      "lastUpdated": "Dernière mise à jour : 30 octobre 2025",
+      "h1": "1. Acceptation des conditions",
+      "p1": "En accédant ou en utilisant StreamLearn, vous acceptez d'être lié par ces conditions...",
+      "h2": "2. Abonnement et paiement",
+      "p2": "Notre plan \"Pro\" est un abonnement mensuel récurrent. Les paiements sont gérés par Stripe..."
+    },
+    "privacy": {
+      "title": "Politique de confidentialité",
+      "placeholder": "Veuillez remplacer ce texte par votre véritable Politique de confidentialité.",
+      "lastUpdated": "Dernière mise à jour : 30 octobre 2025",
+      "h1": "1. Informations que nous collectons",
+      "p1": "Nous collectons les informations que vous nous fournissez directement, telles que votre e-mail et votre nom de compte Google. Nous stockons également les données que vous générez, telles que les leçons enregistrées et les mots de vocabulaire...",
+      "h2": "2. Comment nous utilisons les informations",
+      "p2": "Nous utilisons vos informations pour exploiter et améliorer notre service, traiter les paiements (via Stripe) et communiquer avec vous..."
+    }
+  }
+}

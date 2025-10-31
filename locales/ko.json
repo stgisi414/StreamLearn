@@ -1,0 +1,138 @@
+{
+  "translation": {
+    "common": {
+      "signOut": "로그아웃",
+      "loading": "로드 중...",
+      "initializing": "초기화 중...",
+      "back": "뒤로",
+      "error": "오류:",
+      "cancel": "취소",
+      "submit": "제출",
+      "finish": "완료",
+      "next": "다음",
+      "score": "점수:",
+      "question": "질문:",
+      "quit": "나가기",
+      "level": "레벨:",
+      "source": "출처:",
+      "example": "예시:",
+      "of": "중",
+      "save": "저장",
+      "saved": "저장됨",
+      "saveWord": "단어 저장",
+      "deleteWord": "단어 삭제",
+      "wordSaved": "단어 저장됨!",
+      "wordDeleted": "단어 삭제됨.",
+      "alreadySaved": "이미 저장됨!"
+    },
+    "signIn": {
+      "welcome": "StreamLearn AI에 오신 것을 환영합니다",
+      "prompt": "계속하려면 Google로 로그인하세요.",
+      "button": "Google로 로그인",
+      "signOutUser": "로그아웃 ({user})"
+    },
+    "dashboard": {
+      "title": "대시보드",
+      "startLesson": "새 수업 시작",
+      "wordBank": "내 단어장 ({count})",
+      "manageBilling": "결제 관리",
+      "upgradePro": "Pro로 업그레이드",
+      "tos": "이용약관",
+      "privacy": "개인정보 처리방침",
+      "langSettings": "언어 설정",
+      "uiLang": "UI 언어 (보이는 언어)",
+      "targetLang": "학습 언어 (배우고 싶은 언어)",
+      "historyTitle": "내 학습 기록",
+      "historySearch": "제목, 주제 또는 출처로 검색...",
+      "historyLoading": "수업 기록을 불러오는 중...",
+      "historyEmpty": "아직 완료한 수업이 없습니다. 새 수업을 시작해 보세요!",
+      "historyNoResults": "\"{term}\"에 대한 검색 결과가 없습니다."
+    },
+    "wordBank": {
+      "title": "내 단어장",
+      "loading": "저장된 단어를 불러오는 중...",
+      "empty": "아직 저장한 단어가 없습니다. 수업의 어휘 목록에서 단어를 저장해 보세요!"
+    },
+    "input": {
+      "levelLabel": "내 영어 레벨",
+      "topicLabel": "주제를 입력하거나 아래에서 선택하세요:",
+      "topicPlaceholder": "예: AI, 우주, 요리",
+      "search": "검색",
+      "popularTopics": "또는 인기 주제 선택:"
+    },
+    "news": {
+      "title": "\"{topic}\" 관련 기사 ({level})",
+      "back": "기사 목록으로",
+      "loading": "기사 찾는 중...",
+      "empty": "이 주제에 대한 기사를 찾을 수 없습니다."
+    },
+    "lesson": {
+      "generating": "수업을 생성 중입니다. 잠시 기다려 주세요...",
+      "loadFail": "수업 데이터를 불러오지 못했습니다. 다시 시도해 주세요.",
+      "newTopic": "새 주제",
+      "summaryTitle": "기사 요약",
+      "audioFail": "요약 오디오를 가져오는 데 실패했습니다:",
+      "playAudio": "요약 듣기",
+      "pauseAudio": "요약 일시정지",
+      "reviewVocab": "어휘 복습 ({count})",
+      "grammarQuiz": "문법 퀴즈 ({count}개)",
+      "comprehensionTest": "이해력 테스트 ({count})",
+      "writingPractice": "작문 연습 (1개)",
+      "vocabBuilder": "어휘 빌더",
+      "grammarFocus": "문법 초점:",
+      "comprehensionQuestions": "이해력 질문"
+    },
+    "activity": {
+      "title": "{type} 활동",
+      "complete": "활동 완료!",
+      "yourScore": "내 점수: {score} / {total}",
+      "backToLesson": "수업으로 돌아가기",
+      "init": "활동 초기화 중...",
+      "generatingGrammar": "문법 문제 생성 중...",
+      "generatingWriting": "작문 프롬프트 생성 중...",
+      "readAloud": "소리내어 읽기",
+      "definition": "정의:",
+      "typeWord": "단어를 입력하세요:",
+      "chooseWord": "올바른 단어를 고르세요:",
+      "writingPrompt": "작문 프롬프트:",
+      "tryWords": "이 단어들을 사용해 보세요: {words}",
+      "typeAnswer": "여기에 답을 입력하세요...",
+      "writeResponse": "여기에 답을 작성하세요...",
+      "correct": "정답입니다!",
+      "incorrectWord": "틀렸습니다. 정답은 \"{word}\"입니다."
+    },
+    "pricing": {
+      "title": "가격",
+      "proTitle": "StreamLearn Pro",
+      "description": "하나의 간단한 가격으로 StreamLearn이 제공하는 모든 것에 무제한으로 액세스하세요.",
+      "price": "$20 / 월",
+      "billing": "매월 청구됩니다. 언제든지 취소하세요.",
+      "feature1": "무제한 수업 생성.",
+      "feature2": "무제한 어휘 연습.",
+      "feature3": "무제한 작문 연습.",
+      "feature4": "학습 기록 전체 액세스.",
+      "button": "Pro로 시작하기",
+      "freeTitle": "무료 플랜",
+      "freeDescription": "앱을 사용해 보기에 완벽합니다.",
+      "freeFeature": "매월 {count}개의 무료 수업."
+    },
+    "tos": {
+      "title": "이용약관",
+      "placeholder": "이 자리 표시자 텍스트를 실제 이용약관으로 교체하십시오.",
+      "lastUpdated": "마지막 업데이트: 2025년 10월 30일",
+      "h1": "1. 약관 동의",
+      "p1": "StreamLearn에 액세스하거나 사용함으로써 귀하는 본 약관에 동의하는 것으로 간주됩니다...",
+      "h2": "2. 구독 및 결제",
+      "p2": "당사의 \"Pro\" 플랜은 월간 반복 구독입니다. 결제는 Stripe를 통해 처리됩니다..."
+    },
+    "privacy": {
+      "title": "개인정보 처리방침",
+      "placeholder": "이 자리 표시자 텍스트를 실제 개인정보 처리방침으로 교체하십시오.",
+      "lastUpdated": "마지막 업데이트: 2025년 10월 30일",
+      "h1": "1. 수집하는 정보",
+      "p1": "당사는 귀하가 Google 계정 이메일 및 이름과 같이 직접 제공하는 정보를 수집합니다. 또한 저장된 수업 및 어휘 단어와 같이 귀하가 생성하는 데이터도 저장합니다...",
+      "h2": "2. 정보 사용 방법",
+      "p2": "당사는 귀하의 정보를 사용하여 서비스를 운영 및 개선하고, 결제를 처리하며(Stripe를 통해), 귀하와 소통합니다..."
+    }
+  }
+}

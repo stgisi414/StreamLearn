@@ -1,0 +1,138 @@
+{
+  "translation": {
+    "common": {
+      "signOut": "ログアウト",
+      "loading": "読み込み中...",
+      "initializing": "初期化中...",
+      "back": "戻る",
+      "error": "エラー:",
+      "cancel": "キャンセル",
+      "submit": "送信",
+      "finish": "終了",
+      "next": "次へ",
+      "score": "スコア:",
+      "question": "質問:",
+      "quit": "終了する",
+      "level": "レベル:",
+      "source": "ソース:",
+      "example": "例:",
+      "of": "/",
+      "save": "保存",
+      "saved": "保存済み",
+      "saveWord": "単語を保存",
+      "deleteWord": "単語を削除",
+      "wordSaved": "単語を保存しました！",
+      "wordDeleted": "単語を削除しました。",
+      "alreadySaved": "保存済みです！"
+    },
+    "signIn": {
+      "welcome": "StreamLearn AI へようこそ",
+      "prompt": "続行するにはGoogleでサインインしてください。",
+      "button": "Googleでサインイン",
+      "signOutUser": "ログアウト ({user})"
+    },
+    "dashboard": {
+      "title": "ダッシュボード",
+      "startLesson": "新しいレッスンを開始",
+      "wordBank": "単語バンク ({count})",
+      "manageBilling": "請求情報の管理",
+      "upgradePro": "Proにアップグレード",
+      "tos": "利用規約",
+      "privacy": "プライバシーポリシー",
+      "langSettings": "言語設定",
+      "uiLang": "UI言語 (表示言語)",
+      "targetLang": "学習言語 (学びたい言語)",
+      "historyTitle": "レッスン履歴",
+      "historySearch": "タイトル、トピック、またはソースで検索...",
+      "historyLoading": "レッスンを読み込んでいます...",
+      "historyEmpty": "まだレッスンを完了していません。新しいレッスンを始めましょう！",
+      "historyNoResults": "「{term}」に一致するレッスンはありません。"
+    },
+    "wordBank": {
+      "title": "単語バンク",
+      "loading": "保存した単語を読み込んでいます...",
+      "empty": "まだ単語を保存していません。レッスンの語彙リストから単語を保存しましょう！"
+    },
+    "input": {
+      "levelLabel": "あなたの英語レベル",
+      "topicLabel": "トピックを入力するか、以下から選択してください:",
+      "topicPlaceholder": "例: AI、宇宙、料理",
+      "search": "検索",
+      "popularTopics": "または人気のトピックを選択:"
+    },
+    "news": {
+      "title": "「{topic}」に関する記事 ({level})",
+      "back": "記事一覧に戻る",
+      "loading": "記事を検索中...",
+      "empty": "このトピックの記事は見つかりませんでした。"
+    },
+    "lesson": {
+      "generating": "レッスンを生成中です。しばらくお待ちください...",
+      "loadFail": "レッスンデータの読み込みに失敗しました。もう一度お試しください。",
+      "newTopic": "新しいトピック",
+      "summaryTitle": "記事の要約",
+      "audioFail": "要約音声の取得に失敗しました:",
+      "playAudio": "要約を再生",
+      "pauseAudio": "要約を一時停止",
+      "reviewVocab": "語彙の復習 ({count})",
+      "grammarQuiz": "文法クイズ ({count}問)",
+      "comprehensionTest": "読解テスト ({count})",
+      "writingPractice": "ライティング練習 (1問)",
+      "vocabBuilder": "語彙ビルダー",
+      "grammarFocus": "文法フォーカス:",
+      "comprehensionQuestions": "読解問題"
+    },
+    "activity": {
+      "title": "{type} アクティビティ",
+      "complete": "アクティビティ完了！",
+      "yourScore": "あなたのスコア: {score} / {total}",
+      "backToLesson": "レッスンに戻る",
+      "init": "アクティビティを初期化中...",
+      "generatingGrammar": "文法問題を生成中...",
+      "generatingWriting": "ライティングのお題を生成中...",
+      "readAloud": "読み上げる",
+      "definition": "定義:",
+      "typeWord": "単語を入力してください:",
+      "chooseWord": "正しい単語を選んでください:",
+      "writingPrompt": "ライティングのお題:",
+      "tryWords": "これらの単語を使ってみましょう: {words}",
+      "typeAnswer": "ここに回答を入力してください...",
+      "writeResponse": "ここに回答を書いてください...",
+      "correct": "正解です！",
+      "incorrectWord": "不正解です。正解は「{word}」でした。"
+    },
+    "pricing": {
+      "title": "料金",
+      "proTitle": "StreamLearn Pro",
+      "description": "StreamLearnのすべての機能に無制限にアクセスできます。",
+      "price": "月額 $20",
+      "billing": "毎月請求。いつでもキャンセル可能。",
+      "feature1": "無制限のレッスン生成。",
+      "feature2": "無制限の語彙練習。",
+      "feature3": "無制限のライティング練習。",
+      "feature4": "レッスン履歴へのフルアクセス。",
+      "button": "Proを始める",
+      "freeTitle": "無料プラン",
+      "freeDescription": "アプリを試すのに最適です。",
+      "freeFeature": "毎月{count}回の無料レッスン。"
+    },
+    "tos": {
+      "title": "利用規約",
+      "placeholder": "このプレースホルダーテキストを実際の利用規約に置き換えてください。",
+      "lastUpdated": "最終更新日: 2025年10月30日",
+      "h1": "1. 規約への同意",
+      "p1": "StreamLearnにアクセスまたは使用することにより、お客様は本規約に拘束されることに同意するものとします...",
+      "h2": "2. サブスクリプションと支払い",
+      "p2": "当社の「Pro」プランは、月次更新のサブスクリプションです。支払いはStripeによって処理されます..."
+    },
+    "privacy": {
+      "title": "プライバシーポリシー",
+      "placeholder": "このプレースホルダーテキストを実際のプライバシーポリシーに置き換えてください。",
+      "lastUpdated": "最終更新日: 2025年10月30日",
+      "h1": "1. 収集する情報",
+      "p1": "当社は、お客様が直接提供する情報（Googleアカウントのメールアドレスや名前など）を収集します。また、保存されたレッスンや語彙など、お客様が生成したデータも保存します...",
+      "h2": "2. 情報の使用方法",
+      "p2": "当社は、お客様の情報を使用して、当社のサービスを運営および改善し、支払い処理（Stripe経由）を行い、お客様と連絡を取ります..."
+    }
+  }
+}

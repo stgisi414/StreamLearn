@@ -1,0 +1,138 @@
+{
+  "translation": {
+    "common": {
+      "signOut": "Abmelden",
+      "loading": "Wird geladen...",
+      "initializing": "Initialisiere...",
+      "back": "Zurück",
+      "error": "Fehler:",
+      "cancel": "Abbrechen",
+      "submit": "Senden",
+      "finish": "Beenden",
+      "next": "Weiter",
+      "score": "Punktzahl:",
+      "question": "Frage:",
+      "quit": "Verlassen",
+      "level": "Niveau:",
+      "source": "Quelle:",
+      "example": "Beispiel:",
+      "of": "von",
+      "save": "Speichern",
+      "saved": "Gespeichert",
+      "saveWord": "Wort speichern",
+      "deleteWord": "Wort löschen",
+      "wordSaved": "Wort gespeichert!",
+      "wordDeleted": "Wort gelöscht.",
+      "alreadySaved": "Bereits gespeichert!"
+    },
+    "signIn": {
+      "welcome": "Willkommen bei StreamLearn AI",
+      "prompt": "Bitte melden Sie sich mit Google an, um fortzufahren.",
+      "button": "Mit Google anmelden",
+      "signOutUser": "Abmelden ({user})"
+    },
+    "dashboard": {
+      "title": "Dashboard",
+      "startLesson": "Neue Lektion starten",
+      "wordBank": "Meine Wortbank ({count})",
+      "manageBilling": "Abrechnung verwalten",
+      "upgradePro": "Upgrade auf Pro",
+      "tos": "Nutzungsbedingungen",
+      "privacy": "Datenschutz-Bestimmungen",
+      "langSettings": "Spracheinstellungen",
+      "uiLang": "Meine UI-Sprache (Was ich sehe)",
+      "targetLang": "Zielsprache (Was ich lernen möchte)",
+      "historyTitle": "Dein Lektionsverlauf",
+      "historySearch": "Suche nach Titel, Thema oder Quelle...",
+      "historyLoading": "Lade deine Lektionen...",
+      "historyEmpty": "Du hast noch keine Lektionen abgeschlossen. Starte eine neue!",
+      "historyNoResults": "Keine Lektionen entsprechen deiner Suche nach \"{term}\"."
+    },
+    "wordBank": {
+      "title": "Meine Wortbank",
+      "loading": "Lade deine gespeicherten Wörter...",
+      "empty": "Du hast noch keine Wörter gespeichert. Speichere Wörter aus der Vokabelliste in deinen Lektionen!"
+    },
+    "input": {
+      "levelLabel": "Dein Englischniveau",
+      "topicLabel": "Gib ein Thema ein oder wähle eines unten aus:",
+      "topicPlaceholder": "z.B. KI, Weltraum, Kochen",
+      "search": "Suchen",
+      "popularTopics": "Oder wähle ein beliebtes Thema:"
+    },
+    "news": {
+      "title": "Artikel zum Thema \"{topic}\" ({level})",
+      "back": "Zurück zu den Artikeln",
+      "loading": "Suche Artikel...",
+      "empty": "Keine Artikel zu diesem Thema gefunden."
+    },
+    "lesson": {
+      "generating": "Deine Lektion wird generiert, dies kann einen Moment dauern...",
+      "loadFail": "Fehler beim Laden der Lektionsdaten. Bitte versuche es erneut.",
+      "newTopic": "Neues Thema",
+      "summaryTitle": "Artikelzusammenfassung",
+      "audioFail": "Fehler beim Abrufen der Audio-Zusammenfassung:",
+      "playAudio": "Zusammenfassung abspielen",
+      "pauseAudio": "Zusammenfassung pausieren",
+      "reviewVocab": "Vokabeln wiederholen ({count})",
+      "grammarQuiz": "Grammatik-Quiz ({count} F.)",
+      "comprehensionTest": "Verständnistest ({count})",
+      "writingPractice": "Schreibübung (1 F.)",
+      "vocabBuilder": "Vokabeltrainer",
+      "grammarFocus": "Grammatikfokus:",
+      "comprehensionQuestions": "Verständnisfragen"
+    },
+    "activity": {
+      "title": "{type}-Aktivität",
+      "complete": "Aktivität abgeschlossen!",
+      "yourScore": "Deine Punktzahl: {score} / {total}",
+      "backToLesson": "Zurück zur Lektion",
+      "init": "Initialisiere Aktivität...",
+      "generatingGrammar": "Generiere Grammatikfrage...",
+      "generatingWriting": "Generiere Schreibaufgabe...",
+      "readAloud": "Vorlesen",
+      "definition": "Definition:",
+      "typeWord": "Tippe das Wort ein:",
+      "chooseWord": "Wähle das richtige Wort:",
+      "writingPrompt": "Schreibaufgabe:",
+      "tryWords": "Versuche, diese Wörter zu verwenden: {words}",
+      "typeAnswer": "Tippe deine Antwort hier ein...",
+      "writeResponse": "Schreibe deine Antwort hier...",
+      "correct": "Richtig!",
+      "incorrectWord": "Falsch. Das Wort war \"{word}\"."
+    },
+    "pricing": {
+      "title": "Preise",
+      "proTitle": "StreamLearn Pro",
+      "description": "Erhalte unbegrenzten Zugriff auf alles, was StreamLearn zu bieten hat, zu einem einfachen Preis.",
+      "price": "20 $ / Monat",
+      "billing": "Monatliche Abrechnung. Jederzeit kündbar.",
+      "feature1": "Unbegrenzte Lektionserstellung.",
+      "feature2": "Unbegrenztes Vokabeltraining.",
+      "feature3": "Unbegrenzte Schreibübungen.",
+      "feature4": "Voller Zugriff auf deinen Lektionsverlauf.",
+      "button": "Mit Pro starten",
+      "freeTitle": "Kostenloser Plan",
+      "freeDescription": "Perfekt, um die App auszuprobieren.",
+      "freeFeature": "{count} kostenlose Lektionen pro Monat."
+    },
+    "tos": {
+      "title": "Nutzungsbedingungen",
+      "placeholder": "Bitte ersetze diesen Platzhaltertext durch deine echten Nutzungsbedingungen.",
+      "lastUpdated": "Zuletzt aktualisiert: 30. Oktober 2025",
+      "h1": "1. Annahme der Bedingungen",
+      "p1": "Durch den Zugriff auf oder die Nutzung von StreamLearn erklärst du dich mit diesen Bedingungen einverstanden...",
+      "h2": "2. Abonnement und Zahlung",
+      "p2": "Unser \"Pro\"-Plan ist ein wiederkehrendes monatliches Abonnement. Zahlungen werden von Stripe abgewickelt..."
+    },
+    "privacy": {
+      "title": "Datenschutz-Bestimmungen",
+      "placeholder": "Bitte ersetze diesen Platzhaltertext durch deine echte Datenschutzrichtlinie.",
+      "lastUpdated": "Zuletzt aktualisiert: 30. Oktober 2025",
+      "h1": "1. Von uns erfasste Informationen",
+      "p1": "Wir erfassen Informationen, die du uns direkt zur Verfügung stellst, wie z. B. deine E-Mail-Adresse und deinen Namen deines Google-Kontos. Wir speichern auch Daten, die du generierst, wie z. B. gespeicherte Lektionen und Vokabeln...",
+      "h2": "2. Wie wir Informationen verwenden",
+      "p2": "Wir verwenden deine Informationen, um unseren Dienst zu betreiben und zu verbessern, Zahlungen abzuwickeln (über Stripe) und mit dir zu kommunizieren..."
+    }
+  }
+}
