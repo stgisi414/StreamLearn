@@ -142,6 +142,21 @@
       "correct": "Richtig!",
       "incorrectWord": "Falsch. Das Wort war \"{{word}}\"."
     },
+    "chat": {
+      "title": "KI-Assistent „Max“",
+      "welcome": "Hallo! Ich bin Max. Frag mich alles über die Artikelzusammenfassung, Vokabeln oder Grammatik. Ich kann dir sowohl in {{uiLang}} als auch in {{targetLang}} helfen!",
+      "placeholder": "Frag Max nach der Lektion...",
+      "send": "Senden",
+      "clearChat": "Chat leeren",
+      "tabText": "Text-Chat",
+      "tabLive": "Live-Chat (Audio)",
+      "liveWelcome": "Drücken Sie die Taste unten, um eine Live-Audio-Konversation mit Max zu starten.",
+      "liveStart": "Zuhören starten",
+      "liveStop": "Zuhören beenden",
+      "liveLoading": "Verbinde mit Live-Assistent...",
+      "liveMicError": "Zugriff auf Mikrofon nicht möglich.",
+      "liveTokenError": "Verbindung zum Live-Chat-Dienst fehlgeschlagen."
+    },
     "pricing": {
       "title": "Preise",
       "proTitle": "StreamLearn Pro",

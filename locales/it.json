@@ -142,6 +142,21 @@
       "correct": "Corretto!",
       "incorrectWord": "Sbagliato. La parola era \"{{word}}\"."
     },
+    "chat": {
+      "title": "Assistente IA \"Max\"",
+      "welcome": "Ciao! Sono Max. Chiedimi qualsiasi cosa sul riassunto dell'articolo, il vocabolario o la grammatica. Posso aiutarti sia in {{uiLang}} che in {{targetLang}}!",
+      "placeholder": "Chiedi a Max della lezione...",
+      "send": "Invia",
+      "clearChat": "Cancella chat",
+      "tabText": "Chat di testo",
+      "tabLive": "Chat live (Audio)",
+      "liveWelcome": "Premi il pulsante qui sotto per iniziare una conversazione audio dal vivo con Max.",
+      "liveStart": "Inizia ad ascoltare",
+      "liveStop": "Smetti di ascoltare",
+      "liveLoading": "Connessione all'assistente live...",
+      "liveMicError": "Impossibile accedere al microfono.",
+      "liveTokenError": "Impossibile connettersi al servizio di chat live."
+    },
     "pricing": {
       "title": "Prezzi",
       "proTitle": "StreamLearn Pro",

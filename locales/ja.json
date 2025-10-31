@@ -142,6 +142,21 @@
       "correct": "正解です！",
       "incorrectWord": "不正解です。正解は「{{word}}」でした。"
     },
+    "chat": {
+      "title": "AIアシスタント「Max」",
+      "welcome": "こんにちは！Maxです。記事の要約、語彙、文法について何でも聞いてください。{{uiLang}}と{{targetLang}}の両方でサポートできます！",
+      "placeholder": "Maxにレッスンについて質問...",
+      "send": "送信",
+      "clearChat": "チャットをクリア",
+      "tabText": "テキストチャット",
+      "tabLive": "ライブチャット (音声)",
+      "liveWelcome": "下のボタンを押して、Maxとのライブ音声会話を開始してください。",
+      "liveStart": "聞き取り開始",
+      "liveStop": "聞き取り停止",
+      "liveLoading": "ライブアシスタントに接続中...",
+      "liveMicError": "マイクにアクセスできませんでした。",
+      "liveTokenError": "ライブチャットサービスに接続できませんでした。"
+    },
     "pricing": {
       "title": "料金",
       "proTitle": "StreamLearn Pro",

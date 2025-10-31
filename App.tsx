@@ -32,6 +32,8 @@ import { SearchIcon } from './components/icons/SearchIcon';
 import { CreditCardIcon } from './components/icons/CreditCardIcon';
 import { LanguageIcon } from './components/icons/LanguageIcon';
 import { ArrowLeftIcon } from './components/icons/ArrowLeftIcon';
+import { ChatBubbleIcon } from './components/icons/ChatBubbleIcon';
+import { ChatAssistant } from './components/ChatAssistant';
 import { VolumeUpIcon } from './components/icons/VolumeUpIcon';
 import { PlayIcon } from './components/icons/PlayIcon';
 import { PauseIcon } from './components/icons/PauseIcon';
@@ -152,6 +154,11 @@ interface SavedLesson {
   createdAt: Timestamp;
 }
 
+interface ChatMessage {
+  role: 'user' | 'model';
+  text: string;
+}
+
 // Type for activity state
 type ActivityType = 'vocab' | 'grammar' | 'comprehension' | 'writing';
 interface ActivityState {
@@ -179,6 +186,7 @@ interface ActivityState {
 }
 
 const App: React.FC = () => {
+  console.log("DEBUG: --- App Component Re-render ---");
   const { t, i18n } = useTranslation();
 
   // --- Auth State ---
@@ -245,6 +253,11 @@ const App: React.FC = () => {
   const [currentArticle, setCurrentArticle] = useLocalStorageState<Article | null>('streamlearn_article', null);
   const [currentLesson, setCurrentLesson] = useLocalStorageState<Lesson | null>('streamlearn_lesson', null);
   const initialUrlHandled = useRef(false);
+
+  const [chatHistory, setChatHistory] = useLocalStorageState<ChatMessage[]>('streamlearn_chatHistory', []);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const CHAT_HISTORY_LIMIT = 50;
 
   // --- Static Data ---
   const newsTopics: string[] = [
@@ -508,6 +521,8 @@ const App: React.FC = () => {
             summaryAudioRef.current.pause();
             summaryAudioRef.current = null;
         }
+        setChatHistory([]);
+        setChatError(null);
     }
 
     setCurrentArticle(article);
@@ -690,7 +705,7 @@ const App: React.FC = () => {
   // --- NEW: Subscription Functions ---
   const fetchSubscriptionStatus = useCallback(async (user: User) => {
     if (!user) return;
-    console.log("Fetching subscription status...");
+    console.log("DEBUG: fetchSubscriptionStatus - STARTING..."); // <-- ADD THIS
     setIsSubLoading(true);
     try {
       // Note: This query is simple. The Stripe extension *overwrites* docs,
@@ -702,8 +717,8 @@ const App: React.FC = () => {
       
       if (querySnapshot.empty) {
         setSubscription(null);
-        setIsSubLoading(true);
-        console.log("No active subscription found.");
+        setIsSubLoading(false); // This was the bug from before, make sure it's false
+        console.log("DEBUG: fetchSubscriptionStatus - No active sub found."); // <-- ADD THIS
       } else {
         const sub = querySnapshot.docs[0].data() as StripeSubscription;
         setSubscription(sub);
@@ -714,6 +729,7 @@ const App: React.FC = () => {
       // Don't block app, just assume user is free
       setSubscription(null);
     } finally {
+      console.log("DEBUG: fetchSubscriptionStatus - FINISHED (finally block)."); // <-- ADD THIS
       setIsSubLoading(false);
     }
   }, [db]); // Add db dependency
@@ -856,7 +872,8 @@ const App: React.FC = () => {
 
   // --- URL Handling Logic ---
   const handleUrlChange = useCallback((path: string, params: URLSearchParams, newState?: { article?: Article | null }) => {
-    console.log("handleUrlChange received:", path, params.toString());
+    console.log(`DEBUG: handleUrlChange - CALLED with path: ${path}. auth: ${authState}, subLoading: ${isSubLoading}`); // <-- ADD THIS
+    
     if (authState !== 'SIGNED_IN') {
       if (authState === 'SIGNED_OUT') {
         console.log("Setting view to LANDING");
@@ -987,9 +1004,12 @@ const App: React.FC = () => {
     };
     window.addEventListener('popstate', handlePopState);
 
-    // Handle initial load once auth is ready
-    if (authState !== 'LOADING' && !initialUrlHandled.current) { // <-- MODIFY THIS LINE
-        initialUrlHandled.current = true; // <-- ADD THIS LINE
+    console.log(`DEBUG: Initial Load useEffect - auth: ${authState}, subLoading: ${isSubLoading}, initialHandled: ${initialUrlHandled.current}`); // <-- ADD THIS
+
+    // Handle initial load once auth is ready AND subscription status is known
+    if (authState !== 'LOADING' && !isSubLoading && !initialUrlHandled.current) { 
+        console.log("DEBUG: Initial Load useEffect - CONDITION MET. Running handler."); // <-- ADD THIS
+        initialUrlHandled.current = true;
         const { pathname, search } = window.location;
         handleUrlChangeRef.current(pathname, new URLSearchParams(search));
     }
@@ -997,7 +1017,7 @@ const App: React.FC = () => {
     return () => {
         window.removeEventListener('popstate', handlePopState);
     };
-  }, [authState]); // Rerun only when authState changes
+  }, [authState, isSubLoading]);
 
   // --- NEW: Memoized filter for lesson history ---
   const filteredLessonHistory = useMemo(() => {
@@ -1020,11 +1040,13 @@ const App: React.FC = () => {
    useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
+        console.log(`DEBUG: onAuthStateChanged - SIGNED_IN as ${currentUser.uid}`); // <-- ADD THIS
         setUser(currentUser);
         setAuthState('SIGNED_IN');
         fetchSubscriptionStatus(currentUser);
         setError(null);
       } else {
+        console.log("DEBUG: onAuthStateChanged - SIGNED_OUT"); // <-- ADD THIS
         setUser(null);
         setAuthState('SIGNED_OUT');
         // setCurrentView('SIGN_OUT'); // This will be handled by URL/popstate handler
@@ -1095,6 +1117,7 @@ const App: React.FC = () => {
   const signInWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
     try {
+      initialUrlHandled.current = false; // <-- ADD THIS LINE
       setAuthState('LOADING'); // Show loading during popup
       await signInWithPopup(auth, provider);
       // onAuthStateChanged will handle setting user and SIGNED_IN state and trigger URL check
@@ -1118,6 +1141,75 @@ const App: React.FC = () => {
     } catch (e) {
       console.error("Sign Out Error:", e);
       setError(`Sign out failed: ${(e as Error).message}`);
+    }
+  };
+
+  const handleClearChat = () => {
+    setChatHistory([]);
+    setChatError(null);
+  };
+
+  const handleFetchAuthToken = async (): Promise<string> => {
+    // Note: This function throws an error on failure, which the
+    // LiveChatTab component will catch.
+    try {
+      const response = await authenticatedFetch('getEphemeralToken', {});
+      if (response.token) {
+        return response.token;
+      } else {
+        throw new Error(response.error || "Failed to get ephemeral token from server.");
+      }
+    } catch (e) {
+      console.error("handleFetchAuthToken error:", e);
+      throw new Error(`Failed to get ephemeral token: ${(e as Error).message}`);
+    }
+  };
+
+  const handleChatSubmit = async (userInput: string) => {
+    if (!userInput.trim() || !currentLesson || isChatLoading) return;
+
+    console.log("Submitting to chat assistant:", userInput);
+    setIsChatLoading(true);
+    setChatError(null);
+    
+    // Add user message and apply limit
+    const userMessage: ChatMessage = { role: 'user', text: userInput };
+    const newHistory = [...chatHistory, userMessage];
+    
+    const trimmedHistory = newHistory.length > CHAT_HISTORY_LIMIT 
+      ? newHistory.slice(newHistory.length - CHAT_HISTORY_LIMIT)
+      : newHistory;
+    
+    setChatHistory(trimmedHistory);
+  
+    try {
+      // Send the full lesson and new history to the backend
+      const response = await authenticatedFetch('chatWithAssistant', {
+        lessonData: currentLesson,
+        chatHistory: newHistory,
+        uiLanguage: uiLanguage,
+        targetLanguage: targetLanguage
+      });
+  
+      if (response.text) {
+        // Add the model's response and apply limit
+        const modelMessage: ChatMessage = { role: 'model', text: response.text };
+        setChatHistory(prev => {
+          const updatedHistory = [...prev, modelMessage];
+          return updatedHistory.length > CHAT_HISTORY_LIMIT
+            ? updatedHistory.slice(updatedHistory.length - CHAT_HISTORY_LIMIT)
+            : updatedHistory;
+        });
+      } else {
+        throw new Error(response.error || "The assistant did not provide a response.");
+      }
+    } catch (e) {
+      const errorMsg = `Error: ${(e as Error).message}`;
+      setChatError(errorMsg);
+      // Add a temporary error message to the chat history
+      setChatHistory(prev => [...prev, { role: 'model', text: errorMsg }]);
+    } finally {
+      setIsChatLoading(false);
     }
   };
 
@@ -2806,7 +2898,7 @@ const LandingPage: React.FC<{
           </p>
         </div>
 
-        {/* Comprehension Section */}
+{/* Comprehension Section */}
         <div className="space-y-3 border-l-4 border-green-500 pl-4 bg-green-50 p-3 rounded-lg">
           <h3 className="text-xl font-bold text-green-700">{t('lesson.comprehensionQuestions')}</h3>
           <ol className="list-decimal list-inside space-y-2">
@@ -2817,6 +2909,20 @@ const LandingPage: React.FC<{
             ))}
           </ol>
         </div>
+
+
+        <ChatAssistant
+          lesson={currentLesson}
+          uiLanguage={uiLanguage}
+          targetLanguage={targetLanguage}
+          history={chatHistory}
+          isLoading={isChatLoading}
+          error={chatError}
+          onSubmit={handleChatSubmit}
+          onClearChat={handleClearChat}
+          fetchAuthToken={handleFetchAuthToken} 
+        /> 
+
       </div>
     );
   };
@@ -3075,6 +3181,7 @@ const LandingPage: React.FC<{
   };
 
   // --- Main return ---
+  console.log(`DEBUG: Main Render - auth: ${authState}, subLoading: ${isSubLoading}, view: ${currentView}`); // <-- ADD THIS
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gray-100 font-sans"> {/* Changed font */}
       <div className="w-full">

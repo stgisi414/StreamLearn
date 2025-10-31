@@ -140,6 +140,21 @@
       "correct": "正确！",
       "incorrectWord": "不正确。正确的单词是 “{{word}}”。"
     },
+    "chat": {
+      "title": "AI 助手 “Max”",
+      "welcome": "嗨！我是 Max。关于文章摘要、词汇或语法，你都可以问我。我可以用 {{uiLang}} 和 {{targetLang}} 两种语言帮助你！",
+      "placeholder": "向 Max 询问课程相关问题...",
+      "send": "发送",
+      "clearChat": "清除聊天",
+      "tabText": "文本聊天",
+      "tabLive": "实时聊天 (语音)",
+      "liveWelcome": "按下下方按钮，与 Max 开始实时语音对话。",
+      "liveStart": "开始收听",
+      "liveStop": "停止收听",
+      "liveLoading": "正在连接实时助手...",
+      "liveMicError": "无法访问麦克风。",
+      "liveTokenError": "无法连接到实时聊天服务。"
+    },
     "pricing": {
       "title": "定价",
       "proTitle": "StreamLearn Pro",

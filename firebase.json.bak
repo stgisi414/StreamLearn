@@ -30,8 +30,16 @@
         "function": "textToSpeech"
       },
       {
+        "source": "/api/chatWithAssistant",
+        "function": "chatWithAssistant"
+      },
+      {
         "source": "/api/createPortalLink",
         "function": "createPortalLink"
+      },
+      {
+        "source": "/api/getEphemeralToken",
+        "function": "getEphemeralToken"
       },
       {
         "source": "**",

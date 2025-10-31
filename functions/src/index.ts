@@ -4,7 +4,7 @@
     import "firebase-admin/functions";
     import fetch, { RequestInit } from "node-fetch"; // For fetchNews
     import { onDocumentCreated } from "firebase-functions/v2/firestore";
-    import { GoogleGenAI, HarmCategory, HarmBlockThreshold, Type } from "@google/genai";
+    import { GoogleGenAI, HarmCategory, HarmBlockThreshold, Type, Modality } from "@google/genai";
     import * as logger from "firebase-functions/logger";
     import * as TextToSpeech from '@google-cloud/text-to-speech';
 
@@ -38,7 +38,7 @@
         }
     }
 
-    const FREE_LESSON_LIMIT = 5;
+    const FREE_LESSON_LIMIT = 25;
 
     /**
      * Checks a user's subscription status and lesson usage.
@@ -925,6 +925,187 @@
           const status = message.includes("Unauthenticated") || message.includes("Invalid") ? 401 : 500;
           logger.error("Function Error (createPortalLink):", error);
           res.status(status).json({error: `Failed to create portal link: ${message}`});
+        }
+      }
+    );
+
+// --- NEW: chatWithAssistant Function (Using stateless generateContent) ---
+    export const chatWithAssistant = onRequest(
+      { secrets: ["GEMINI_API_KEY"], timeoutSeconds: 60, cors: true },
+      async (req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+
+        try {
+          // FIX 1: Add underscore to 'userId' to fix the TS6133 error
+          const { lessonData, chatHistory, uiLanguage, targetLanguage } = req.body;
+
+          if (!lessonData || !chatHistory || !uiLanguage || !targetLanguage) {
+            res.status(400).json({ error: "Missing lessonData, chatHistory, or language parameters." });
+            return;
+          }
+
+          // --- 1. Get API Key ---
+          const geminiApiKey = process.env.GEMINI_API_KEY;
+          if (!geminiApiKey) {
+            logger.error("Secret Configuration Error: GEMINI_API_KEY missing.");
+            res.status(500).json({ error: "Server configuration error." });
+            return;
+          }
+          const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+
+          // --- 2. Define Persona and Rules (System Prompt) ---
+          const uiLangName = getLanguageName(uiLanguage);
+          const targetLangName = getLanguageName(targetLanguage);
+          const lesson = lessonData as any; // Cast to access properties
+
+          const vocabList = lesson.vocabularyList.map((v: any) =>
+            `- ${v.word} (${targetLangName}): ${v.definition} (${uiLangName}). Example: "${v.articleExample}"`
+          ).join('\n');
+          
+          const comprehensionQuestions = lesson.comprehensionQuestions.join('\n- ');
+
+          // The robust system prompt
+          const systemPrompt = `
+You are "Max," a friendly, patient, and expert language tutor.
+You are helping a student who is learning ${targetLangName} and speaks ${uiLangName}.
+Your entire knowledge base for this conversation is STRICTLY limited to the following lesson data:
+
+--- START LESSON DATA ---
+Article Title (${targetLangName}): ${lesson.articleTitle}
+Summary (${targetLangName}): ${lesson.summary}
+
+Vocabulary List:
+${vocabList}
+
+Grammar Focus (${uiLangName} explanation):
+- Topic: ${lesson.grammarFocus.topic}
+- Explanation: ${lesson.grammarFocus.explanation}
+
+Comprehension Questions (${uiLangName}):
+- ${comprehensionQuestions}
+--- END LESSON DATA ---
+
+YOUR ROLE AND RULES:
+1.  You are conversational and helpful in *both* ${uiLangName} and ${targetLangName}. You can switch languages if the user does, but always be clear.
+2.  Your primary goal is to help the user understand the lesson. You can answer questions about the summary, vocabulary, or grammar.
+3.  You can provide new example sentences (in ${targetLangName}) using the vocabulary.
+4.  You can explain the grammar concepts more deeply, but do not introduce new topics not mentioned in the lesson.
+5.  You can help the user practice by asking them questions related to the lesson.
+6.  **CRITICAL RULE:** If the user asks a question *outside* the scope of this lesson (e.g., "What is the capital of France?", "Tell me a joke," "Who are you?", "What's the weather?"), you MUST politely decline and guide them back to the lesson. Respond in ${uiLanguage} with something like: "I'm Max, your assistant for this lesson! I can only help with questions about the article, vocabulary, or grammar we just covered. Do you have any questions about those?"
+7.  Keep your answers concise and easy to understand for the student's level.
+`;
+
+          // --- 3. Format Contents Array (Your "cURL ideology") ---
+          const fullContents = chatHistory.map((msg: any) => ({
+            role: msg.role === 'user' ? 'user' : 'model',
+            parts: [{ text: msg.text }]
+          }));
+
+          if (fullContents.length === 0 || fullContents[fullContents.length - 1].role !== 'user') {
+            logger.error("Chat history is empty or does not end with a 'user' message.", fullContents);
+            res.status(400).json({ error: "Invalid chat history: Must end with a user message." });
+            return;
+          }
+
+          // --- 4. Call generateContent (Stateless) ---
+          const safetySettings = [
+            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          ];
+
+          // FIX 2: Use ai.models.generateContent directly
+          const result = await ai.models.generateContent({
+            model: "gemini-2.5-flash", 
+            contents: fullContents, // Pass the full chat history
+            config: {
+              safetySettings: safetySettings,
+              // Pass the system prompt via the 'config' object
+              systemInstruction: { parts: [{ text: systemPrompt }] },
+            }
+          });
+          // --- End of Fix 2 ---
+
+          const responseText = result.text;
+          if (!responseText) {
+            logger.error("Gemini response (chat) was empty.", JSON.stringify(result, null, 2));
+            throw new Error("The assistant did not provide a response.");
+          }
+
+          res.status(200).json({ text: responseText });
+
+        } catch (e) {
+          const message = (e as Error).message;
+          const status = message.includes("Unauthenticated") ? 401 : 500;
+          logger.error("Function Error (chatWithAssistant):", e);
+          res.status(status).json({ error: `Chat failed: ${message}` });
+        }
+      }
+    );
+
+   // --- NEW: getEphemeralToken Function (Corrected Version) ---
+    // This function creates a short-lived token for the client to connect to Google's AI Studio API
+    export const getEphemeralToken = onRequest(
+      { secrets: ["GEMINI_API_KEY"], cors: true }, // <-- Make sure GEMINI_API_KEY is in secrets
+      async (req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+
+        try {
+          // 1. Ensure the user is authenticated with *your* app
+          await getAuthenticatedUid(req);
+
+          // 2. Get the Gemini API Key
+          const geminiApiKey = process.env.GEMINI_API_KEY;
+          if (!geminiApiKey) {
+            logger.error("Secret Configuration Error: GEMINI_API_KEY missing.");
+            throw new Error("Server configuration error.");
+          }
+
+          // 3. Initialize the GenAI client, forcing v1alpha for auth tokens
+          // This is the key insight from the documentation you provided
+          const ai = new GoogleGenAI({
+            apiKey: geminiApiKey,
+            httpOptions: { apiVersion: 'v1alpha' } // Force v1alpha
+          });
+
+          // 4. Define the model we are authorizing (from your docs)
+          const model = "gemini-live-2.5-flash"; 
+
+          // 5. Create the ephemeral token
+          logger.info(`Requesting ephemeral token for model: ${model}`);
+          const tokenConfig = {
+            config: {
+              uses: 1, // The token can only be used to start a single session
+              liveConnectConstraints: {
+                model: model,
+                config: {
+                  // Allow both text and audio responses
+                  responseModalities: [Modality.TEXT, Modality.AUDIO] 
+                }
+              },
+            }
+          };
+          logger.info("DEBUG: Token config being sent:", JSON.stringify(tokenConfig));
+          // --- END ADD ---
+
+          const token = await ai.authTokens.create(tokenConfig); // <-- Use the config var
+
+          if (!token || !token.name) {
+            logger.error("Google Token API did not return a token name.");
+            throw new Error("Google API failed to create a token.");
+          }
+
+          // 6. Send the token *value* (token.name) to the client
+          // The client will use this value as its API key
+          res.status(200).json({ token: token.name });
+
+        } catch (e) {
+          const message = (e as Error).message;
+          logger.error("Function Error (getEphemeralToken):", e);
+          res.status(500).json({ error: `Token generation failed: ${message}` });
         }
       }
     );
