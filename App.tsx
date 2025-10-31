@@ -39,18 +39,11 @@ import { CheckCircleIcon } from './components/icons/CheckCircleIcon';
 import { Lesson, Article, NewsResult, EnglishLevel, LessonResponse, SavedWord, VocabularyItem, StripeSubscription } from './types';
 
 // --- NEW: Language Configuration ---
-const languageOptions = {
-  en: "English",
-  es: "Español (Spanish)",
-  fr: "Français (French)",
-  de: "Deutsch (German)",
-  it: "Italiano (Italian)",
-  ko: "한국어 (Korean)",
-  ja: "日本語 (Japanese)",
-  zh: "中文 (Chinese)",
-};
+const languageCodes: LanguageCode[] = [
+  'en', 'es', 'fr', 'de', 'it', 'ko', 'ja', 'zh'
+];
 
-type LanguageCode = keyof typeof languageOptions;
+type LanguageCode = typeof languageCodes[number];
 
 // --- Configuration Variables ---
 const firebaseConfig = {
@@ -404,7 +397,7 @@ const App: React.FC = () => {
     try {
       const results = await authenticatedFetch('fetchNews', {
         query: topicToSearch,
-        languageCode: 'en'
+        languageCode: targetLanguage
       }) as NewsResult[];
       if (!results || results.length === 0) {
         setError(`No current news articles found for "${topicToSearch}".`);
@@ -422,11 +415,12 @@ const App: React.FC = () => {
   }, [
       authState, user, authenticatedFetch, inputTopic, inputLevel, setNewsResults, 
       setError, goToSearch, goToInput, setCurrentView, 
-      isSubscribed, monthlyLessonCount // <-- ADD isSubscribed and monthlyLessonCount
+      isSubscribed, monthlyLessonCount, t,
+      targetLanguage
   ]);
 
   // --- NEW: Helper to fetch summary audio ---
-  const fetchSummaryAudio = useCallback(async (summaryText: string) => {
+  const fetchSummaryAudio = useCallback(async (summaryText: string, langCode: LanguageCode) => {
     if (!summaryText || isSummaryAudioLoading || summaryAudioSrc) return; // Don't fetch if loading, already have src, or no text
 
     console.log("Fetching summary audio...");
@@ -435,7 +429,10 @@ const App: React.FC = () => {
     setError(null); // Clear main error too
 
     try {
-      const response = await authenticatedFetch('textToSpeech', { text: summaryText });
+      const response = await authenticatedFetch('textToSpeech', { 
+        text: summaryText,
+        langCode: langCode
+      });
       if (response.audioContent) {
         const audioData = `data:audio/mp3;base64,${response.audioContent}`;
         setSummaryAudioSrc(audioData); // Set the source, useEffect will create Audio object
@@ -511,13 +508,13 @@ const App: React.FC = () => {
 
         if (!lessonToSave) {
             console.log("No current lesson found or different article, calling createLesson API...");
-            // --- FIX: Assign to the outer responseData ---
             responseData = await authenticatedFetch('createLesson', {
-            // --- END FIX ---
                 articleUrl: article.link,
-                level: inputLevel,
                 title: article.title,
-                snippet: article.snippet || ''
+                snippet: article.snippet || '',
+                level: inputLevel,
+                uiLanguage: uiLanguage,
+                targetLanguage: targetLanguage
             });
 
             if (responseData?.success && responseData?.lesson) { // Added null checks
@@ -525,7 +522,7 @@ const App: React.FC = () => {
                 console.log("Lesson generated successfully, calling setCurrentLesson.");
                 setCurrentLesson(lessonToSave);
                 if (lessonToSave.summary) {
-                    fetchSummaryAudio(lessonToSave.summary);
+                    fetchSummaryAudio(lessonToSave.summary, targetLanguage);
                 }
             } else {
                 setError(responseData?.error || responseData?.details || "Lesson generation failed."); // Added null checks
@@ -537,7 +534,7 @@ const App: React.FC = () => {
         } else {
            console.log("Lesson already exists in state, potentially fetching audio.");
            if (lessonToSave.summary && !summaryAudioSrc && !isSummaryAudioLoading) {
-               fetchSummaryAudio(lessonToSave.summary);
+               fetchSummaryAudio(lessonToSave.summary, targetLanguage);
            }
         }
 
@@ -586,7 +583,8 @@ const App: React.FC = () => {
       setSummaryAudioSrc, setIsSummaryPlaying, setSummaryAudioProgress,
       setSummaryAudioDuration, setSummaryAudioError, setCurrentArticle,
       goToLesson, goToInput, authenticatedFetch, fetchSummaryAudio,
-      summaryAudioSrc, isSummaryAudioLoading
+      summaryAudioSrc, isSummaryAudioLoading,
+      t, uiLanguage, targetLanguage
       // --- END REMOVAL ---
   ]);
 
@@ -1162,7 +1160,7 @@ const App: React.FC = () => {
 
     // --- Handle activity completion ---
     if (index >= total) {
-      console.log(`Activity finished check: index ${index} >= total ${total}.`);
+      console.log(`Activity finished check: index ${index} >= total ${{total}}.`);
       // Only update state if not already marked as finished
       if (!currentData?.finished) {
         setActivityState(prev => {
@@ -1226,7 +1224,9 @@ const App: React.FC = () => {
     const grammarPayload = {
         topic: currentLesson?.grammarFocus?.topic, // Use optional chaining
         explanation: currentLesson?.grammarFocus?.explanation, // Use optional chaining
-        level: inputLevel
+        level: inputLevel,
+        uiLanguage: uiLanguage,
+        targetLanguage: targetLanguage
     };
     console.log("Attempting grammar generation with payload:", JSON.stringify(grammarPayload));
 
@@ -1268,7 +1268,9 @@ const App: React.FC = () => {
       const payload = {
         summary: currentLesson.summary,
         level: inputLevel,
-        vocabularyList: currentLesson.vocabularyList.map(v => v.word)
+        vocabularyList: currentLesson.vocabularyList.map(v => v.word),
+        uiLanguage: uiLanguage,
+        targetLanguage: targetLanguage
       };
 
       if (!payload.summary || !payload.level || !payload.vocabularyList) {
@@ -1366,7 +1368,8 @@ const App: React.FC = () => {
       currentView, activityState?.type, activityState?.index, // Step definition
       activityState?.shuffledIndices, // Needed for vocab order
       inputLevel, currentLesson, // Data sources
-      authenticatedFetch, quitActivity, setError, shuffleArray // Stable functions
+      authenticatedFetch, quitActivity, setError, shuffleArray, // Stable functions
+      uiLanguage, targetLanguage
   ]);
 
   const handleSubmitAnswer = async () => {
@@ -1409,7 +1412,8 @@ const App: React.FC = () => {
                     question: currentData.question,
                     options: currentData.options,
                     correctAnswer: currentData.correctAnswer,
-                    userAnswer: String(userAnswer)
+                    userAnswer: String(userAnswer),
+                    uiLanguage: uiLanguage
                 }
             });
             setActivityState(prev => {
@@ -1430,7 +1434,10 @@ const App: React.FC = () => {
                 payload: {
                     question: currentData.question,
                     summary: currentData.summary,
-                    userAnswer: String(userAnswer)
+                    userAnswer: String(userAnswer),
+                    uiLanguage: uiLanguage,
+                    targetLanguage: targetLanguage,
+                    level: inputLevel
                 }
              });
              setActivityState(prev => {
@@ -1450,7 +1457,9 @@ const App: React.FC = () => {
                     prompt: currentData.prompt,
                     summary: currentLesson.summary,
                     userAnswer: String(userAnswer),
-                    level: inputLevel // <-- Pass the level for grading context
+                    level: inputLevel,
+                    uiLanguage: uiLanguage,
+                    targetLanguage: targetLanguage
                 }
              });
              setActivityState(prev => {
@@ -1490,8 +1499,8 @@ const App: React.FC = () => {
    };
 
    // --- Activity Text-to-Speech Handler (Renamed) ---
-  const handleActivityTextToSpeech = async (text: string | undefined | null) => { // Renamed function
-    console.log("handleActivityTextToSpeech called with text:", text);
+  const handleActivityTextToSpeech = async (text: string | undefined | null, langCode: LanguageCode) => { // Renamed function
+    console.log(`handleActivityTextToSpeech called with lang: ${langCode}, text:`, text);
 
     if (!text || isActivityAudioLoading) { // Use renamed state variable
         console.log("handleActivityTextToSpeech returning early. Reason:", !text ? "No text" : "Activity audio loading");
@@ -1512,7 +1521,8 @@ const App: React.FC = () => {
     setError(null); // Clear main error
 
     try {
-        const response = await authenticatedFetch('textToSpeech', { text });
+        const response = await authenticatedFetch('textToSpeech', { text,
+            langCode: langCode });
         if (response.audioContent) {
             const audioData = `data:audio/mp3;base64,${response.audioContent}`;
             const audio = new Audio(audioData);
@@ -1640,7 +1650,7 @@ const App: React.FC = () => {
             onClick={handleSignOut}
             className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1 flex-shrink-0"
           >
-            {t('common.signOutUser', { user: user.displayName?.split(' ')[0] || user.email?.split('@')[0] || 'User' })}
+            {t('signIn.signOutUser', { user: user.displayName?.split(' ')[0] || user.email?.split('@')[0] || 'User' })}
           </button>
         )}
       </div>
@@ -1708,8 +1718,9 @@ const App: React.FC = () => {
               onChange={(e) => setUiLanguage(e.target.value as LanguageCode)}
               className="w-full p-3 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
             >
-              {Object.entries(languageOptions).map(([code, name]) => (
-                <option key={code} value={code}>{name}</option>
+              {/* FIX: Map over the languageCodes array and use t() for the name */}
+              {languageCodes.map((code) => (
+                <option key={code} value={code}>{t(`languages.${code}`)}</option>
               ))}
             </select>
           </div>
@@ -1722,8 +1733,9 @@ const App: React.FC = () => {
               onChange={(e) => setTargetLanguage(e.target.value as LanguageCode)}
               className="w-full p-3 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
             >
-              {Object.entries(languageOptions).map(([code, name]) => (
-                <option key={code} value={code}>{name}</option>
+              {/* FIX: Map over the languageCodes array and use t() for the name */}
+              {languageCodes.map((code) => (
+                <option key={code} value={code}>{t(`languages.${code}`)}</option>
               ))}
             </select>
           </div>
@@ -1781,7 +1793,7 @@ const App: React.FC = () => {
                   <p className="text-sm text-gray-600 mt-1">
                     {t('dashboard.topic')} <span className="font-medium text-gray-800">{lesson.topic}</span>
                     <span className="mx-2">|</span>
-                    {t('common.level')} <span className="font-medium text-gray-800">{lesson.level}</span>
+                    {t('common.level')} <span className="font-medium text-gray-800">{t(`common.${lesson.level.toLowerCase()}`)}</span>
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
                     {t('common.source')}: {lesson.source} ({lesson.date})
@@ -1875,15 +1887,16 @@ const App: React.FC = () => {
   );
 
   // --- NEW: Reusable SpeakButton ---
-  const SpeakButton = ({ text }: { text: string | undefined | null }) => (
+  const SpeakButton = ({ text, langCode }: { text: string | undefined | null, langCode: LanguageCode }) => (
     <button
        onClick={() => {
-           console.log("SpeakButton clicked. Text:", text);
-           handleActivityTextToSpeech(text);
+           console.log(`SpeakButton clicked. Lang: ${langCode}, Text:`, text);
+           // FIX: Pass langCode to the handler
+           handleActivityTextToSpeech(text, langCode);
        }}
        disabled={isActivityAudioLoading || !text}
        className="ml-2 p-1 text-gray-500 hover:text-blue-600 disabled:opacity-50 inline-block align-middle cursor-pointer disabled:cursor-not-allowed"
-       title="Read aloud"
+       title={t('common.readAloud')}
      >
        {isActivityAudioLoading ? (
             <LoadingSpinner className="w-4 h-4 inline-block" />
@@ -2165,7 +2178,6 @@ const App: React.FC = () => {
       <div className="p-4 sm:p-6 max-w-lg mx-auto bg-white rounded-xl shadow-2xl space-y-6">
         {/* Use flex-wrap and justify-between for better mobile header layout */}
         <div className="flex flex-wrap justify-between items-center gap-2">
-          {/* --- ADD A BACK TO DASHBOARD BUTTON --- */}
           <button
               onClick={() => navigate('/')} // <-- Takes user back to dashboard
               className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
@@ -2179,7 +2191,7 @@ const App: React.FC = () => {
               // Adjusted padding and margin for better fit
               className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1 flex-shrink-0"
             >
-              {t('common.signOutUser', { user: shortUser })}
+              {t('signIn.signOutUser', { user: shortUser })}
             </button>
           )}
         </div>
@@ -2196,15 +2208,19 @@ const App: React.FC = () => {
         )}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            {t('input.levelLabel', { language: languageOptions[targetLanguage].split(' ')[0] })}
+            {t('input.levelLabel', { language: t(`languages.${targetLanguage}`) })}
           </label>
           <select
             value={inputLevel}
             onChange={(e) => setInputLevel(e.target.value as EnglishLevel)}
             className="w-full p-3 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
           >
-            {['Beginner', 'Intermediate', 'Advanced'].map(level => (
-              <option key={level} value={level}>{level}</option>
+            {[
+              { key: 'common.beginner', value: 'Beginner' },
+              { key: 'common.intermediate', value: 'Intermediate' },
+              { key: 'common.advanced', value: 'Advanced' }
+            ].map(level => (
+              <option key={level.value} value={level.value}>{t(level.key)}</option>
             ))}
           </select>
         </div>
@@ -2239,20 +2255,32 @@ const App: React.FC = () => {
           <p className="text-sm font-medium text-gray-700 mb-3 text-center">{t('input.popularTopics')}</p>
           {/* --- CHANGE HERE: grid-cols-2 by default, md:grid-cols-4 for medium and up --- */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {newsTopics.map((topic) => (
-              <button
-                key={topic}
-                onClick={() => {
-                  setInputTopic(topic);
-                  handleFindArticles(topic, false); // Pass false for skipNavigation
-                }}
-                disabled={isApiLoading || isFreeTierLimitReached}
-                className="bg-gray-100 text-gray-700 text-sm font-medium py-2 px-1 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition duration-150 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed text-center truncate"
-                title={isFreeTierLimitReached ? t('input.limitReachedTitle') : t('input.findTopicTitle', { topic })}
-              >
-                {topic}
-              </button>
-            ))}
+            {newsTopics.map((topic) => {
+              // 1. Get the translation key
+              const topicKey = `topics.${topic.toLowerCase().replace(/ /g, '_')}`;
+              
+              // 2. FIX: Get the topic name in the TARGET language (e.g., Japanese)
+              const targetLanguageTopic = t(topicKey, { lng: targetLanguage });
+
+              return (
+                <button
+                  key={topic}
+                  onClick={() => {
+                    // 3. FIX: Set the input field to the target language topic
+                    setInputTopic(targetLanguageTopic);
+                    // 4. FIX: Search for the target language topic
+                    handleFindArticles(targetLanguageTopic, false); 
+                  }}
+                  disabled={isApiLoading || isFreeTierLimitReached}
+                  className="bg-gray-100 text-gray-700 text-sm font-medium py-2 px-1 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition duration-150 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed text-center truncate"
+                  // 5. FIX: The title attribute will correctly use the UI language
+                  title={isFreeTierLimitReached ? t('input.limitReachedTitle') : t('input.findTopicTitle', { topic: targetLanguageTopic })}
+                >
+                  {/* 6. FIX: Display the target language topic */}
+                  {targetLanguageTopic}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -2266,7 +2294,7 @@ const App: React.FC = () => {
         <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" />
         {isSubscribed && (
           <span className="text-xs font-bold bg-yellow-400 text-yellow-900 px-2 py-0.5 rounded-full shadow-md -ml-2">
-            PRO
+            {t('common.proBadge')}
           </span>
         )}
         {/* Sign out button on the right */}
@@ -2287,7 +2315,10 @@ const App: React.FC = () => {
             </button>
             {/* Title - allow wrapping */}
             <h2 className="text-lg sm:text-xl font-bold text-gray-800 text-center flex-grow min-w-0 break-words px-2"> {/* Added break-words and padding */}
-              {t('news.title', { topic: inputTopic, level: inputLevel })}
+              {t('news.title', { 
+                topic: inputTopic, 
+                level: t(inputLevel === 'Beginner' ? 'common.beginner' : inputLevel === 'Intermediate' ? 'common.intermediate' : 'common.advanced') 
+              })}
             </h2>
             {/* Invisible placeholder to balance the flex layout, matching back button space */}
             <div className="flex items-center text-sm font-medium flex-shrink-0 invisible">
@@ -2343,7 +2374,7 @@ const App: React.FC = () => {
                      <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" />
                      {isSubscribed && (
                         <span className="text-sm font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full border border-yellow-500 shadow-sm">
-                          PRO
+                          {t('common.proBadge')}
                         </span>
                       )}
                      {user && ( <button onClick={handleSignOut} className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1"> {t('common.signOut')} </button> )}
@@ -2378,7 +2409,7 @@ const App: React.FC = () => {
             <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" />
             {isSubscribed && (
                 <span className="text-sm font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full border border-yellow-500 shadow-sm">
-                  PRO
+                  {t('common.proBadge')}
                 </span>
               )}
              {/* Action buttons on the right */}
@@ -2620,11 +2651,18 @@ const App: React.FC = () => {
     if (feedback.isCorrect === true) feedbackColor = 'border-green-500 bg-green-50';
     if (feedback.isCorrect === false) feedbackColor = 'border-red-500 bg-red-50';
 
+    const translatedType = t(
+      type === 'vocab' ? 'activity.vocab' :
+      type === 'grammar' ? 'activity.grammar' :
+      type === 'comprehension' ? 'activity.comprehension' :
+      'activity.writing' // default for 'writing'
+    );
+
     return (
       <div className={`p-6 max-w-2xl mx-auto bg-white rounded-xl shadow-2xl space-y-4 border-2 ${feedbackColor}`}>
         {/* Header with Progress and Score */}
         <div className="flex justify-between items-center text-sm text-gray-600">
-          <span>{t('activity.title', { type })}</span>
+          <span>{t('activity.title', { type: translatedType })}</span>
           <span>{t('common.score')} {score}/{total}</span>
           <span>{t('common.question')} {index + 1}/{total}</span>
           <button onClick={quitActivity} className="text-xs text-gray-500 hover:text-gray-700">{t('common.quit')}</button>
@@ -2641,7 +2679,7 @@ const App: React.FC = () => {
              <div>
                <p className="text-lg font-semibold text-gray-700 mb-2">
                  {t('activity.definition')}
-                 {currentData.definition && <SpeakButton text={currentData.definition} />}
+                 {currentData.definition && <SpeakButton text={currentData.definition} langCode={uiLanguage} />}
                </p>
                <p className="p-3 bg-gray-100 text-gray-900 rounded mb-4">{currentData.definition}</p>
 
@@ -2703,7 +2741,7 @@ const App: React.FC = () => {
             <div>
               <p className="text-lg font-semibold text-gray-700 mb-3">
                 {currentData.question}
-                {currentData.question && <SpeakButton text={currentData.question} />}
+                {currentData.question && <SpeakButton text={currentData.question} langCode={uiLanguage} />}
               </p>
               <div className="space-y-2">
                 {currentData.options.map((option: string, i: number) => {
@@ -2747,7 +2785,7 @@ const App: React.FC = () => {
             <div>
               <p className="text-lg font-semibold text-gray-700 mb-3">
                 {currentData.question}
-                {currentData.question && <SpeakButton text={currentData.question} />}
+                {currentData.question && <SpeakButton text={currentData.question} langCode={uiLanguage} />}
               </p>
               <textarea
                 value={String(userAnswer ?? '')}
@@ -2765,7 +2803,7 @@ const App: React.FC = () => {
             <div>
               <p className="text-lg font-semibold text-gray-700 mb-2">
                 {t('activity.writingPrompt')}
-                {currentData.prompt && <SpeakButton text={currentData.prompt} />}
+                {currentData.prompt && <SpeakButton text={currentData.prompt} langCode={uiLanguage} />}
               </p>
               <p className="p-3 bg-gray-100 text-gray-900 rounded mb-2">{currentData.prompt}</p>
               {currentData.vocabularyHint && (

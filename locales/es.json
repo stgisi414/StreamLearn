@@ -23,18 +23,22 @@
       "deleteWord": "Eliminar palabra",
       "wordSaved": "¡Palabra guardada!",
       "wordDeleted": "Palabra eliminada.",
-      "alreadySaved": "¡Ya guardada!"
+      "alreadySaved": "¡Ya guardada!",
+      "beginner": "Principiante",
+      "intermediate": "Intermedio",
+      "advanced": "Avanzado",
+      "proBadge": "PRO"
     },
     "signIn": {
       "welcome": "Bienvenido a StreamLearn AI",
       "prompt": "Por favor, inicia sesión con Google para continuar.",
       "button": "Iniciar sesión con Google",
-      "signOutUser": "Cerrar sesión ({user})"
+      "signOutUser": "Cerrar sesión ({{user}})"
     },
     "dashboard": {
       "title": "Panel",
       "startLesson": "Empezar nueva lección",
-      "wordBank": "Mi banco de palabras ({count})",
+      "wordBank": "Mi banco de palabras ({{count}})",
       "manageBilling": "Gestionar facturación",
       "upgradePro": "Actualizar a Pro",
       "tos": "Términos de servicio",
@@ -46,7 +50,7 @@
       "historySearch": "Buscar por título, tema o fuente...",
       "historyLoading": "Cargando tus lecciones...",
       "historyEmpty": "Aún no has completado ninguna lección. ¡Empieza una nueva!",
-      "historyNoResults": "Ninguna lección coincide con tu búsqueda de \"{term}\"."
+      "historyNoResults": "Ninguna lección coincide con tu búsqueda de \"{{term}}\"."
     },
     "wordBank": {
       "title": "Mi banco de palabras",
@@ -54,21 +58,21 @@
       "empty": "Aún no has guardado ninguna palabra. ¡Guarda palabras de la lista de vocabulario en tus lecciones!"
     },
     "input": {
-      "levelLabel": "Tu Nivel de {language}",
+      "levelLabel": "Tu Nivel de {{language}}",
       "topicLabel": "Introduce un tema o elige uno abajo:",
       "topicPlaceholder": "p.ej., IA, Espacio, Cocina",
       "search": "Buscar",
       "popularTopics": "O selecciona un tema popular:",
       "prompt": "Aprende inglés con artículos adaptados a tus intereses y nivel.",
-      "freeLimit": "Has usado todas tus {count} lecciones gratuitas de este mes.",
+      "freeLimit": "Has usado todas tus {{count}} lecciones gratuitas de este mes.",
       "upgrade": "Actualizar a Pro",
       "toSearch": "para buscar más.",
       "limitReachedTitle": "Límite de lecciones gratuitas alcanzado",
       "findArticlesTitle": "Buscar artículos sobre el tema introducido",
-      "findTopicTitle": "Buscar artículos sobre {topic}"
+      "findTopicTitle": "Buscar artículos sobre {{topic}}"
     },
     "news": {
-      "title": "Artículos sobre \"{topic}\" ({level})",
+      "title": "Artículos sobre \"{{topic}}\" ({{level}})",
       "back": "Volver a Artículos",
       "loading": "Buscando artículos...",
       "empty": "No se encontraron artículos para este tema.",
@@ -82,18 +86,22 @@
       "audioFail": "Error al obtener el audio del resumen:",
       "playAudio": "Reproducir resumen",
       "pauseAudio": "Pausar resumen",
-      "reviewVocab": "Repasar vocabulario ({count})",
-      "grammarQuiz": "Prueba de gramática ({count} pregs.)",
-      "comprehensionTest": "Prueba de comprensión ({count})",
+      "reviewVocab": "Repasar vocabulario ({{count}})",
+      "grammarQuiz": "Prueba de gramática ({{count}} pregs.)",
+      "comprehensionTest": "Prueba de comprensión ({{count}})",
       "writingPractice": "Práctica de escritura (1 preg.)",
       "vocabBuilder": "Constructor de vocabulario",
       "grammarFocus": "Enfoque gramatical:",
       "comprehensionQuestions": "Preguntas de comprensión"
     },
     "activity": {
-      "title": "Actividad de {type}",
+      "title": "Actividad de {{type}}",
+      "vocab": "Vocabulario",
+      "grammar": "Gramática",
+      "comprehension": "Comprensión",
+      "writing": "Escritura",
       "complete": "¡Actividad completada!",
-      "yourScore": "Tu puntuación: {score} / {total}",
+      "yourScore": "Tu puntuación: {{score}} / {{total}}",
       "backToLesson": "Volver a la lección",
       "init": "Inicializando actividad...",
       "generatingGrammar": "Generando pregunta de gramática...",
@@ -103,11 +111,11 @@
       "typeWord": "Escribe la palabra:",
       "chooseWord": "Elige la palabra correcta:",
       "writingPrompt": "Ejercicio de escritura:",
-      "tryWords": "Intenta usar estas palabras: {words}",
+      "tryWords": "Intenta usar estas palabras: {{words}}",
       "typeAnswer": "Escribe tu respuesta aquí...",
       "writeResponse": "Escribe tu respuesta aquí...",
       "correct": "¡Correcto!",
-      "incorrectWord": "Incorrecto. La palabra era \"{word}\"."
+      "incorrectWord": "Incorrecto. La palabra era \"{{word}}\"."
     },
     "pricing": {
       "title": "Precios",
@@ -122,7 +130,7 @@
       "button": "Empezar con Pro",
       "freeTitle": "Plan gratuito",
       "freeDescription": "Perfecto para probar la aplicación.",
-      "freeFeature": "{count} lecciones gratuitas al mes."
+      "freeFeature": "{{count}} lecciones gratuitas al mes."
     },
     "tos": {
       "title": "Términos de Servicio",
@@ -186,6 +194,34 @@
       "p7": "Podemos actualizar esta Política de Privacidad de vez en cuando. Le notificaremos cualquier cambio publicando la nueva política en esta página.",
       "h8": "8. Contáctenos",
       "p8": "Si tiene alguna pregunta sobre esta Política de Privacidad, contáctenos en support@streamlearn.xyz."
+    },
+    "languages": {
+      "en": "Inglés (English)",
+      "es": "Español",
+      "fr": "Francés (Français)",
+      "de": "Alemán (Deutsch)",
+      "it": "Italiano",
+      "ko": "Coreano (한국어)",
+      "ja": "Japonés (日本語)",
+      "zh": "Chino (中文)"
+    },
+    "topics": {
+      "technology": "Tecnología",
+      "business": "Negocios",
+      "world_news": "Noticias Mundiales",
+      "us_politics": "Política de EE.UU.",
+      "health": "Salud",
+      "science": "Ciencia",
+      "environment": "Medio Ambiente",
+      "sports": "Deportes",
+      "entertainment": "Entretenimiento",
+      "finance": "Finanzas",
+      "ai": "IA",
+      "space": "Espacio",
+      "climate_change": "Cambio Climático",
+      "cybersecurity": "Ciberseguridad",
+      "electric_vehicles": "Vehículos Eléctricos",
+      "global_economy": "Economía Global"
     }
   }
 }

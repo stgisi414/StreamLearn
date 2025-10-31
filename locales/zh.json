@@ -23,18 +23,22 @@
       "deleteWord": "删除单词",
       "wordSaved": "单词已保存！",
       "wordDeleted": "单词已删除。",
-      "alreadySaved": "已保存！"
+      "alreadySaved": "已保存！",
+      "beginner": "初级",
+      "intermediate": "中级",
+      "advanced": "高级",
+      "proBadge": "專業"
     },
     "signIn": {
       "welcome": "欢迎来到 StreamLearn AI",
       "prompt": "请使用 Google 登录以继续。",
       "button": "使用 Google 登录",
-      "signOutUser": "登出 ({user})"
+      "signOutUser": "登出 ({{user}})"
     },
     "dashboard": {
       "title": "仪表板",
       "startLesson": "开始新课程",
-      "wordBank": "我的单词库 ({count})",
+      "wordBank": "我的单词库 ({{count}})",
       "manageBilling": "管理账单",
       "upgradePro": "升级到 Pro",
       "tos": "服务条款",
@@ -46,7 +50,7 @@
       "historySearch": "按标题、主题或来源搜索...",
       "historyLoading": "正在加载你的课程...",
       "historyEmpty": "你还没有完成任何课程。开始新的课程吧！",
-      "historyNoResults": "没有找到与 “{term}” 匹配的课程。"
+      "historyNoResults": "没有找到与 “{{term}}” 匹配的课程。"
     },
     "wordBank": {
       "title": "我的单词库",
@@ -54,21 +58,21 @@
       "empty": "你还没有保存任何单词。从课程的词汇列表中保存单词吧！"
     },
     "input": {
-      "levelLabel": "你的{language}水平",
+      "levelLabel": "你的{{language}}水平",
       "topicLabel": "输入一个主题或从下面选择：",
       "topicPlaceholder": "例如：人工智能、太空、烹饪",
       "search": "搜索",
       "popularTopics": "或选择一个热门主题：",
       "prompt": "通过适合您兴趣和水平的文章学习英语。",
-      "freeLimit": "您本月的 {count} 节免费课程已用完。",
+      "freeLimit": "您本月的 {{count}} 节免费课程已用完。",
       "upgrade": "升级到 Pro",
       "toSearch": "以搜索更多内容。",
       "limitReachedTitle": "已达到免费课程限制",
       "findArticlesTitle": "查找所输入主题的文章",
-      "findTopicTitle": "查找关于 {topic} 的文章"
+      "findTopicTitle": "查找关于 {{topic}} 的文章"
     },
     "news": {
-      "title": "关于 “{topic}” 的文章 ({level})",
+      "title": "关于 “{{topic}}” 的文章 ({{level}})",
       "back": "返回文章列表",
       "loading": "正在获取文章...",
       "empty": "未找到此主题的相关文章。",
@@ -82,18 +86,22 @@
       "audioFail": "获取摘要音频失败：",
       "playAudio": "播放摘要",
       "pauseAudio": "暂停摘要",
-      "reviewVocab": "复习词汇 ({count})",
-      "grammarQuiz": "语法测验 ({count} 题)",
-      "comprehensionTest": "理解测试 ({count})",
+      "reviewVocab": "复习词汇 ({{count}})",
+      "grammarQuiz": "语法测验 ({{count}} 题)",
+      "comprehensionTest": "理解测试 ({{count}})",
       "writingPractice": "写作练习 (1 题)",
       "vocabBuilder": "词汇生成器",
       "grammarFocus": "语法重点：",
       "comprehensionQuestions": "理解问题"
     },
     "activity": {
-      "title": "{type} 活动",
+      "title": "{{type}} 活动",
+      "vocab": "词汇",
+      "grammar": "语法",
+      "comprehension": "理解",
+      "writing": "写作",
       "complete": "活动完成！",
-      "yourScore": "你的得分：{score} / {total}",
+      "yourScore": "你的得分：{{score}} / {{total}}",
       "backToLesson": "返回课程",
       "init": "正在初始化活动...",
       "generatingGrammar": "正在生成语法问题...",
@@ -103,11 +111,11 @@
       "typeWord": "输入单词：",
       "chooseWord": "选择正确的单词：",
       "writingPrompt": "写作提示：",
-      "tryWords": "尝试使用这些词：{words}",
+      "tryWords": "尝试使用这些词：{{words}}",
       "typeAnswer": "在此输入你的答案...",
       "writeResponse": "在此写下你的回答...",
       "correct": "正确！",
-      "incorrectWord": "不正确。正确的单词是 “{word}”。"
+      "incorrectWord": "不正确。正确的单词是 “{{word}}”。"
     },
     "pricing": {
       "title": "定价",
@@ -122,7 +130,7 @@
       "button": "开始使用 Pro",
       "freeTitle": "免费计划",
       "freeDescription": "非常适合试用本应用。",
-      "freeFeature": "每月 {count} 节免费课程。"
+      "freeFeature": "每月 {{count}} 节免费课程。"
     },
     "tos": {
       "title": "服务条款",
@@ -186,6 +194,34 @@
       "p7": "我们可能会不时更新本隐私政策。我们将在本页面上发布新政策以通知您任何变更。",
       "h8": "8. 联系我们",
       "p8": "如果您对本隐私政策有任何疑问，请通过 support@streamlearn.xyz 与我们联系。"
+    },
+    "languages": {
+      "en": "英语 (English)",
+      "es": "西班牙语 (Español)",
+      "fr": "法语 (Français)",
+      "de": "德语 (Deutsch)",
+      "it": "意大利语 (Italiano)",
+      "ko": "韩语 (한국어)",
+      "ja": "日语 (日本語)",
+      "zh": "中文"
+    },
+    "topics": {
+      "technology": "科技",
+      "business": "商业",
+      "world_news": "世界新闻",
+      "us_politics": "美国政治",
+      "health": "健康",
+      "science": "科学",
+      "environment": "环境",
+      "sports": "体育",
+      "entertainment": "娱乐",
+      "finance": "金融",
+      "ai": "AI",
+      "space": "太空",
+      "climate_change": "气候变化",
+      "cybersecurity": "网络安全",
+      "electric_vehicles": "电动汽车",
+      "global_economy": "全球经济"
     }
   }
 }

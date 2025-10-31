@@ -23,18 +23,22 @@
       "deleteWord": "Wort löschen",
       "wordSaved": "Wort gespeichert!",
       "wordDeleted": "Wort gelöscht.",
-      "alreadySaved": "Bereits gespeichert!"
+      "alreadySaved": "Bereits gespeichert!",
+      "beginner": "Anfänger",
+      "intermediate": "Mittelstufe",
+      "advanced": "Fortgeschritten",
+      "proBadge": "PRO"
     },
     "signIn": {
       "welcome": "Willkommen bei StreamLearn AI",
       "prompt": "Bitte melden Sie sich mit Google an, um fortzufahren.",
       "button": "Mit Google anmelden",
-      "signOutUser": "Abmelden ({user})"
+      "signOutUser": "Abmelden ({{user}})"
     },
     "dashboard": {
       "title": "Dashboard",
       "startLesson": "Neue Lektion starten",
-      "wordBank": "Meine Wortbank ({count})",
+      "wordBank": "Meine Wortbank ({{count}})",
       "manageBilling": "Abrechnung verwalten",
       "upgradePro": "Upgrade auf Pro",
       "tos": "Nutzungsbedingungen",
@@ -46,7 +50,7 @@
       "historySearch": "Suche nach Titel, Thema oder Quelle...",
       "historyLoading": "Lade deine Lektionen...",
       "historyEmpty": "Du hast noch keine Lektionen abgeschlossen. Starte eine neue!",
-      "historyNoResults": "Keine Lektionen entsprechen deiner Suche nach \"{term}\"."
+      "historyNoResults": "Keine Lektionen entsprechen deiner Suche nach \"{{term}}\"."
     },
     "wordBank": {
       "title": "Meine Wortbank",
@@ -54,21 +58,21 @@
       "empty": "Du hast noch keine Wörter gespeichert. Speichere Wörter aus der Vokabelliste in deinen Lektionen!"
     },
     "input": {
-      "levelLabel": "Dein {language}-Niveau",
+      "levelLabel": "Dein {{language}}-Niveau",
       "topicLabel": "Gib ein Thema ein oder wähle eines unten aus:",
       "topicPlaceholder": "z.B. KI, Weltraum, Kochen",
       "search": "Suchen",
       "popularTopics": "Oder wähle ein beliebtes Thema:",
       "prompt": "Lerne Englisch mit Artikeln, die auf deine Interessen und dein Niveau zugeschnitten sind.",
-      "freeLimit": "Du hast alle {count} kostenlosen Lektionen für diesen Monat verbraucht.",
+      "freeLimit": "Du hast alle {{count}} kostenlosen Lektionen für diesen Monat verbraucht.",
       "upgrade": "Upgrade auf Pro",
       "toSearch": "um mehr zu suchen.",
       "limitReachedTitle": "Kostenloses Lektionslimit erreicht",
       "findArticlesTitle": "Artikel zum eingegebenen Thema finden",
-      "findTopicTitle": "Artikel über {topic} finden"
+      "findTopicTitle": "Artikel über {{topic}} finden"
     },
     "news": {
-      "title": "Artikel zum Thema \"{topic}\" ({level})",
+      "title": "Artikel zum Thema \"{{topic}}\" ({{level}})",
       "back": "Zurück zu den Artikeln",
       "loading": "Suche Artikel...",
       "empty": "Keine Artikel zu diesem Thema gefunden.",
@@ -82,18 +86,22 @@
       "audioFail": "Fehler beim Abrufen der Audio-Zusammenfassung:",
       "playAudio": "Zusammenfassung abspielen",
       "pauseAudio": "Zusammenfassung pausieren",
-      "reviewVocab": "Vokabeln wiederholen ({count})",
-      "grammarQuiz": "Grammatik-Quiz ({count} F.)",
-      "comprehensionTest": "Verständnistest ({count})",
+      "reviewVocab": "Vokabeln wiederholen ({{count}})",
+      "grammarQuiz": "Grammatik-Quiz ({{count}} F.)",
+      "comprehensionTest": "Verständnistest ({{count}})",
       "writingPractice": "Schreibübung (1 F.)",
       "vocabBuilder": "Vokabeltrainer",
       "grammarFocus": "Grammatikfokus:",
       "comprehensionQuestions": "Verständnisfragen"
     },
     "activity": {
-      "title": "{type}-Aktivität",
+      "title": "{{type}}-Aktivität",
+      "vocab": "Vokabeln",
+      "grammar": "Grammatik",
+      "comprehension": "Verständnis",
+      "writing": "Schreiben",
       "complete": "Aktivität abgeschlossen!",
-      "yourScore": "Deine Punktzahl: {score} / {total}",
+      "yourScore": "Deine Punktzahl: {{score}} / {{total}}",
       "backToLesson": "Zurück zur Lektion",
       "init": "Initialisiere Aktivität...",
       "generatingGrammar": "Generiere Grammatikfrage...",
@@ -103,11 +111,11 @@
       "typeWord": "Tippe das Wort ein:",
       "chooseWord": "Wähle das richtige Wort:",
       "writingPrompt": "Schreibaufgabe:",
-      "tryWords": "Versuche, diese Wörter zu verwenden: {words}",
+      "tryWords": "Versuche, diese Wörter zu verwenden: {{words}}",
       "typeAnswer": "Tippe deine Antwort hier ein...",
       "writeResponse": "Schreibe deine Antwort hier...",
       "correct": "Richtig!",
-      "incorrectWord": "Falsch. Das Wort war \"{word}\"."
+      "incorrectWord": "Falsch. Das Wort war \"{{word}}\"."
     },
     "pricing": {
       "title": "Preise",
@@ -122,7 +130,7 @@
       "button": "Mit Pro starten",
       "freeTitle": "Kostenloser Plan",
       "freeDescription": "Perfekt, um die App auszuprobieren.",
-      "freeFeature": "{count} kostenlose Lektionen pro Monat."
+      "freeFeature": "{{count}} kostenlose Lektionen pro Monat."
     },
     "tos": {
       "title": "Nutzungsbedingungen",
@@ -186,6 +194,34 @@
       "p7": "Wir können diese Datenschutzrichtlinie von Zeit zu Zeit aktualisieren. Wir werden Sie über Änderungen informieren, indem wir die neue Richtlinie auf dieser Seite veröffentlichen.",
       "h8": "8. Kontaktieren Sie uns",
       "p8": "Wenn Sie Fragen zu dieser Datenschutzrichtlinie haben, kontaktieren Sie uns bitte unter support@streamlearn.xyz."
+    },
+    "languages": {
+      "en": "Englisch (English)",
+      "es": "Spanisch (Español)",
+      "fr": "Französisch (Français)",
+      "de": "Deutsch",
+      "it": "Italienisch (Italiano)",
+      "ko": "Koreanisch (한국어)",
+      "ja": "Japanisch (日本語)",
+      "zh": "Chinesisch (中文)"
+    },
+    "topics": {
+      "technology": "Technologie",
+      "business": "Wirtschaft",
+      "world_news": "Weltnachrichten",
+      "us_politics": "US-Politik",
+      "health": "Gesundheit",
+      "science": "Wissenschaft",
+      "environment": "Umwelt",
+      "sports": "Sport",
+      "entertainment": "Unterhaltung",
+      "finance": "Finanzen",
+      "ai": "KI",
+      "space": "Weltraum",
+      "climate_change": "Klimawandel",
+      "cybersecurity": "Cybersicherheit",
+      "electric_vehicles": "Elektrofahrzeuge",
+      "global_economy": "Weltwirtschaft"
     }
   }
 }

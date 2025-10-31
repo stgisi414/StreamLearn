@@ -1,0 +1,25 @@
+{
+  "lang": "en-US",
+  "name": "StreamLearn: Personalized Language Lessons",
+  "short_name": "StreamLearn",
+  "description": "Learn languages with customized lessons generated from current news articles tailored to your interests and proficiency level.",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#1e293b",
+  "theme_color": "#0ea5e9"
+}

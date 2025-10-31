@@ -8,6 +8,8 @@
     import * as logger from "firebase-functions/logger";
     import * as TextToSpeech from '@google-cloud/text-to-speech';
 
+    type LanguageCode = "en" | "es" | "fr" | "de" | "it" | "ko" | "ja" | "zh";
+
     interface NewsResult {
         title: string;
         snippet: string;
@@ -197,6 +199,39 @@
           }
       });
 
+    /**
+     * Maps app language codes to full language names for prompts.
+     */
+    function getLanguageName(code: LanguageCode | string): string {
+      switch (code) {
+        case "en": return "English";
+        case "es": return "Spanish";
+        case "fr": return "French";
+        case "de": return "German";
+        case "it": return "Italian";
+        case "ko": return "Korean";
+        case "ja": return "Japanese";
+        case "zh": return "Chinese";
+        default: return "English"; // Fallback
+      }
+    }
+
+    /**
+     * Maps app language codes to Google Cloud TTS language codes.
+     */
+    function getGoogleTTSLangCode(code: LanguageCode | string): string {
+      switch (code) {
+        case "en": return "en-US";
+        case "es": return "es-US"; // Or es-ES
+        case "fr": return "fr-FR";
+        case "de": return "de-DE";
+        case "it": return "it-IT";
+        case "ko": return "ko-KR";
+        case "ja": return "ja-JP";
+        case "zh": return "cmn-CN"; // Mandarin
+        default: return "en-US";
+      }
+    }
 
     // ----------------------------------------------------------------------
     // FINAL CORRECTED CLOUD FUNCTION 2: createLesson
@@ -215,9 +250,9 @@
               res.status(402).json({ error: message });
               return;
             }
-            const { articleUrl, level, title, snippet } = req.body;
-            if (!articleUrl || !level || !title) {
-              res.status(400).json({error: "Missing article URL, level and title."});
+            const { articleUrl, level, title, snippet, uiLanguage = "en", targetLanguage = "en" } = req.body;
+            if (!articleUrl || !title) {
+              res.status(400).json({error: "Missing article URL and title."});
               return;
             }
 
@@ -255,9 +290,16 @@
             let summaryText: string | null = null;
             let paywallLikely = false;
 
+            // --- Language Names for Prompts ---
+            const uiLangName = getLanguageName(uiLanguage);
+            const targetLangName = getLanguageName(targetLanguage);
+
             // ---------- ATTEMPT 1: Get Article Summary via URL Context ----------
             logger.info(`Attempt 1: Fetching summary via urlContext for ${articleUrl}`);
-            const urlSummaryPrompt = `Act as a news reporter. Report the key facts, events, and information from the content at this URL: ${articleUrl}. Your report should be between 5 and 10 sentences long. Do not use words like 'article', 'summary', or 'this text'. Report the information directly. IMPORTANT: After your news report, on a new line, explicitly state if the full content seems to be behind a paywall or requires a subscription/login based on the fetched content.`;
+            const urlSummaryPrompt = `Act as a news reporter. Report the key facts, events, and information from the content at this URL: ${articleUrl} IN ${targetLangName.toUpperCase()}. 
+                Your report should be between 5 and 10 sentences long. 
+                Do not use words like 'article', 'summary', or 'this text' in ${targetLangName}. Report the information directly.
+                IMPORTANT: After your news report, on a new line, in ENGLISH, explicitly state "PAYWALL_DETECTED" if the full content seems to be behind a paywall or requires a subscription/login based on the fetched content. If no paywall is obvious, state "PAYWALL_NOT_DETECTED".`;
 
             try {
                 const urlSummaryResponse = await ai.models.generateContent({
@@ -305,16 +347,19 @@
             if (paywallLikely && !summaryText) {
                 logger.info(`Attempt 2: Generating summary via grounding for ${articleUrl}`);
 
-                // --- MODIFY Prompt 2 ---
-                let groundingSummaryPrompt = `Act as a news reporter. Based *only* on the following title`;
+                // FIX: Dynamic grounding prompt in target language
+                let groundingSummaryPrompt = `You are a news reporter. Based *only* on the following title`;
                 if (snippet && snippet.trim() !== "") {
                     groundingSummaryPrompt += ` and snippet`;
                 }
-                groundingSummaryPrompt += `, report the key facts and information in 5 to 10 sentences. Do not add external information. Do not use words like 'article' or 'summary'. Report the information directly.\n\nTitle: "${title}"`;
+                groundingSummaryPrompt += `, write a news report in ${targetLangName.toUpperCase()}.
+                    The report must be 5 to 10 sentences long. 
+                    Do not add external information. Do not use words like 'article' or 'summary' in ${targetLangName}. Report the information directly.
+                    Title: "${title}"`;
                 if (snippet && snippet.trim() !== "") {
                     groundingSummaryPrompt += `\nSnippet: "${snippet}"`;
                 }
-                groundingSummaryPrompt += `\n\nNews Report:`;
+                groundingSummaryPrompt += `\n\nNews Report (in ${targetLangName}):`;
 
                  try {
                     const groundingSummaryResponse = await ai.models.generateContent({
@@ -354,54 +399,57 @@
             const responseSchemaText = {
                 type: Type.OBJECT,
                 properties: {
-                  articleTitle: { type: Type.STRING, description: "The title of the news item." },
-                  summary: { type: Type.STRING, description: "A detailed news report of the content." },
+                  articleTitle: { type: Type.STRING, description: `The title of the news item, in ${targetLangName}.` },
+                  summary: { type: Type.STRING, description: `The detailed news report, in ${targetLangName}.` },
                   vocabularyList: {
                     type: Type.ARRAY,
                     items: {
                       type: Type.OBJECT,
                       properties: {
-                        word: {type: Type.STRING},
-                        definition: {type: Type.STRING},
-                        articleExample: {type: Type.STRING, description: "A sentence from the report text using the word."},
+                        word: {type: Type.STRING, description: `A key ${targetLangName} word from the report.`},
+                        definition: {type: Type.STRING, description: `A clear, concise definition of the word, written in ${uiLangName.toUpperCase()}.`},
+                        articleExample: {type: Type.STRING, description: `A sentence from the report text (in ${targetLangName}) using the word.`},
                       },
                       required: ["word", "definition", "articleExample"],
                     },
-                     description: "A list of key vocabulary words from the news report with definitions and example sentences from the text."
+                     description: `A list of key ${targetLangName} vocabulary words from the news report.`
                    },
-                  comprehensionQuestions: { type: "ARRAY", items: {type: Type.STRING}, description: "Questions to check understanding of the news report."},
+                  comprehensionQuestions: { type: "ARRAY", items: {type: Type.STRING}, description: `Questions (in ${uiLangName.toUpperCase()}) to check understanding of the news report.`},
                   grammarFocus: {
                     type: Type.OBJECT,
                     properties: {
-                      topic: {type: Type.STRING},
-                      explanation: {type: Type.STRING},
+                      topic: {type: Type.STRING, description: `The name of the ${targetLangName} grammar topic (e.g., 'Past Tense').`},
+                      explanation: {type: Type.STRING, description: `A clear explanation of this grammar topic, written in ${uiLangName.toUpperCase()}.`},
                     },
                     required: ["topic", "explanation"],
-                    description: "A specific grammar point highlighted in the news report, with an explanation."
+                    description: `A specific ${targetLangName} grammar point highlighted in the report, with an explanation in ${uiLangName.toUpperCase()}.`
                   },
                 },
-                required: ["articleTitle", "vocabularyList", "comprehensionQuestions", "grammarFocus"],
+                required: ["articleTitle", "summary", "vocabularyList", "comprehensionQuestions", "grammarFocus"],
             };
 
             const systemInstructionText =
-                  `You are an expert English language teaching assistant. Your ` +
-                  `goal is to generate structured learning material based on the content of the provided news report. ` +
-                  `The user's English level is ${level}. Provide the ` +
-                  `following sections in a JSON object format based *only* on the provided news report text.`;
+                `You are an expert ${targetLangName} language teacher creating a lesson for a ${uiLangName}-speaking student. 
+                Your student's ${targetLangName} level is ${level}. 
+                Your goal is to generate structured learning material based *only* on the content of the provided ${targetLangName} news report.
+                You MUST provide the following sections in a JSON object format.
+                - All definitions and explanations (like vocabulary definitions, grammar explanations, and comprehension questions) MUST be in ${uiLangName.toUpperCase()}.
+                - All content from the article (like the summary, vocabulary words, and example sentences) MUST be in ${targetLangName.toUpperCase()}.`;
 
             const lessonPrompt =
-                  `Generate the lesson for a ${level} English learner based on the following news report:
+                `Generate the lesson for my ${level} ${uiLangName}-speaking student who is learning ${targetLangName}.
+                Generate the lesson based *only* on the following news report:
 
-                  REPORT: "${summaryText}"
+                REPORT (in ${targetLangName}): "${summaryText}"
 
-                  Your JSON output must include:
-                  1. "articleTitle": The original title.
-                  2. "summary": The detailed news report text provided above.
-                  3. "vocabularyList": Based *only* on the report text.
-                  4. "comprehensionQuestions": Based *only* on the report text.
-                  5. "grammarFocus": Based *only* on the report text.
-                  
-                  Ensure vocabulary examples come directly from the report text.`;
+                Your JSON output must include:
+                1. "articleTitle": The original title (in ${targetLangName}).
+                2. "summary": The detailed news report text provided above (in ${targetLangName}).
+                3. "vocabularyList": Key ${targetLangName} words, with definitions in ${uiLangName.toUpperCase()} and example sentences from the report (in ${targetLangName}).
+                4. "comprehensionQuestions": Questions about the report, written in ${uiLangName.toUpperCase()}.
+                5. "grammarFocus": A ${targetLangName} grammar topic found in the report, with an explanation in ${uiLangName.toUpperCase()}.
+
+                Ensure vocabulary examples come directly from the report text.`;
 
             logger.info("Starting final call: Generating lesson from summary.");
             const lessonResponse = await ai.models.generateContent({
@@ -448,22 +496,22 @@
 
     // --- NEW: handleActivity Function ---
     export const handleActivity = onRequest(
-      { secrets: ["GEMINI_API_KEY"], timeoutSeconds: 60, cors: true },
+      { secrets: ["GEMINI_API_KEY"], timeoutSeconds: 120, cors: true },
       async (req, res) => {
         res.setHeader('Content-Type', 'application/json');
         if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
 
         try {
+          // FIX: Get all language/level parameters
           const { activityType, payload } = req.body;
-          /*
-            Expected payload structures:
-            - vocab: { word: string, definition: string, userAnswer: string }
-            - grammar_generate: { topic: string, explanation: string, level: string }
-            - grammar_grade: { question: string, options: string[], correctAnswer: string, userAnswer: string }
-            - comprehension: { question: string, summary: string, userAnswer: string }
-            - writing_generate: { summary: string, level: string, vocabularyList: string[] }
-            - writing_grade: { prompt: string, summary: string, userAnswer: string, level: string }
-          */
+          const { 
+            level = "Intermediate",
+            uiLanguage = "en",
+            targetLanguage = "en" 
+          } = payload; // Extract from payload
+
+          const uiLangName = getLanguageName(uiLanguage);
+          const targetLangName = getLanguageName(targetLanguage);
 
           if (!activityType || !payload) {
             res.status(400).json({ error: "Missing activityType or payload." });
@@ -515,12 +563,15 @@
                  res.status(400).json({ error: "Missing topic, explanation, or level for grammar generation." });
                  return;
                }
-              prompt = `Generate one multiple-choice question to test understanding of the English grammar topic "${payload.topic}" suitable for a ${payload.level} learner. The explanation is: "${payload.explanation}". Provide 4 distinct options (A, B, C, D), with only one being correct. Base the question on the explanation provided. Respond ONLY with a JSON object following the specified schema.`;
+              prompt = `You are a ${targetLangName} teacher. Generate one multiple-choice question in ${uiLangName.toUpperCase()} to test understanding of the ${targetLangName} grammar topic "${payload.topic}" suitable for a ${level} learner. 
+                The explanation (in ${uiLangName}) is: "${payload.explanation}".
+                Provide 4 distinct options (A, B, C, D) in ${uiLangName}, with only one being correct.
+                Respond ONLY with a JSON object following the specified schema.`;
               responseSchema = {
                 type: Type.OBJECT,
                 properties: {
-                  question: { type: Type.STRING },
-                  options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  question: { type: Type.STRING, description: `The question, in ${uiLangName}.` },
+                  options: { type: Type.ARRAY, items: { type: Type.STRING }, description: `The 4 multiple choice options, in ${uiLangName}.` },
                   correctAnswer: { type: Type.STRING, description: "The letter (A, B, C, or D) corresponding to the correct option." }
                 },
                 required: ["question", "options", "correctAnswer"]
@@ -534,10 +585,12 @@
                   return;
                }
                const isGrammarCorrect = String(payload.userAnswer).trim().toUpperCase() === String(payload.correctAnswer).trim().toUpperCase();
-               res.status(200).json({
-                   isCorrect: isGrammarCorrect,
-                   feedback: isGrammarCorrect ? "Correct!" : `Incorrect. The correct answer was ${payload.correctAnswer}.`
-               });
+               prompt = `You are a helpful teacher grading a quiz. The user's answer was ${isGrammarCorrect ? "CORRECT" : "INCORRECT"}. 
+                 The correct answer was "${payload.correctAnswer}".
+                 Write a very brief (1-2 sentence) feedback message in ${uiLangName.toUpperCase()}.
+                 If correct, just say "Correct!". 
+                 If incorrect, say "Incorrect. The correct answer was ${payload.correctAnswer}."
+                 Respond ONLY with a JSON object: {"isCorrect": ${isGrammarCorrect}, "feedback": "Your feedback message in ${uiLangName}"}`;
                return;
 
             // --- Comprehension Grading ---
@@ -546,13 +599,16 @@
                   res.status(400).json({ error: "Missing question, summary, or userAnswer for comprehension activity." });
                   return;
               }
-              prompt = `Based *only* on the following summary, evaluate if the user's answer accurately addresses the question.
-                        Summary: "${payload.summary}"
-                        Question: "${payload.question}"
-                        User Answer: "${payload.userAnswer}"
+              // FIX: Dynamic prompt
+              prompt = `You are a ${targetLangName} teacher grading a ${level} ${uiLangName}-speaking student.
+                Based *only* on the following ${targetLangName} summary, evaluate if the user's answer (which is in ${uiLangName}) accurately addresses the question (which is also in ${uiLangName}).
+                Summary (in ${targetLangName}): "${payload.summary}"
+                Question (in ${uiLangName}): "${payload.question}"
+                User Answer (in ${uiLangName}): "${payload.userAnswer}"
 
-                        Is the user's answer correct based on the summary? Provide brief feedback explaining why or why not (1-2 sentences). Respond ONLY with a JSON object with keys "isCorrect" (boolean) and "feedback" (string).`;
-               // For comprehension, we expect a specific JSON back, but won't use responseSchema for flexibility.
+                Is the user's answer correct based on the summary? 
+                Provide brief feedback in ${uiLangName.toUpperCase()} explaining why or why not (1-2 sentences). 
+                Respond ONLY with a JSON object with keys "isCorrect" (boolean) and "feedback" (string, in ${uiLangName}).`;
                break; // Proceed to Gemini call
 
             // --- NEW: Writing Prompt Generation ---
@@ -563,19 +619,19 @@
                }
                const vocabHint = payload.vocabularyList.slice(0, 3).join(', '); // Get 3 words
                
-               prompt = `You are an English teacher. Generate one short writing prompt for a ${payload.level} learner.
-               The prompt should ask them to write 2-3 sentences based on the following news report:
-               """
-               ${payload.summary}
-               """
-               The prompt should encourage them to use one or two of these words: ${vocabHint}.
-               Respond ONLY with a JSON object following the specified schema.`;
+               prompt = `You are a ${targetLangName} teacher. Generate one short writing prompt in ${uiLangName.toUpperCase()} for a ${level} learner.
+                The prompt should ask them to write 2-3 sentences in ${targetLangName.toUpperCase()} based on the following news report (which is in ${targetLangName}):
+                """
+                ${payload.summary}
+                """
+                The prompt should encourage them to use one or two of these ${targetLangName} words: ${vocabHint}.
+                Respond ONLY with a JSON object following the specified schema.`;
                
                responseSchema = {
                 type: Type.OBJECT,
                 properties: {
-                  prompt: { type: Type.STRING, description: "The writing prompt for the user." },
-                  vocabularyHint: { type: Type.STRING, description: "A string containing the vocabulary words to suggest (e.g., 'word1, word2')." }
+                  prompt: { type: Type.STRING, description: `The writing prompt for the user, in ${uiLangName}.` },
+                  vocabularyHint: { type: Type.STRING, description: `A string containing the ${targetLangName} vocabulary words to suggest (e.g., 'word1, word2').` }
                 },
                 required: ["prompt", "vocabularyHint"]
               };
@@ -588,16 +644,15 @@
                   return;
               }
               
-              prompt = `You are an English teacher grading a ${payload.level} learner.
-              Based *only* on the summary and prompt provided, evaluate the user's writing.
-              
-              Summary: "${payload.summary}"
-              Writing Prompt: "${payload.prompt}"
-              User's Answer: "${payload.userAnswer}"
+              prompt = `You are a ${targetLangName} teacher grading a ${level} ${uiLangName}-speaking learner.
+                Based *only* on the summary and prompt provided, evaluate the user's writing (which should be in ${targetLangName}).
+                Summary (in ${targetLangName}): "${payload.summary}"
+                Writing Prompt (in ${uiLangName}): "${payload.prompt}"
+                User's Answer (in ${targetLangName}): "${payload.userAnswer}"
 
-              Is the user's answer a reasonable and relevant response to the prompt?
-              Provide 1-2 sentences of constructive feedback, praising what they did well and suggesting one simple correction if needed.
-              Respond ONLY with a JSON object with keys "isCorrect" (boolean, true if the response is on-topic and makes sense) and "feedback" (string).`;
+                Is the user's answer a reasonable and relevant response (in ${targetLangName}) to the prompt?
+                Provide 1-2 sentences of constructive feedback in ${uiLangName.toUpperCase()}. Praise what they did well and suggest one simple correction if needed.
+                Respond ONLY with a JSON object with keys "isCorrect" (boolean, true if the response is on-topic and makes sense) and "feedback" (string, in ${uiLangName}).`;
               
               // No responseSchema needed, will parse JSON like comprehension
               break; // Proceed to Gemini call
@@ -688,7 +743,7 @@
           // Basic check - you might want auth check here too if needed
           await getAuthenticatedUid(req); // Optional: uncomment if only logged-in users can use TTS
 
-          const { text } = req.body;
+          const { text, langCode = "en" } = req.body;
           if (!text) {
             res.status(400).json({ error: "Missing 'text' in request body." });
             return;
@@ -720,13 +775,15 @@
           const client = new TextToSpeech.TextToSpeechClient(clientOptions);
           // --- End TTS Client Init ---
 
+          const ttsLanguageCode = getGoogleTTSLangCode(langCode);
+          logger.info(`TTS Request: Text: "${text.substring(0, 20)}...", AppLang: "${langCode}", TTSLang: "${ttsLanguageCode}"`);
 
-          // Construct the request
           const request = {
             input: { text: text },
-            // Select the language code and SSML voice gender (optional)
-            voice: { languageCode: 'en-US', ssmlGender: 'NEUTRAL' as const }, // Or 'FEMALE' / 'MALE'
-            // Select the type of audio encoding
+            voice: { 
+              languageCode: ttsLanguageCode, // <-- PHASE 3 FIX
+              ssmlGender: 'NEUTRAL' as const 
+            },
             audioConfig: { audioEncoding: 'MP3' as const },
           };
 

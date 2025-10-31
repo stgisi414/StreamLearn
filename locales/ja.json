@@ -23,18 +23,22 @@
       "deleteWord": "単語を削除",
       "wordSaved": "単語を保存しました！",
       "wordDeleted": "単語を削除しました。",
-      "alreadySaved": "保存済みです！"
+      "alreadySaved": "保存済みです！",
+      "beginner": "初級",
+      "intermediate": "中級",
+      "advanced": "上級",
+      "proBadge": "プロ"
     },
     "signIn": {
       "welcome": "StreamLearn AI へようこそ",
       "prompt": "続行するにはGoogleでサインインしてください。",
       "button": "Googleでサインイン",
-      "signOutUser": "ログアウト ({user})"
+      "signOutUser": "ログアウト ({{user}})"
     },
     "dashboard": {
       "title": "ダッシュボード",
       "startLesson": "新しいレッスンを開始",
-      "wordBank": "単語バンク ({count})",
+      "wordBank": "単語バンク ({{count}})",
       "manageBilling": "請求情報の管理",
       "upgradePro": "Proにアップグレード",
       "tos": "利用規約",
@@ -46,7 +50,7 @@
       "historySearch": "タイトル、トピック、またはソースで検索...",
       "historyLoading": "レッスンを読み込んでいます...",
       "historyEmpty": "まだレッスンを完了していません。新しいレッスンを始めましょう！",
-      "historyNoResults": "「{term}」に一致するレッスンはありません。"
+      "historyNoResults": "「{{term}}」に一致するレッスンはありません。"
     },
     "wordBank": {
       "title": "単語バンク",
@@ -54,21 +58,21 @@
       "empty": "まだ単語を保存していません。レッスンの語彙リストから単語を保存しましょう！"
     },
     "input": {
-      "levelLabel": "あなたの{language}レベル",
+      "levelLabel": "あなたの{{language}}レベル",
       "topicLabel": "トピックを入力するか、以下から選択してください:",
       "topicPlaceholder": "例: AI、宇宙、料理",
       "search": "検索",
       "popularTopics": "または人気のトピックを選択:",
       "prompt": "あなたの興味とレベルに合わせた記事で英語を学びましょう。",
-      "freeLimit": "今月の無料レッスン {count} 回をすべて使用しました。",
+      "freeLimit": "今月の無料レッスン {{count}} 回をすべて使用しました。",
       "upgrade": "Proにアップグレード",
       "toSearch": "して、さらに検索してください。",
       "limitReachedTitle": "無料レッスン上限に到達しました",
       "findArticlesTitle": "入力されたトピックの記事を検索",
-      "findTopicTitle": "{topic}に関する記事を検索"
+      "findTopicTitle": "{{topic}}に関する記事を検索"
     },
     "news": {
-      "title": "\"{topic}\" に関する記事 ({level})",
+      "title": "\"{{topic}}\" に関する記事 ({{level}})",
       "back": "記事一覧に戻る",
       "loading": "記事を検索中...",
       "empty": "このトピックの記事は見つかりませんでした。",
@@ -82,18 +86,22 @@
       "audioFail": "要約音声の取得に失敗しました:",
       "playAudio": "要約を再生",
       "pauseAudio": "要約を一時停止",
-      "reviewVocab": "語彙の復習 ({count})",
-      "grammarQuiz": "文法クイズ ({count}問)",
-      "comprehensionTest": "読解テスト ({count})",
+      "reviewVocab": "語彙の復習 ({{count}})",
+      "grammarQuiz": "文法クイズ ({{count}}問)",
+      "comprehensionTest": "読解テスト ({{count}})",
       "writingPractice": "ライティング練習 (1問)",
       "vocabBuilder": "語彙ビルダー",
       "grammarFocus": "文法フォーカス:",
       "comprehensionQuestions": "読解問題"
     },
     "activity": {
-      "title": "{type} アクティビティ",
+      "title": "{{type}} アクティビティ",
+      "vocab": "語彙",
+      "grammar": "文法",
+      "comprehension": "読解",
+      "writing": "ライティング",
       "complete": "アクティビティ完了！",
-      "yourScore": "あなたのスコア: {score} / {total}",
+      "yourScore": "あなたのスコア: {{score}} / {{total}}",
       "backToLesson": "レッスンに戻る",
       "init": "アクティビティを初期化中...",
       "generatingGrammar": "文法問題を生成中...",
@@ -103,11 +111,11 @@
       "typeWord": "単語を入力してください:",
       "chooseWord": "正しい単語を選んでください:",
       "writingPrompt": "ライティングのお題:",
-      "tryWords": "これらの単語を使ってみましょう: {words}",
+      "tryWords": "これらの単語を使ってみましょう: {{words}}",
       "typeAnswer": "ここに回答を入力してください...",
       "writeResponse": "ここに回答を書いてください...",
       "correct": "正解です！",
-      "incorrectWord": "不正解です。正解は「{word}」でした。"
+      "incorrectWord": "不正解です。正解は「{{word}}」でした。"
     },
     "pricing": {
       "title": "料金",
@@ -122,7 +130,7 @@
       "button": "Proを始める",
       "freeTitle": "無料プラン",
       "freeDescription": "アプリを試すのに最適です。",
-      "freeFeature": "毎月{count}回の無料レッスン。"
+      "freeFeature": "毎月{{count}}回の無料レッスン。"
     },
     "tos": {
       "title": "利用規約",
@@ -186,6 +194,34 @@
       "p7": "当社は、本プライバシーポリシーを随時更新することがあります。変更があった場合は、このページに新しいポリシーを掲載することでお客様に通知します。",
       "h8": "8. お問い合わせ",
       "p8": "本プライバシーポリシーについてご不明な点がございましたら、support@streamlearn.xyzまでお問い合わせください。"
+    },
+    "languages": {
+      "en": "英語 (English)",
+      "es": "スペイン語 (Español)",
+      "fr": "フランス語 (Français)",
+      "de": "ドイツ語 (Deutsch)",
+      "it": "イタリア語 (Italiano)",
+      "ko": "韓国語 (한국어)",
+      "ja": "日本語",
+      "zh": "中国語 (中文)"
+    },
+    "topics": {
+      "technology": "テクノロジー",
+      "business": "ビジネス",
+      "world_news": "世界のニュース",
+      "us_politics": "アメリカ政治",
+      "health": "健康",
+      "science": "科学",
+      "environment": "環境",
+      "sports": "スポーツ",
+      "entertainment": "エンターテイメント",
+      "finance": "金融",
+      "ai": "AI",
+      "space": "宇宙",
+      "climate_change": "気候変動",
+      "cybersecurity": "サイバーセキュリティ",
+      "electric_vehicles": "電気自動車",
+      "global_economy": "世界経済"
     }
   }
 }

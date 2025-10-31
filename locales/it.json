@@ -23,18 +23,22 @@
       "deleteWord": "Elimina parola",
       "wordSaved": "Parola salvata!",
       "wordDeleted": "Parola eliminata.",
-      "alreadySaved": "Già salvata!"
+      "alreadySaved": "Già salvata!",
+      "beginner": "Principiante",
+      "intermediate": "Intermedio",
+      "advanced": "Avanzato",
+      "proBadge": "PRO"
     },
     "signIn": {
       "welcome": "Benvenuto in StreamLearn AI",
       "prompt": "Accedi con Google per continuare.",
       "button": "Accedi con Google",
-      "signOutUser": "Esci ({user})"
+      "signOutUser": "Esci ({{user}})"
     },
     "dashboard": {
       "title": "Dashboard",
       "startLesson": "Inizia nuova lezione",
-      "wordBank": "La mia banca delle parole ({count})",
+      "wordBank": "La mia banca delle parole ({{count}})",
       "manageBilling": "Gestisci fatturazione",
       "upgradePro": "Passa a Pro",
       "tos": "Termini di servizio",
@@ -46,7 +50,7 @@
       "historySearch": "Cerca per titolo, argomento o fonte...",
       "historyLoading": "Caricamento delle tue lezioni...",
       "historyEmpty": "Non hai ancora completato nessuna lezione. Iniziane una nuova!",
-      "historyNoResults": "Nessuna lezione corrisponde alla tua ricerca per \"{term}\"."
+      "historyNoResults": "Nessuna lezione corrisponde alla tua ricerca per \"{{term}}\"."
     },
     "wordBank": {
       "title": "La mia banca delle parole",
@@ -54,21 +58,21 @@
       "empty": "Non hai ancora salvato nessuna parola. Salva le parole dall'elenco dei vocaboli nelle tue lezioni!"
     },
     "input": {
-      "levelLabel": "Il tuo Livello di {language}",
+      "levelLabel": "Il tuo Livello di {{language}}",
       "topicLabel": "Inserisci un argomento o scegline uno qui sotto:",
       "topicPlaceholder": "es: IA, Spazio, Cucina",
       "search": "Cerca",
       "popularTopics": "Oppure seleziona un argomento popolare:",
       "prompt": "Impara l'inglese con articoli su misura per i tuoi interessi e il tuo livello.",
-      "freeLimit": "Hai utilizzato tutte le {count} lezioni gratuite per questo mese.",
+      "freeLimit": "Hai utilizzato tutte le {{count}} lezioni gratuite per questo mese.",
       "upgrade": "Passa a Pro",
       "toSearch": "per cercare di più.",
       "limitReachedTitle": "Limite lezioni gratuite raggiunto",
       "findArticlesTitle": "Trova articoli sull'argomento inserito",
-      "findTopicTitle": "Trova articoli su {topic}"
+      "findTopicTitle": "Trova articoli su {{topic}}"
     },
     "news": {
-      "title": "Articoli su \"{topic}\" ({level})",
+      "title": "Articoli su \"{{topic}}\" ({{level}})",
       "back": "Torna agli Articoli",
       "loading": "Ricerca articoli...",
       "empty": "Nessun articolo trovato per questo argomento.",
@@ -82,18 +86,22 @@
       "audioFail": "Errore nel recuperare l'audio del riassunto:",
       "playAudio": "Riproduci riassunto",
       "pauseAudio": "Metti in pausa il riassunto",
-      "reviewVocab": "Rivedi vocabolario ({count})",
-      "grammarQuiz": "Quiz di grammatica ({count} dom.)",
-      "comprehensionTest": "Test di comprensione ({count})",
+      "reviewVocab": "Rivedi vocabolario ({{count}})",
+      "grammarQuiz": "Quiz di grammatica ({{count}} dom.)",
+      "comprehensionTest": "Test di comprensione ({{count}})",
       "writingPractice": "Pratica di scrittura (1 dom.)",
       "vocabBuilder": "Costruttore di vocaboli",
       "grammarFocus": "Focus grammaticale:",
       "comprehensionQuestions": "Domande di comprensione"
     },
     "activity": {
-      "title": "Attività di {type}",
+      "title": "Attività di {{type}}",
+      "vocab": "Vocabolario",
+      "grammar": "Grammatica",
+      "comprehension": "Comprensione",
+      "writing": "Scrittura",
       "complete": "Attività completata!",
-      "yourScore": "Tuo punteggio: {score} / {total}",
+      "yourScore": "Tuo punteggio: {{score}} / {{total}}",
       "backToLesson": "Torna alla lezione",
       "init": "Inizializzazione attività...",
       "generatingGrammar": "Generazione domanda di grammatica...",
@@ -103,11 +111,11 @@
       "typeWord": "Scrivi la parola:",
       "chooseWord": "Scegli la parola corretta:",
       "writingPrompt": "Traccia di scrittura:",
-      "tryWords": "Prova a usare queste parole: {words}",
+      "tryWords": "Prova a usare queste parole: {{words}}",
       "typeAnswer": "Scrivi qui la tua risposta...",
       "writeResponse": "Scrivi qui la tua risposta...",
       "correct": "Corretto!",
-      "incorrectWord": "Sbagliato. La parola era \"{word}\"."
+      "incorrectWord": "Sbagliato. La parola era \"{{word}}\"."
     },
     "pricing": {
       "title": "Prezzi",
@@ -122,7 +130,7 @@
       "button": "Inizia con Pro",
       "freeTitle": "Piano gratuito",
       "freeDescription": "Perfetto per provare l'app.",
-      "freeFeature": "{count} lezioni gratuite al mese."
+      "freeFeature": "{{count}} lezioni gratuite al mese."
     },
     "tos": {
       "title": "Termini di Servizio",
@@ -186,6 +194,34 @@
       "p7": "Potremmo aggiornare questa Informativa sulla Privacy di tanto in tanto. Ti informeremo di eventuali modifiche pubblicando la nuova informativa su questa pagina.",
       "h8": "8. Contattaci",
       "p8": "In caso di domande sulla presente Informativa sulla Privacy, contattaci all'indirizzo support@streamlearn.xyz."
+    },
+    "languages": {
+      "en": "Inglese (English)",
+      "es": "Spagnolo (Español)",
+      "fr": "Francese (Français)",
+      "de": "Tedesco (Deutsch)",
+      "it": "Italiano",
+      "ko": "Coreano (한국어)",
+      "ja": "Giapponese (日本語)",
+      "zh": "Cinese (中文)"
+    },
+    "topics": {
+      "technology": "Tecnologia",
+      "business": "Affari",
+      "world_news": "Notizie dal Mondo",
+      "us_politics": "Politica USA",
+      "health": "Salute",
+      "science": "Scienza",
+      "environment": "Ambiente",
+      "sports": "Sport",
+      "entertainment": "Intrattenimento",
+      "finance": "Finanza",
+      "ai": "IA",
+      "space": "Spazio",
+      "climate_change": "Cambiamento Climatico",
+      "cybersecurity": "Sicurezza Informatica",
+      "electric_vehicles": "Veicoli Elettrici",
+      "global_economy": "Economia Globale"
     }
   }
 }

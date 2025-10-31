@@ -23,18 +23,22 @@
       "deleteWord": "Delete word",
       "wordSaved": "Word Saved!",
       "wordDeleted": "Word Deleted.",
-      "alreadySaved": "Already saved!"
+      "alreadySaved": "Already saved!",
+      "beginner": "Beginner",
+      "intermediate": "Intermediate",
+      "advanced": "Advanced",
+      "proBadge": "PRO"
     },
     "signIn": {
       "welcome": "Welcome to StreamLearn AI",
       "prompt": "Please sign in with Google to continue.",
       "button": "Sign In with Google",
-      "signOutUser": "Sign Out ({user})"
+      "signOutUser": "Sign Out ({{user}})"
     },
     "dashboard": {
       "title": "Dashboard",
       "startLesson": "Start New Lesson",
-      "wordBank": "My Word Bank ({count})",
+      "wordBank": "My Word Bank ({{count}})",
       "manageBilling": "Manage Billing",
       "upgradePro": "Upgrade to Pro",
       "tos": "Terms of Service",
@@ -46,7 +50,7 @@
       "historySearch": "Search by title, topic, or source...",
       "historyLoading": "Loading your lessons...",
       "historyEmpty": "You haven't completed any lessons yet. Start a new one!",
-      "historyNoResults": "No lessons match your search for \"{term}\".",
+      "historyNoResults": "No lessons match your search for \"{{term}}\".",
       "topic": "Topic:"
     },
     "wordBank": {
@@ -55,21 +59,21 @@
       "empty": "You haven't saved any words yet. Save words from the vocabulary list in your lessons!"
     },
     "input": {
-      "levelLabel": "Your {language} Level",
+      "levelLabel": "Your {{language}} Level",
       "topicLabel": "Enter a topic or choose one below:",
       "topicPlaceholder": "e.g., AI, Space, Cooking",
       "search": "Search",
       "popularTopics": "Or select a popular topic:",
       "prompt": "Learn English with articles tailored to your interests and level.",
-      "freeLimit": "You have used all {count} free lessons for this month.",
+      "freeLimit": "You have used all {{count}} free lessons for this month.",
       "upgrade": "Upgrade to Pro",
       "toSearch": "to search for more.",
       "limitReachedTitle": "Free lesson limit reached",
       "findArticlesTitle": "Find articles for the entered topic",
-      "findTopicTitle": "Find articles about {topic}"
+      "findTopicTitle": "Find articles about {{topic}}"
     },
     "news": {
-      "title": "Articles on \"{topic}\" ({level})",
+      "title": "Articles on \"{{topic}}\" ({{level}})",
       "back": "Back to Articles",
       "loading": "Fetching articles...",
       "empty": "No articles found for this topic.",
@@ -83,18 +87,22 @@
       "audioFail": "Failed to get summary audio:",
       "playAudio": "Play summary",
       "pauseAudio": "Pause summary",
-      "reviewVocab": "Review Vocabulary ({count})",
-      "grammarQuiz": "Grammar Quiz ({count} Qs)",
-      "comprehensionTest": "Comprehension Test ({count})",
+      "reviewVocab": "Review Vocabulary ({{count}})",
+      "grammarQuiz": "Grammar Quiz ({{count}} Qs)",
+      "comprehensionTest": "Comprehension Test ({{count}})",
       "writingPractice": "Writing Practice (1 Q)",
       "vocabBuilder": "Vocabulary Builder",
       "grammarFocus": "Grammar Focus:",
       "comprehensionQuestions": "Comprehension Questions"
     },
     "activity": {
-      "title": "{type} Activity",
+      "title": "{{type}} Activity",
+      "vocab": "Vocabulary",
+      "grammar": "Grammar",
+      "comprehension": "Comprehension",
+      "writing": "Writing",
       "complete": "Activity Complete!",
-      "yourScore": "Your score: {score} / {total}",
+      "yourScore": "Your score: {{score}} / {{total}}",
       "backToLesson": "Back to Lesson",
       "init": "Initializing activity...",
       "generatingGrammar": "Generating grammar question...",
@@ -104,11 +112,11 @@
       "typeWord": "Type the word:",
       "chooseWord": "Choose the correct word:",
       "writingPrompt": "Writing Prompt:",
-      "tryWords": "Try to use these words: {words}",
+      "tryWords": "Try to use these words: {{words}}",
       "typeAnswer": "Type your answer here...",
       "writeResponse": "Write your response here...",
       "correct": "Correct!",
-      "incorrectWord": "Incorrect. The word was \"{word}\"."
+      "incorrectWord": "Incorrect. The word was \"{{word}}\"."
     },
     "pricing": {
       "title": "Pricing",
@@ -123,7 +131,7 @@
       "button": "Get Started with Pro",
       "freeTitle": "Free Plan",
       "freeDescription": "Perfect for trying out the app.",
-      "freeFeature": "{count} free lessons per month."
+      "freeFeature": "{{count}} free lessons per month."
     },
     "tos": {
       "title": "Terms of Service",
@@ -187,6 +195,34 @@
       "p7": "We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new policy on this page.",
       "h8": "8. Contact Us",
       "p8": "If you have any questions about this Privacy Policy, please contact us at support@streamlearn.xyz."
+    },
+    "languages": {
+      "en": "English",
+      "es": "Español (Spanish)",
+      "fr": "Français (French)",
+      "de": "Deutsch (German)",
+      "it": "Italiano (Italian)",
+      "ko": "한국어 (Korean)",
+      "ja": "日本語 (Japanese)",
+      "zh": "中文 (Chinese)"
+    },
+    "topics": {
+      "technology": "Technology",
+      "business": "Business",
+      "world_news": "World News",
+      "us_politics": "US Politics",
+      "health": "Health",
+      "science": "Science",
+      "environment": "Environment",
+      "sports": "Sports",
+      "entertainment": "Entertainment",
+      "finance": "Finance",
+      "ai": "AI",
+      "space": "Space",
+      "climate_change": "Climate Change",
+      "cybersecurity": "Cybersecurity",
+      "electric_vehicles": "Electric Vehicles",
+      "global_economy": "Global Economy"
     }
   }
 }
