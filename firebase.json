@@ -30,10 +30,6 @@
         "function": "textToSpeech"
       },
       {
-        "source": "/api/createPortalLink",
-        "function": "createPortalLink"
-      },
-      {
         "source": "**",
         "destination": "/index.html"
       }
@@ -55,5 +51,8 @@
     "ui": {
       "enabled": true
     }
+  },
+  "extensions": {
+    "firestore-stripe-payments": "invertase/firestore-stripe-payments@0.3.12"
   }
 }

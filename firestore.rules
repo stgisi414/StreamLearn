@@ -1,66 +1,66 @@
 rules_version = '2';
 
 service cloud.firestore {
-match /databases/{database}/documents {
+  match /databases/{database}/documents {
 
-//
-// USER-SPECIFIC DATA
-// Secures all data under /users/{uid}
-//
-match /users/{uid} {
-  // Allow a user to read their own top-level document (e.g., to get stripeId)
-  // Disallow writing to prevent them from changing their own stripeId.
-  allow read: if request.auth.uid == uid;
-  
-  // Allow user to read/write their own lessons
-  match /lessons/{lessonId} {
-    allow read, write: if request.auth.uid == uid;
-  }
-  
-  // Allow user to read/write their own word bank
-  match /wordBank/{wordId} {
-    allow read, write: if request.auth.uid == uid;
-  }
-  
-  // Allow user to read their own usage.
-  // Write is handled by the backend function.
-  match /usage/{monthId} {
-    allow read: if request.auth.uid == uid;
-  }
+    //
+    // USER-SPECIFIC DATA
+    //
+    match /users/{uid} {
+      // Allow a user to read their own top-level document
+      allow read: if request.auth.uid == uid;
+      
+      // Allow user to read/write their own lessons
+      match /lessons/{lessonId} {
+        allow read, write: if request.auth.uid == uid;
+      }
+      
+      // Allow user to read/write their own word bank
+      match /wordBank/{wordId} {
+        allow read, write: if request.auth.uid == uid;
+      }
+      
+      // Allow user to read their own usage.
+      match /usage/{monthId} {
+        allow read: if request.auth.uid == uid;
+      }
+    } // <--- FIX: Added the missing closing brace for /users/{uid}
 
-  //
-  // STRIPE DATA (private to user)
-  // These rules are from the Stripe extension, adapted for the 'users' collection
-  //
-  match /checkout_sessions/{id} {
-    allow read, write: if request.auth.uid == uid;
-  }
-  match /subscriptions/{id} {
-    // This is for the user's *private* subscription document
-    allow read: if request.auth.uid == uid;
-  }
-  match /payments/{id} {
-    allow read: if request.auth.uid == uid;
-  }
-}
+    //
+    // STRIPE DATA (private to user, in 'customers' collection)
+    //
+    match /customers/{uid} { // <--- FIX: This block is now outside /users/{uid}
+      // Allow a user to read their own customer document (e.g., to get stripeId)
+      allow read: if request.auth.uid == uid;
+    
+      // Allow user to create their own checkout sessions
+      match /checkout_sessions/{id} {
+        allow read, write: if request.auth.uid == uid;
+      }
+      // Allow user to read their own subscription data
+      match /subscriptions/{id} {
+        allow read: if request.auth.uid == uid;
+      }
+      // Allow user to read their own payment data
+      match /payments/{id} {
+        allow read: if request.auth.uid == uid;
+      }
+    }
 
-//
-// PUBLIC STRIPE DATA
-// These rules allow anyone (even unauthenticated users) to read
-// the product and price information needed for your pricing page.
-//
-match /subscriptions/{id} {
-  allow read: if true;
+    //
+    // PUBLIC STRIPE DATA
+    //
+    match /subscriptions/{id} {
+      allow read: if true;
 
-  match /prices/{id} {
-    allow read: if true;
+      match /prices/{id} {
+        allow read: if true;
+      }
+
+      match /tax_rates/{id} {
+        allow read: if true;
+      }
+    }
+
   }
-
-  match /tax_rates/{id} {
-    allow read: if true;
-  }
-}
-
-
-}
 }

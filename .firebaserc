@@ -1,5 +1,13 @@
 {
   "projects": {
     "default": "streamlearnxyz"
+  },
+  "targets": {},
+  "etags": {
+    "streamlearnxyz": {
+      "extensionInstances": {
+        "firestore-stripe-payments": "863e5890b857b422fc03b28735cd2498a724ba385c3c7ef356b9e4931e12f25c"
+      }
+    }
   }
 }

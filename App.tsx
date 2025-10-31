@@ -15,6 +15,11 @@ import {
   deleteDoc, where, addDoc,
   connectFirestoreEmulator, onSnapshot
 } from 'firebase/firestore';
+import { 
+  getFunctions, 
+  httpsCallable, 
+  connectFunctionsEmulator 
+} from 'firebase/functions';
 import { HistoryIcon } from './components/icons/HistoryIcon';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { ErrorMessage } from './components/ErrorMessage';
@@ -204,6 +209,7 @@ const App: React.FC = () => {
   const [newsResults, setNewsResults] = useLocalStorageState<NewsResult[]>('streamlearn_results', []);
   const [currentArticle, setCurrentArticle] = useLocalStorageState<Article | null>('streamlearn_article', null);
   const [currentLesson, setCurrentLesson] = useLocalStorageState<Lesson | null>('streamlearn_lesson', null);
+  const initialUrlHandled = useRef(false);
 
   // --- Static Data ---
   const newsTopics: string[] = [
@@ -215,6 +221,7 @@ const App: React.FC = () => {
   // --- Firebase Service Memos ---
   const db = useMemo(() => getFirestore(app), []);
   const auth = useMemo(() => getAuth(app), []);
+  const functions = useMemo(() => getFunctions(app), []);
 
   // --- Emulator Connection ---
   useEffect(() => {
@@ -228,8 +235,14 @@ const App: React.FC = () => {
         }
         // --- ADD THIS BLOCK ---
         try {
-          connectFirestoreEmulator(db, 'localhost', 8080);
-          console.log("Firestore emulator connected.");
+          // connectFirestoreEmulator(db, 'localhost', 8080);
+          // console.log("Firestore emulator connected.");
+          console.log("Firestore emulator connection SKIPPED to test cloud extensions."); 
+
+          // Connect to the functions emulator
+          connectFunctionsEmulator(functions, 'localhost', 5001); // <-- ADD THIS
+          console.log("Functions emulator connected."); // <-- ADD THIS
+
         } catch (e) {
           console.warn("Could not connect firestore emulator (might already be connected).", e)
         }
@@ -535,47 +548,6 @@ const App: React.FC = () => {
       // --- END REMOVAL ---
   ]);
 
-  const fetchLessonHistory = useCallback(async (user: User) => {
-    if (!user) return;
-    console.log("Fetching lesson history...");
-    setIsHistoryLoading(true);
-    try {
-      const lessonsRef = collection(db, `users/${user.uid}/lessons`);
-      const q = query(lessonsRef, orderBy("createdAt", "desc"), limit(50));
-      const querySnapshot = await getDocs(q);
-      const lessons = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as SavedLesson));
-      setLessonHistory(lessons);
-      console.log(`Fetched ${lessons.length} lessons.`);
-    } catch (err) {
-      console.error("Error fetching lesson history:", err);
-      setError(`Failed to load lesson history: ${(err as Error).message}`);
-    } finally {
-      setIsHistoryLoading(false);
-    }
-  }, [db]); // Add db dependency
-
-  const fetchWordBank = useCallback(async (user: User) => {
-    if (!user) return;
-    console.log("Fetching word bank...");
-    setIsWordBankLoading(true); // We can reuse history loading, or add a new state
-    try {
-      const wordsRef = collection(db, `users/${user.uid}/wordBank`);
-      const q = query(wordsRef, orderBy("createdAt", "desc"));
-      const querySnapshot = await getDocs(q);
-      const words = querySnapshot.docs.map(doc => doc.data() as SavedWord);
-      setWordBank(words);
-      console.log(`Fetched ${words.length} words.`);
-    } catch (err) {
-      console.error("Error fetching word bank:", err);
-      setError(`Failed to load word bank: ${(err as Error).message}`);
-    } finally {
-      setIsWordBankLoading(false);
-    }
-  }, [db]);
-
   const handleSaveWord = async (vocabItem: VocabularyItem) => {
     if (!user) return;
 
@@ -600,7 +572,6 @@ const App: React.FC = () => {
       await setDoc(doc(db, `users/${user.uid}/wordBank`, newSavedWord.id), newSavedWord);
       
       // Add to local state (at the top of the list)
-      setWordBank(prev => [newSavedWord, ...prev]);
       setWordBankMessage({ text: "Word Saved!", type: 'success' });
 
     } catch (err) {
@@ -665,7 +636,7 @@ const App: React.FC = () => {
     try {
       // Note: This query is simple. The Stripe extension *overwrites* docs,
       // so we just look for the first active/trialing one.
-      const subRef = collection(db, `users/${user.uid}/subscriptions`);
+      const subRef = collection(db, `customers/${user.uid}/subscriptions`); // <--- FIX HERE
       const q = query(subRef, where("status", "in", ["active", "trialing"]), limit(1));
       
       const querySnapshot = await getDocs(q);
@@ -692,20 +663,33 @@ const App: React.FC = () => {
     if (!user) return;
     setIsBillingLoading(true);
     setError(null);
+
     try {
-      const response = await authenticatedFetch('createPortalLink', {
+      // Get a reference to the extension's callable function
+      const createPortalLink = httpsCallable(
+        functions, 
+        'ext-firestore-stripe-payments-createPortalLink' // This is the exact name of the extension function
+      );
+
+      // Call the function with the returnUrl
+      const response: any = await createPortalLink({
         returnUrl: window.location.origin + '/' // Return to dashboard
       });
-      
-      if (response.url) {
-        // Redirect user to the Stripe portal
-        window.location.href = response.url;
+
+      // Redirect user to the Stripe portal
+      if (response.data && response.data.url) {
+        window.location.href = response.data.url;
       } else {
         throw new Error("No portal URL returned from server.");
       }
     } catch (err) {
       console.error("Error creating portal link:", err);
-      setError(`Could not open billing portal: ${(err as Error).message}`);
+      let message = (err as Error).message;
+      // Provide a more helpful error for the common case
+      if (message.includes('NOT_FOUND') || message.includes('does not exist')) {
+        message = "Could not find the billing function. (Is the Stripe extension correctly configured for Customer Portal?)";
+      }
+      setError(`Could not open billing portal: ${message}`);
       setIsBillingLoading(false);
     }
     // No finally needed, as user is redirected on success
@@ -730,7 +714,7 @@ const App: React.FC = () => {
     try {
       // Create a new checkout session document
       const checkoutSessionRef = await addDoc(
-        collection(db, `users/${user.uid}/checkout_sessions`),
+        collection(db, `customers/${user.uid}/checkout_sessions`),
         {
           price: STRIPE_PRICE_ID, // Your Price ID
           success_url: window.location.origin, // Return to dashboard on success
@@ -927,7 +911,8 @@ const App: React.FC = () => {
     window.addEventListener('popstate', handlePopState);
 
     // Handle initial load once auth is ready
-    if(authState !== 'LOADING') {
+    if (authState !== 'LOADING' && !initialUrlHandled.current) { // <-- MODIFY THIS LINE
+        initialUrlHandled.current = true; // <-- ADD THIS LINE
         const { pathname, search } = window.location;
         handleUrlChangeRef.current(pathname, new URLSearchParams(search));
     }
@@ -960,8 +945,6 @@ const App: React.FC = () => {
       if (currentUser) {
         setUser(currentUser);
         setAuthState('SIGNED_IN');
-        fetchLessonHistory(currentUser); //
-        fetchWordBank(currentUser);
         fetchSubscriptionStatus(currentUser);
         setError(null);
       } else {
@@ -971,10 +954,59 @@ const App: React.FC = () => {
         setLessonHistory([]); //
         setWordBank([]);
         setDashboardSearchTerm('');
+        initialUrlHandled.current = false;
       }
     });
     return () => unsubscribe();
-  }, [auth, setCurrentView, fetchLessonHistory, fetchWordBank, fetchSubscriptionStatus]);
+  }, [auth, setCurrentView, fetchSubscriptionStatus]);
+
+  // --- NEW: Real-time data listeners ---
+  useEffect(() => {
+    if (user) {
+      // --- Set up Lesson History listener ---
+      setIsHistoryLoading(true);
+      const lessonsRef = collection(db, `users/${user.uid}/lessons`);
+      const lessonsQuery = query(lessonsRef, orderBy("createdAt", "desc"), limit(50));
+      const historyUnsubscribe = onSnapshot(lessonsQuery, 
+        (querySnapshot) => {
+          const lessons = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          } as SavedLesson));
+          setLessonHistory(lessons);
+          setIsHistoryLoading(false);
+        }, 
+        (err) => {
+          console.error("Error fetching lesson history:", err);
+          setError(`Failed to load lesson history: ${(err as Error).message}`);
+          setIsHistoryLoading(false);
+        }
+      );
+
+      // --- Set up Word Bank listener ---
+      setIsWordBankLoading(true);
+      const wordsRef = collection(db, `users/${user.uid}/wordBank`);
+      const wordsQuery = query(wordsRef, orderBy("createdAt", "desc"));
+      const wordBankUnsubscribe = onSnapshot(wordsQuery,
+        (querySnapshot) => {
+          const words = querySnapshot.docs.map(doc => doc.data() as SavedWord);
+          setWordBank(words);
+          setIsWordBankLoading(false);
+        },
+        (err) => {
+          console.error("Error fetching word bank:", err);
+          setError(`Failed to load word bank: ${(err as Error).message}`);
+          setIsWordBankLoading(false);
+        }
+      );
+
+      // --- Return cleanup function ---
+      return () => {
+        historyUnsubscribe();
+        wordBankUnsubscribe();
+      };
+    }
+  }, [user, db]); // This effect re-runs when the user logs in or out
 
   // --- Google Sign-In Handler ---
   const signInWithGoogle = async () => {
@@ -1556,6 +1588,11 @@ const App: React.FC = () => {
       {/* Header */}
       <div className="flex flex-wrap justify-between items-center gap-2 border-b pb-3">
         <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" />
+        {isSubscribed && (
+            <span className="text-sm font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full border border-yellow-500 shadow-sm">
+              PRO
+            </span>
+          )}
         {user && (
           <button
             onClick={handleSignOut}
@@ -1916,25 +1953,261 @@ const App: React.FC = () => {
     </div>
   );
 
+    // ... (code around line 1183) ...
+
   const renderTermsPage = () => (
     <StaticPageWrapper title="Terms of Service">
-      <p>Please replace this placeholder text with your real Terms of Service.</p>
-      <p>Last updated: October 30, 2025</p>
-      <h3>1. Acceptance of Terms</h3>
-      <p>By accessing or using StreamLearn, you agree to be bound by these terms...</p>
-      <h3>2. Subscription and Payment</h3>
-      <p>Our "Pro" plan is a recurring monthly subscription. Payments are handled by Stripe...</p>
+      <>
+        <p className="lead">Last updated: October 30, 2025</p>
+        <p>
+          Welcome to StreamLearn! These Terms of Service ("Terms") govern your
+          access to and use of the StreamLearn website, services, and
+          applications (collectively, the "Service"). Please read these Terms
+          carefully.
+        </p>
+
+        <h3>1. Acceptance of Terms</h3>
+        <p>
+          By creating an account, accessing, or using the Service, you agree to
+          be bound by these Terms. If you do not agree to these Terms, do not
+          use the Service.
+        </p>
+
+        <h3>2. The Service</h3>
+        <p>
+          StreamLearn is a language learning platform that helps users learn
+          English by generating customized lessons based on current news
+          articles. The Service uses third-party APIs, including the Gemini API
+          and Bright Data SERP API, to find articles and generate lesson
+          content.
+        </p>
+        <p>
+          We offer a free tier with limited usage (e.g., a limited number of
+          lessons per month) and a paid "StreamLearn Pro" subscription plan
+          with expanded features.
+        </p>
+
+        <h3>3. User Accounts</h3>
+        <p>
+          To use most features of the Service, you must register for an account
+          by authenticating with Google Sign-In. You agree to:
+        </p>
+        <ul>
+          <li>
+            Be solely responsible for all activities that occur under your
+            account.
+          </li>
+          <li>
+            Notify us immediately at{' '}
+            <a href="mailto:support@streamlearn.xyz">
+              support@streamlearn.xyz
+            </a>{' '}
+            of any unauthorized use of your account.
+          </li>
+        </ul>
+
+        <h3>4. Subscriptions and Payments</h3>
+        <p>
+          <strong>Billing:</strong> We use a third-party payment processor
+          (Stripe) to bill you for subscription plans. The processing of
+          payments is subject to the terms and conditions of Stripe. We do not
+          store your credit card information.
+        </p>
+        <p>
+          <strong>Recurring Charges:</strong> By purchasing a subscription, you
+          authorize us to charge your payment method on a recurring (e.g.,
+          monthly) basis, at the rate then in effect, until you cancel.
+        </p>
+        <p>
+          <strong>Cancellation:</strong> You may cancel your subscription at any
+          time through the "Manage Billing" portal on your dashboard.
+          Cancellation will be effective at the end of your current billing
+          cycle.
+        </p>
+
+        <h3>5. User Content</h3>
+        <p>
+          You retain all rights to the content you create or store in the
+          Service, such as your saved lesson history and personal word bank.
+          You grant us a limited, non-exclusive, worldwide, royalty-free
+          license to use, store, and display your content solely for the
+          purpose of providing and improving the Service *to you*.
+        </p>
+
+        <h3>6. Third-Party Links & Content</h3>
+        <p>
+          The Service generates lessons based on content from third-party news
+          websites. We are not responsible for the accuracy, legality, or
+          content of these external sites or the articles sourced from them.
+          Your access and use of such third-party content is at your own risk.
+        </p>
+
+        <h3>7. Termination</h3>
+        <p>
+          You are free to stop using the Service at any time. We reserve the
+          right to suspend or terminate your account at our discretion, without
+          notice, if you breach these Terms.
+        </p>
+
+        <h3>8. Disclaimers and Limitation of Liability</h3>
+        <p>
+          THE SERVICE IS PROVIDED "AS IS." TO THE FULLEST EXTENT PERMITTED BY
+          LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED. WE WILL NOT BE
+          LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR
+          PUNITIVE DAMAGES ARISING OUT OF OR RELATING TO YOUR USE OF THE
+          SERVICE.
+        </p>
+
+        <h3>9. Changes to Terms</h3>
+        <p>
+          We may modify these Terms at any time. We will notify you of any
+          changes by posting the new Terms on this page. Your continued use of
+          the Service after such changes constitutes your acceptance of the new
+          Terms.
+        </p>
+
+        <h3>10. Contact Us</h3>
+        <p>
+          If you have any questions about these Terms, please contact us at{' '}
+          <a href="mailto:support@streamlearn.xyz">
+            support@streamlearn.xyz
+          </a>
+          .
+        </p>
+      </>
     </StaticPageWrapper>
   );
 
   const renderPrivacyPage = () => (
     <StaticPageWrapper title="Privacy Policy">
-      <p>Please replace this placeholder text with your real Privacy Policy.</p>
-      <p>Last updated: October 30, 2025</p>
-      <h3>1. Information We Collect</h3>
-      <p>We collect information you provide directly to us, such as your Google account email and name. We also store data you generate, such as saved lessons and vocabulary words...</p>
-      <h3>2. How We Use Information</h3>
-      <p>We use your information to operate and improve our service, process payments (via Stripe), and communicate with you...</p>
+      <>
+        <p className="lead">Last updated: October 30, 2025</p>
+        <p>
+          This Privacy Policy describes how StreamLearn ("we," "us," or "our")
+          collects, uses, and shares your information when you use our Service.
+        </p>
+
+        <h3>1. Information We Collect</h3>
+        <ul>
+          <li>
+            <strong>Account Information:</strong> When you sign up using Google
+            Sign-In, we receive your name, email address, and profile picture
+            as provided by Google.
+          </li>
+          <li>
+            <strong>User Content:</strong> We collect and store the information
+            you create within the app, including your saved lessons, your
+            personal word bank, and your chosen topics of interest.
+          </li>
+          <li>
+            <strong>Payment Information:</strong> We do not collect or store
+            your payment card details. Our third-party payment processor,
+            Stripe, handles all payment transactions. We only store your Stripe
+            Customer ID and your subscription status (e.g., "active", "free").
+          </li>
+        </ul>
+
+        <h3>2. How We Use Information</h3>
+        <p>
+          We use your information for the following purposes:
+        </p>
+        <ul>
+          <li>To provide, maintain, and improve the Service.</li>
+          <li>
+            To personalize your learning experience by saving your lessons and
+            word bank.
+          </li>
+          <li>To process your subscription payments via Stripe.</li>
+          <li>
+            To communicate with you, such as responding to support requests
+            sent to{' '}
+            <a href="mailto:support@streamlearn.xyz">
+              support@streamlearn.xyz
+            </a>
+            .
+          </li>
+        </ul>
+
+        <h3>3. How We Share Information</h3>
+        <p>
+          We do not sell your personal information. We share information only
+          in the following limited circumstances:
+        </p>
+        <ul>
+          <li>
+            <strong>Third-Party Service Providers:</strong>
+            <ul>
+              <li>
+                <strong>Google:</strong> For authentication (Google Sign-In) and
+                data storage (Google Cloud Firestore).
+              </li>
+              <li>
+                <strong>Stripe:</strong> To process subscription payments and
+                manage billing.
+              </li>
+              <li>
+                <strong>Google (Gemini API):</strong> Prompts you generate
+                (like lesson requests, topics, and activity answers) are sent
+                to the Gemini API to generate responses.
+              </li>
+              <li>
+                <strong>Bright Data:</strong> Your search topics are sent to the
+                Bright Data SERP API to find news articles.
+              </li>
+              <li>
+                <strong>Google Cloud TTS:</strong> Text you select for text-to-speech
+                is sent to Google's API to generate audio.
+              </li>
+            </ul>
+          </li>
+          <li>
+            <strong>Legal Requirements:</strong> We may disclose your
+            information if required to do so by law or in response to valid
+            requests by public authorities.
+          </li>
+        </ul>
+
+        <h3>4. Data Storage and Security</h3>
+        <p>
+          Your personal data (account info, lesson history, word bank) is
+          stored using Google Cloud Firestore, a service operated by Google.
+          We take reasonable measures to protect your information, but no
+          security system is impenetrable.
+        </p>
+        <h3>5. Your Rights</h3>
+        <p>
+          Depending on your location, you may have rights regarding your
+          personal information, such as the right to access, correct, or
+          delete your data. To make such a request, please contact us at{' '}
+          <a href="mailto:support@streamlearn.xyz">
+            support@streamlearn.xyz
+          </a>
+          .
+        </p>
+
+        <h3>6. Children's Privacy</h3>
+        <p>
+          The Service is not intended for or directed to children under the
+          age of 13. We do not knowingly collect personal information from
+          children under 13.
+        </p>
+
+        <h3>7. Changes to This Policy</h3>
+        <p>
+          We may update this Privacy Policy from time to time. We will notify
+          you of any changes by posting the new policy on this page.
+        </p>
+
+        <h3>8. Contact Us</h3>
+        <p>
+          If you have any questions about this Privacy Policy, please contact
+          us at{' '}
+          <a href="mailto:support@streamlearn.xyz">
+            support@streamlearn.xyz
+          </a>
+          .
+        </p>
+      </>
     </StaticPageWrapper>
   );
 
@@ -2044,6 +2317,11 @@ const App: React.FC = () => {
       <div className="flex flex-wrap justify-between items-center gap-2 border-b pb-3 mb-3">
         {/* Banner on the left */}
         <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" />
+        {isSubscribed && (
+          <span className="text-xs font-bold bg-yellow-400 text-yellow-900 px-2 py-0.5 rounded-full shadow-md -ml-2">
+            PRO
+          </span>
+        )}
         {/* Sign out button on the right */}
         <button
             onClick={handleSignOut}
@@ -2116,6 +2394,11 @@ const App: React.FC = () => {
                 {/* Header for Loading State */}
                 <div className="flex flex-wrap justify-between items-center gap-2 border-b pb-3 mb-3">
                      <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" />
+                     {isSubscribed && (
+                        <span className="text-sm font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full border border-yellow-500 shadow-sm">
+                          PRO
+                        </span>
+                      )}
                      {user && ( <button onClick={handleSignOut} className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1"> Sign Out </button> )}
                  </div>
                  <button
@@ -2146,6 +2429,11 @@ const App: React.FC = () => {
         <div className="flex flex-wrap justify-between items-center gap-2 border-b pb-3 mb-3">
             {/* Banner on the left */}
             <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" />
+            {isSubscribed && (
+                <span className="text-sm font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full border border-yellow-500 shadow-sm">
+                  PRO
+                </span>
+              )}
              {/* Action buttons on the right */}
             <div className="flex gap-2 flex-shrink-0">
                  <button
@@ -2239,7 +2527,7 @@ const App: React.FC = () => {
            </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 border-t pt-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 border-t pt-4 text-sm">
           <button
             onClick={() => startActivity('vocab')}
             disabled={!currentLesson?.vocabularyList || currentLesson.vocabularyList.length === 0}

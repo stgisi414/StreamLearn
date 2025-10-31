@@ -797,9 +797,10 @@
 
     /**
      * Creates a Stripe Customer Portal link for the user.
+     * This version uses a document-write trigger instead of a callable function.
      */
     export const createPortalLink = onRequest(
-      {cors: true},
+      {cors: true, timeoutSeconds: 60}, // Added timeout for listener
       async (req, res) => {
         res.setHeader('Content-Type', 'application/json');
         if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
@@ -813,30 +814,51 @@
           }
 
           const db = admin.firestore();
-          const customerDoc = await db.collection('users').doc(userId).get();
-          const customerId = customerDoc.data()?.stripeId;
-
-          if (!customerId) {
-            logger.warn(`User ${userId} tried to create portal link but has no stripeId.`);
-            res.status(404).json({ error: "No subscription information found for this user." });
-            return;
-          }
-
-          // This is the function name configured in the Stripe Extension
-          const functionName = "ext-firestore-stripe-payments-createPortalLink";
           
-          // --- THIS IS THE FIX ---
-          // We use (admin as any) to bypass the TypeScript type-checking error.
-          // The `import "firebase-admin/functions";` at the top of your file
-          // makes this code work at runtime, even though TypeScript can't see it.
-          const portalLinkFunction = (admin as any).functions().httpsCallable(functionName);
+          // 1. Create the portal link document
+          // The Stripe extension listens for this document creation
+          const portalLinkRef = await db
+            .collection('customers')
+            .doc(userId)
+            .collection('portal_links')
+            .add({
+              return_url: returnUrl, // Use snake_case as required by the extension
+              created: admin.firestore.FieldValue.serverTimestamp(),
+            });
           
-          const portalLinkResponse = await portalLinkFunction({
-              customerId: customerId,
-              returnUrl: returnUrl,
+          logger.info(`Created portal_links doc ${portalLinkRef.id} for user ${userId}`);
+
+          // 2. Listen to the document for the URL
+          // We use a promise to handle the asynchronous listener
+          const url = await new Promise<string>((resolve, reject) => {
+            // Set up the listener
+            const unsubscribe = portalLinkRef.onSnapshot(
+              (snapshot) => {
+                const data = snapshot.data();
+                if (data?.url) { // Success: The extension wrote the URL
+                  unsubscribe();
+                  resolve(data.url);
+                } else if (data?.error) { // Error: The extension wrote an error
+                  unsubscribe();
+                  reject(new Error(data.error.message || "Stripe extension error."));
+                }
+                // If neither url nor error exists yet, the listener just waits
+              },
+              (err) => { // Handle listener error
+                unsubscribe();
+                reject(err);
+              }
+            );
+
+            // 3. Add a timeout for safety
+            setTimeout(() => {
+              unsubscribe();
+              reject(new Error("Timeout: Stripe extension did not respond in 30 seconds."));
+            }, 30000); // 30-second timeout
           });
-          
-          res.status(200).json({ url: portalLinkResponse.data.url });
+
+          // 4. Send the URL back to the client
+          res.status(200).json({ url: url });
 
         } catch (error) {
           const message = (error as Error).message;
@@ -844,6 +866,5 @@
           logger.error("Function Error (createPortalLink):", error);
           res.status(status).json({error: `Failed to create portal link: ${message}`});
         }
-
       }
     );
