@@ -1,6 +1,8 @@
 {
   "translation": {
     "common": {
+      "appTitle": "StreamLearn: AI로 언어 배우기",
+      "appDescription": "실제 뉴스 기사를 바탕으로 한 AI 기반 수업으로 언어를 배워보세요.",
       "signOut": "로그아웃",
       "loading": "로드 중...",
       "initializing": "초기화 중...",
@@ -28,6 +30,29 @@
       "intermediate": "중급",
       "advanced": "고급",
       "proBadge": "프로"
+    },
+    "landing": {
+      "modalFeaturesTitle": "주요 기능",
+      "modalFeaturesH4_1": "AI 기반 수업",
+      "modalFeaturesP_1": "선택한 뉴스 기사나 주제로 종합적인 언어 수업을 즉시 생성합니다. 각 수업은 선택한 숙련도 수준에 맞춰 제공됩니다.",
+      "modalFeaturesH4_2": "인터랙티브 활동",
+      "modalFeaturesP_2": "흥미로운 연습 문제로 학습을 강화하세요. 어휘 플래시카드, 문법 퀴즈, 독해력 테스트, AI 채점 작문 프롬프트로 지식을 테스트하세요.",
+      "modalHowTitle": "작동 방식",
+      "modalHowOl_1": "<strong>주제 선택:</strong> '우주 탐사'부터 '세계 경제'까지 관심 있는 주제를 입력하거나 인기 주제 목록에서 선택하세요.",
+      "modalHowOl_2": "<strong>수업 생성:</strong> 몇 초 안에 AI가 요약, 핵심 어휘, 문법 포인트, 이해력 질문을 포함한 완전한 수업을 생성합니다.",
+      "modalHowOl_3": "<strong>연습 및 학습:</strong> 인터랙티브 활동에 참여하여 배운 내용을 연습하고 새로운 기술을 다지세요.",
+      "modalUseCasesTitle": "누구를 위한 것인가요?",
+      "modalUseCasesH4_1": "언어 학습자",
+      "modalUseCasesP_1": "진정으로 관심 있는 실제 콘텐츠로 정규 학습을 보충하여 학습이 지루하지 않게 만드세요.",
+      "modalUseCasesH4_2": "전문가",
+      "modalUseCasesP_2": "비즈니스 언어 능력을 향상시키면서 업계 뉴스에 대한 최신 정보를 얻으세요. 해당 분야의 최신 이벤트 맥락에서 기술 용어를 배우세요.",
+      "modalLanguagesTitle": "지원 언어",
+      "modalLanguagesP_1": "현재 UI 및 목표 언어를 다음 중 하나로 설정할 수 있습니다.",
+      "modalPricingTitle": "간단하고 투명한 가격",
+      "modalPricingH4_1": "무료 플랜",
+      "modalPricingP_1": "모든 학습 활동에 대한 전체 액세스 권한으로 <strong>매월 최대 {{count}}개의 수업</strong>을 생성하세요.",
+      "modalPricingH4_2": "프로 플랜",
+      "modalPricingP_2": "<strong>무제한 수업 생성</strong>을 잠금 해제하세요. 소액의 월간 요금으로 원할 때 원하는 만큼 배울 수 있습니다."
     },
     "signIn": {
       "welcome": "StreamLearn AI에 오신 것을 환영합니다",
@@ -63,7 +88,7 @@
       "topicPlaceholder": "예: AI, 우주, 요리",
       "search": "검색",
       "popularTopics": "또는 인기 주제 선택:",
-      "prompt": "내 관심사와 수준에 맞는 기사로 영어를 배워보세요.",
+      "prompt": "내 관심사와 수준에 맞는 기사로 언어를 배워보세요.",
       "freeLimit": "이번 달 무료 수업 {{count}}개를 모두 사용했습니다.",
       "upgrade": "Pro로 업그레이드",
       "toSearch": "하여 더 많이 검색하세요.",
@@ -139,7 +164,7 @@
       "h1": "1. 약관 동의",
       "p1": "계정을 생성하거나, 서비스에 액세스하거나, 서비스를 사용함으로써 귀하는 본 약관에 동의하는 것으로 간주됩니다. 본 약관에 동의하지 않으면 서비스를 사용하지 마십시오.",
       "h2": "2. 서비스",
-      "p2_1": "StreamLearn은 현재 뉴스 기사를 기반으로 맞춤형 수업을 생성하여 사용자의 영어 학습을 돕는 언어 학습 플랫폼입니다. 본 서비스는 Gemini API 및 Bright Data SERP API를 포함한 타사 API를 사용하여 기사를 찾고 수업 콘텐츠를 생성합니다.",
+      "p2_1": "StreamLearn은 현재 뉴스 기사를 기반으로 맞춤형 수업을 생성하여 사용자의 언어 학습을 돕는 언어 학습 플랫폼입니다. 본 서비스는 Gemini API 및 Bright Data SERP API를 포함한 타사 API를 사용하여 기사를 찾고 수업 콘텐츠를 생성합니다.",
       "p2_2": "당사는 사용이 제한된 무료 등급(예: 월별 제한된 수의 수업)과 확장된 기능을 갖춘 유료 \"StreamLearn Pro\" 구독 플랜을 제공합니다.",
       "h3": "3. 사용자 계정",
       "p3": "서비스의 대부분 기능을 사용하려면 Google Sign-In으로 인증하여 계정을 등록해야 합니다. 귀하는 다음에 동의합니다:",

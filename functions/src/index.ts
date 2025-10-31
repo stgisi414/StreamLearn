@@ -434,7 +434,10 @@
                 Your goal is to generate structured learning material based *only* on the content of the provided ${targetLangName} news report.
                 You MUST provide the following sections in a JSON object format.
                 - All definitions and explanations (like vocabulary definitions, grammar explanations, and comprehension questions) MUST be in ${uiLangName.toUpperCase()}.
-                - All content from the article (like the summary, vocabulary words, and example sentences) MUST be in ${targetLangName.toUpperCase()}.`;
+                - All content from the article (like the summary, vocabulary words, and example sentences) MUST be in ${targetLangName.toUpperCase()}.
+                
+                // --- ADDITION: Enforce Markdown formatting for the explanation ---
+                The "grammarFocus.explanation" must be rich text using Markdown, including headings, ordered lists, and bold text for clarity and structure.`;
 
             const lessonPrompt =
                 `Generate the lesson for my ${level} ${uiLangName}-speaking student who is learning ${targetLangName}.

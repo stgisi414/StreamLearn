@@ -1,6 +1,8 @@
 {
   "translation": {
     "common": {
+      "appTitle": "StreamLearn: Learn Languages with AI",
+      "appDescription": "Learn languages with AI-powered lessons from real news articles. Tailored to your interests and level.",
       "signOut": "Sign Out",
       "loading": "Loading...",
       "initializing": "Initializing...",
@@ -28,6 +30,29 @@
       "intermediate": "Intermediate",
       "advanced": "Advanced",
       "proBadge": "PRO"
+    },
+    "landing": {
+      "modalFeaturesTitle": "Key Features",
+      "modalFeaturesH4_1": "AI-Powered Lessons",
+      "modalFeaturesP_1": "Instantly generate comprehensive language lessons from any news article or topic you choose. Each lesson is tailored to your selected proficiency level.",
+      "modalFeaturesH4_2": "Interactive Activities",
+      "modalFeaturesP_2": "Reinforce your learning with engaging exercises. Test your knowledge with vocabulary flashcards, grammar quizzes, reading comprehension tests, and AI-graded writing prompts.",
+      "modalHowTitle": "How It Works",
+      "modalHowOl_1": "<strong>Choose a Topic:</strong> Enter any topic you're interested in, from \"space exploration\" to \"global economy,\" or select from our list of popular topics.",
+      "modalHowOl_2": "<strong>Generate Your Lesson:</strong> In seconds, our AI generates a complete lesson including a summary, key vocabulary, grammar points, and comprehension questions.",
+      "modalHowOl_3": "<strong>Practice & Learn:</strong> Dive into the interactive activities to practice what you've learned and solidify your new skills.",
+      "modalUseCasesTitle": "Who Is It For?",
+      "modalUseCasesH4_1": "Language Students",
+      "modalUseCasesP_1": "Supplement your formal studies with real-world content that genuinely interests you, making learning feel less like a chore.",
+      "modalUseCasesH4_2": "Professionals",
+      "modalUseCasesP_2": "Stay updated on industry news while improving your business language skills. Learn technical vocabulary in the context of current events in your field.",
+      "modalLanguagesTitle": "Supported Languages",
+      "modalLanguagesP_1": "Currently, you can set your UI and Target Language to any of the following:",
+      "modalPricingTitle": "Simple, Transparent Pricing",
+      "modalPricingH4_1": "Free Plan",
+      "modalPricingP_1": "Generate up to <strong>{{count}} lessons per month</strong>, with full access to all learning activities.",
+      "modalPricingH4_2": "Pro Plan",
+      "modalPricingP_2": "Unlock <strong>unlimited lesson generations</strong>. For a small monthly fee, you can learn as much as you want, whenever you want."
     },
     "signIn": {
       "welcome": "Welcome to StreamLearn AI",
@@ -64,7 +89,7 @@
       "topicPlaceholder": "e.g., AI, Space, Cooking",
       "search": "Search",
       "popularTopics": "Or select a popular topic:",
-      "prompt": "Learn English with articles tailored to your interests and level.",
+      "prompt": "Learn languages with articles tailored to your interests and level.",
       "freeLimit": "You have used all {{count}} free lessons for this month.",
       "upgrade": "Upgrade to Pro",
       "toSearch": "to search for more.",
@@ -139,7 +164,7 @@
       "h1": "1. Acceptance of Terms",
       "p1": "By creating an account, accessing, or using the Service, you agree to be bound by these Terms. If you do not agree to these Terms, do not use the Service.",
       "h2": "2. The Service",
-      "p2_1": "StreamLearn is a language learning platform that helps users learn English by generating customized lessons based on current news articles. The Service uses third-party APIs, including the Gemini API and Bright Data SERP API, to find articles and generate lesson content.",
+      "p2_1": "StreamLearn is a language learning platform that helps users learn languages by generating customized lessons based on current news articles. The Service uses third-party APIs, including the Gemini API and Bright Data SERP API, to find articles and generate lesson content.",
       "p2_2": "We offer a free tier with limited usage (e.g., a limited number of lessons per month) and a paid \"StreamLearn Pro\" subscription plan with expanded features.",
       "h3": "3. User Accounts",
       "p3": "To use most features of the Service, you must register for an account by authenticating with Google Sign-In. You agree to:",

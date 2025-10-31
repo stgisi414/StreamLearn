@@ -1,5 +1,12 @@
 import { Timestamp } from 'firebase/firestore';
 
+// Supported language codes for UI and Learning
+export const languageCodes = [
+  'en', 'es', 'fr', 'de', 'it', 'ko', 'ja', 'zh'
+] as const; // Use 'as const' to create a readonly tuple
+
+export type LanguageCode = typeof languageCodes[number];
+
 export type EnglishLevel = 'Beginner' | 'Intermediate' | 'Advanced';
 
 /**

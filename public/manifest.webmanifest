@@ -1,0 +1,32 @@
+{
+  "name": "StreamLearn: Learn Languages with AI",
+  "short_name": "StreamLearn",
+  "description": "StreamLearn helps users learn languages by generating customized lessons based on current news articles matching their interests.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      /* FIX: Use the existing logo.png and its actual dimensions (148x110) */
+      "src": "/logo.png",
+      "type": "image/png",
+      "sizes": "148x110",
+      "purpose": "any maskable"
+    },
+    {
+      /* NOTE: This still requires a 192x192 image named logo-192.png to be created */
+      "src": "/logo-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      /* NOTE: This still requires a 512x512 image named logo-512.png to be created */
+      "src": "/logo-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}

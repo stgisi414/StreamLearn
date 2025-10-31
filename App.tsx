@@ -15,7 +15,7 @@ import {
   deleteDoc, where, addDoc,
   connectFirestoreEmulator, onSnapshot
 } from 'firebase/firestore';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { 
   getFunctions, 
   httpsCallable, 
@@ -36,7 +36,8 @@ import { VolumeUpIcon } from './components/icons/VolumeUpIcon';
 import { PlayIcon } from './components/icons/PlayIcon';
 import { PauseIcon } from './components/icons/PauseIcon';
 import { CheckCircleIcon } from './components/icons/CheckCircleIcon';
-import { Lesson, Article, NewsResult, EnglishLevel, LessonResponse, SavedWord, VocabularyItem, StripeSubscription } from './types';
+import { MarkdownRenderer } from './components/MarkdownRenderer';
+import { Lesson, Article, NewsResult, EnglishLevel, LessonResponse, SavedWord, VocabularyItem, StripeSubscription, LanguageCode } from './types';
 
 // --- NEW: Language Configuration ---
 const languageCodes: LanguageCode[] = [
@@ -81,9 +82,26 @@ const BASE_FUNCTION_URL = getFunctionBaseUrl();
 
 /**
  * Custom hook to manage state in localStorage.
+ * NOW reads from URL param on initial load.
  */
-function useLocalStorageState<T>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] {
+function useLocalStorageState<T>(key: string, defaultValue: T, urlParam: string | null = null): [T, React.Dispatch<React.SetStateAction<T>>] {
   const [value, setValue] = useState<T>(() => {
+    // 1. Check for URL parameter
+    if (urlParam) {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const urlValue = params.get(urlParam) as any;
+        // Ensure it's a valid lang code
+        if (urlValue && languageCodes.includes(urlValue)) { 
+          localStorage.setItem(key, JSON.stringify(urlValue)); // Save it
+          return urlValue;
+        }
+      } catch (error) {
+         console.warn(`Error reading URL param “${urlParam}”:`, error);
+      }
+    }
+
+    // 2. Fallback to localStorage
     try {
       const storedValue = localStorage.getItem(key);
       // Check for null, 'undefined', or the literal string "null"
@@ -117,7 +135,7 @@ function useLocalStorageState<T>(key: string, defaultValue: T): [T, React.Dispat
 
 
 // --- Main App Component ---
-type AppView = 'LOADING' | 'SIGN_OUT' | 'DASHBOARD' | 'INPUT' | 'NEWS_LIST' | 'LESSON_VIEW' | 'ACTIVITY' | 'WORD_BANK'
+type AppView = 'LOADING' | 'LANDING' | 'DASHBOARD' | 'INPUT' | 'NEWS_LIST' | 'LESSON_VIEW' | 'ACTIVITY' | 'WORD_BANK'
              | 'PRICING' | 'TERMS' | 'PRIVACY';
 
 // Interface for lessons fetched from Firestore
@@ -183,9 +201,10 @@ const App: React.FC = () => {
   const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
 
   // --- NEW: Language State ---
-  // Default to English UI, learning Spanish
-  const [uiLanguage, setUiLanguage] = useLocalStorageState<LanguageCode>('streamlearn_uiLang', 'en');
-  const [targetLanguage, setTargetLanguage] = useLocalStorageState<LanguageCode>('streamlearn_targetLang', 'es');
+  // Default to English UI, learning English
+  // ADD urlParam 'lang' to uiLanguage
+  const [uiLanguage, setUiLanguage] = useLocalStorageState<LanguageCode>('streamlearn_uiLang', 'en', 'lang');
+  const [targetLanguage, setTargetLanguage] = useLocalStorageState<LanguageCode>('streamlearn_targetLang', 'en'); // FIX: Default target to 'en'
 
   // --- NEW: Subscription State ---
   const [subscription, setSubscription] = useState<StripeSubscription | null>(null);
@@ -840,8 +859,8 @@ const App: React.FC = () => {
     console.log("handleUrlChange received:", path, params.toString());
     if (authState !== 'SIGNED_IN') {
       if (authState === 'SIGNED_OUT') {
-        console.log("Setting view to SIGN_OUT");
-        setCurrentView('SIGN_OUT');
+        console.log("Setting view to LANDING");
+        setCurrentView('LANDING');
       } else {
         console.log("Auth not ready, setting view to LOADING");
         setCurrentView('LOADING'); // Set loading until auth is ready
@@ -936,6 +955,24 @@ const App: React.FC = () => {
     fetchSummaryAudio, summaryAudioSrc, isSummaryAudioLoading,
   ]);
 
+  // --- NEW: Effect for SEO and Title Localization ---
+  useEffect(() => {
+    const title = t('common.appTitle');
+    const description = t('common.appDescription');
+    
+    if (title && title !== 'common.appTitle') { // Check if key resolved
+      document.title = title;
+      document.querySelector('meta[property="og:title"]')?.setAttribute('content', title);
+    }
+    if (description && description !== 'common.appDescription') { // Check if key resolved
+      document.querySelector('meta[name="description"]')?.setAttribute('content', description);
+      document.querySelector('meta[property="og:description"]')?.setAttribute('content', description);
+    }
+    // Set html lang attribute
+    document.documentElement.lang = i18n.language;
+
+  }, [i18n.language, t]); // Re-run when language changes or t function is ready
+
   // --- Update the ref with the latest handler ---
   useEffect(() => {
     handleUrlChangeRef.current = handleUrlChange;
@@ -990,15 +1027,21 @@ const App: React.FC = () => {
       } else {
         setUser(null);
         setAuthState('SIGNED_OUT');
-        setCurrentView('SIGN_OUT');
+        // setCurrentView('SIGN_OUT'); // This will be handled by URL/popstate handler
         setLessonHistory([]); //
         setWordBank([]);
         setDashboardSearchTerm('');
         initialUrlHandled.current = false;
+        
+        // --- ADDITION: Re-run URL handler on sign-out ---
+        // This ensures the URL handler sees SIGNED_OUT state and shows login
+        const { pathname, search } = window.location;
+        handleUrlChangeRef.current(pathname, new URLSearchParams(search));
+        // --- END ADDITION ---
       }
     });
     return () => unsubscribe();
-  }, [auth, setCurrentView, fetchSubscriptionStatus]);
+  }, [auth, setCurrentView, fetchSubscriptionStatus]); // fetchSubscriptionStatus was missing
 
   // --- NEW: Real-time data listeners ---
   useEffect(() => {
@@ -1634,6 +1677,184 @@ const App: React.FC = () => {
   };
 
   // --- Render Functions ---
+
+  // --- NEW: Standalone LandingPage Component ---
+// Place this component outside (e.g., before) your main App component
+const LandingPage: React.FC<{
+  signInWithGoogle: () => void;
+  isApiLoading: boolean;
+  error: string | null;
+  uiLanguage: LanguageCode;
+  setUiLanguage: (lang: LanguageCode) => void;
+  navigate: (path: string) => void;
+  t: (key: string) => string;
+  languageCodes: LanguageCode[];
+}> = ({ signInWithGoogle, isApiLoading, error, uiLanguage, setUiLanguage, navigate, t, languageCodes }) => {
+  const [activeModal, setActiveModal] = useState<string | null>(null);
+
+   // --- NEW: Reusable Modal Component with Enhanced Styling ---
+    const Modal = ({ id, title, children, bgImage }: { id: string, title: string, children: React.ReactNode, bgImage: string }) => {
+      if (activeModal !== id) return null;
+
+      return (
+        <div 
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex justify-center items-center p-4 transition-opacity duration-300"
+          onClick={() => setActiveModal(null)} // Close on overlay click
+        >
+          {/* Outer container for borders and background image */}
+          <div 
+            className="bg-cover bg-center w-full max-w-2xl rounded-xl shadow-2xl border-4 border-slate-300 ring-4 ring-slate-500"
+            style={{ backgroundImage: `url(${bgImage})` }}
+            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside modal
+          >
+            {/* Inner container for content and dark overlay */}
+            <div className="relative bg-gray-900/60 text-slate-100 rounded-md p-6 sm:p-8 max-h-[90vh] overflow-y-auto">
+              
+              {/* Close Button */}
+              <button 
+                onClick={() => setActiveModal(null)}
+                className="absolute top-4 right-4 text-slate-300 hover:text-white transition"
+                aria-label="Close modal"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              
+              <h2 
+                className="text-2xl sm:text-3xl font-bold mb-4" 
+                style={{ textShadow: '2px 2px 4px rgba(0, 0, 0, 0.7)' }} // Phat text shadow
+              >
+                {title}
+              </h2>
+              
+              {/* Prose Invert styles all child text for dark BGs */}
+              <div 
+                className="prose prose-invert max-w-none"
+                style={{ textShadow: '1px 1px 3px rgba(0, 0, 0, 0.7)' }}
+              >
+                {children}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+  return (
+    <div className="min-h-screen flex flex-col justify-center items-center bg-slate-900 text-slate-200 p-4">
+      <div className="max-w-4xl w-full bg-white rounded-xl shadow-2xl p-6 sm:p-10 space-y-8">
+        <div className="text-center space-y-4">
+          <img src="/banner.png" alt="StreamLearn Logo" className="h-12 sm:h-16 mx-auto mb-2" />
+          <h1 className="text-3xl sm:text-5xl font-bold text-gray-900">
+            {t('common.appTitle').replace("StreamLearn: ", "")}
+          </h1>
+          <p className="text-lg text-gray-700 max-w-2xl mx-auto">
+            {t('common.appDescription')}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {[
+            { id: 'features', img: '/landing1.png', title: 'Features' },
+            { id: 'howitworks', img: '/landing2.png', title: 'How It Works' },
+            { id: 'usecases', img: '/landing3.png', title: 'Use Cases' },
+            { id: 'languages', img: '/landing4.png', title: 'Languages' },
+            { id: 'pricing', img: '/landing5.png', title: 'Pricing' },
+          ].map((item) => (
+            <button 
+              key={item.id} 
+              onClick={() => setActiveModal(item.id)}
+              className="aspect-video bg-gray-200 rounded-lg shadow-md overflow-hidden group focus:outline-none focus:ring-4 focus:ring-blue-400 focus:ring-opacity-75"
+              title={`Learn more about ${item.title}`}
+            >
+              <img src={item.img} alt={`Showcase of ${item.title}`} className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-110" />
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6 border-t border-gray-200">
+          <div className="w-full sm:w-auto flex-grow-0">
+             <p className="text-sm text-gray-600 mb-2">{t('signIn.prompt')}</p>
+             <button
+                onClick={signInWithGoogle}
+                disabled={isApiLoading}
+                className="w-full bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 transition duration-150 shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+             >
+                <svg className="w-5 h-5" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path><path fill="none" d="M0 0h48v48H0z"></path></svg>
+                {t('signIn.button')}
+             </button>
+             {error && <ErrorMessage message={error} />}
+          </div>
+
+          <div className="w-full sm:w-1/3 sm:ml-4 flex-shrink-0">
+             <label htmlFor="lang-select-landing" className="text-sm text-gray-600 mb-2 block">{t('dashboard.uiLang')}</label>
+             <select
+                id="lang-select-landing"
+                value={uiLanguage}
+                onChange={(e) => {
+                  const newLang = e.target.value as LanguageCode;
+                  setUiLanguage(newLang);
+                  const params = new URLSearchParams(window.location.search);
+                  params.set('lang', newLang);
+                  window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+                }}
+                className="w-full p-3 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              >
+                {languageCodes.map((code) => (
+                  <option key={code} value={code}>{t(`languages.${code}`)}</option>
+                ))}
+              </select>
+          </div>
+        </div>
+        
+        <div className="text-center text-sm text-gray-400 space-x-4 pt-4">
+          <a href="/terms" onClick={(e) => { e.preventDefault(); navigate('/terms'); }} className="hover:underline">{t('dashboard.tos')}</a>
+          <span>&bull;</span>
+          <a href="/privacy" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }} className="hover:underline">{t('dashboard.privacy')}</a>
+        </div>
+
+        {/* --- MODIFIED: Pass bgImage prop to each modal --- */}
+        <Modal id="features" title={t('landing.modalFeaturesTitle')} bgImage="/landing1.png">
+            <h4>{t('landing.modalFeaturesH4_1')}</h4>
+            <p>{t('landing.modalFeaturesP_1')}</p>
+            <h4>{t('landing.modalFeaturesH4_2')}</h4>
+            <p>{t('landing.modalFeaturesP_2')}</p>
+        </Modal>
+        
+        <Modal id="howitworks" title={t('landing.modalHowTitle')} bgImage="/landing2.png">
+            <ol>
+                <li dangerouslySetInnerHTML={{ __html: t('landing.modalHowOl_1') }} />
+                <li dangerouslySetInnerHTML={{ __html: t('landing.modalHowOl_2') }} />
+                <li dangerouslySetInnerHTML={{ __html: t('landing.modalHowOl_3') }} />
+            </ol>
+        </Modal>
+
+        <Modal id="usecases" title={t('landing.modalUseCasesTitle')} bgImage="/landing3.png">
+            <h4>{t('landing.modalUseCasesH4_1')}</h4>
+            <p>{t('landing.modalUseCasesP_1')}</p>
+            <h4>{t('landing.modalUseCasesH4_2')}</h4>
+            <p>{t('landing.modalUseCasesP_2')}</p>
+        </Modal>
+
+        <Modal id="languages" title={t('landing.modalLanguagesTitle')} bgImage="/landing4.png">
+            <p>{t('landing.modalLanguagesP_1')}</p>
+            <ul className="grid grid-cols-2 gap-x-4">
+              {languageCodes.map(code => <li key={code}>{t(`languages.${code}`)}</li>)}
+            </ul>
+        </Modal>
+
+         <Modal id="pricing" title={t('landing.modalPricingTitle')} bgImage="/landing5.png">
+            <h4>{t('landing.modalPricingH4_1')}</h4>
+            <p dangerouslySetInnerHTML={{ __html: t('landing.modalPricingP_1', { count: FREE_LESSON_LIMIT }) }} />
+            <h4>{t('landing.modalPricingH4_2')}</h4>
+            <p dangerouslySetInnerHTML={{ __html: t('landing.modalPricingP_2') }} />
+        </Modal>
+
+      </div>
+    </div>
+  );
+};
 
   const renderDashboard = () => (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto bg-white rounded-xl shadow-2xl space-y-5">
@@ -2581,7 +2802,7 @@ const App: React.FC = () => {
         <div className="space-y-3 border-l-4 border-purple-500 pl-4 bg-purple-50 p-3 rounded-lg">
           <h3 className="text-xl font-bold text-purple-700">{t('lesson.grammarFocus')} {currentLesson?.grammarFocus?.topic}</h3>
           <p className="text-gray-800 whitespace-pre-wrap"> {/* Added pre-wrap here too */}
-             {currentLesson?.grammarFocus?.explanation}
+             <MarkdownRenderer content={currentLesson?.grammarFocus?.explanation || ''} className="text-gray-800 mt-2"/>
           </p>
         </div>
 
@@ -2860,32 +3081,25 @@ const App: React.FC = () => {
         {/* Global error bar - always show if error exists */}
         {error && <ErrorMessage message={error} />}
 
-        {/* --- MODIFIED: Updated Loading Check --- */}
         {(authState === 'LOADING' || (authState === 'SIGNED_IN' && isSubLoading)) && (
              <div className="min-h-screen flex items-center justify-center bg-gray-100">
-                <LoadingSpinner text={authState === 'LOADING' ? "Initializing..." : "Loading your account..."} />
+                <LoadingSpinner text={authState === 'LOADING' ? t('common.initializing') : t('common.loading')} />
              </div>
         )}
 
         {/* Sign in view */}
-        {authState === 'SIGNED_OUT' && (
-             <div className="min-h-screen flex items-center justify-center p-4 bg-gray-100 font-sans">
-                 <div className="p-6 max-w-sm mx-auto bg-white rounded-xl shadow-2xl space-y-4 text-center">
-                   <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-10 mx-auto mb-4" />
-                   <h2 className="text-xl font-semibold text-gray-700">Welcome to StreamLearn AI</h2>
-                   <p className="text-gray-600">Please sign in with Google to continue.</p>
-                   {/* Show auth error here specifically */}
-                   {error && currentView === 'SIGN_OUT' && <ErrorMessage message={error} />}
-                   <button
-                      onClick={signInWithGoogle}
-                      disabled={isApiLoading} // Disable if auth is in progress
-                      className="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
-                   >
-                      <svg className="w-5 h-5" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path><path fill="none" d="M0 0h48v48H0z"></path></svg>
-                      Sign In with Google
-                   </button>
-                 </div>
-             </div>
+        {/* FIX: Use LANDING view for SIGNED_OUT state */}
+        {authState === 'SIGNED_OUT' && (currentView === 'LANDING' || currentView === 'TERMS' || currentView === 'PRIVACY') && (
+          <LandingPage
+            signInWithGoogle={signInWithGoogle}
+            isApiLoading={isApiLoading}
+            error={error}
+            uiLanguage={uiLanguage}
+            setUiLanguage={setUiLanguage}
+            navigate={navigate}
+            t={t}
+            languageCodes={languageCodes}
+          />
         )}
 
         {/* --- MODIFIED: Main app view --- */}

@@ -1,6 +1,8 @@
 {
   "translation": {
     "common": {
+      "appTitle": "StreamLearn: AI 学习语言",
+      "appDescription": "通过基于真实新闻文章的 AI 课程学习语言。",
       "signOut": "登出",
       "loading": "加载中...",
       "initializing": "初始化...",
@@ -28,6 +30,27 @@
       "intermediate": "中级",
       "advanced": "高级",
       "proBadge": "專業"
+    },
+    "landing": {
+      "modalFeaturesTitle": "主要功能",
+      "modalFeaturesH4_1": "人工智能驱动的课程",
+      "modalFeaturesP_1": "从您选择的任何新闻文章或主题中即时生成全面的语言课程。每节课都根据您选择的熟练程度量身定制。",
+      "modalFeaturesH4_2": "互动活动",
+      "modalFeaturesP_2": "通过引人入胜的练习来巩固您的学习。通过词汇抽认卡、语法测验、阅读理解测试和人工智能评分的写作提示来测试您的知识。",
+      "modalHowTitle": "运作方式",
+      "modalHowOl_1": "<strong>选择一个主题：</strong>输入您感兴趣的任何主题，从“太空探索”到“全球经济”，或从我们的热门主题列表中选择。",
+      "modalHowOl_2": "<strong>生成您的课程：</strong>在几秒钟内，我们的人工智能将生成一堂完整的课程，包括摘要、关键​​词汇、语法要点和理解问题。",
+      "modalHowOl_3": "<strong>练习与学习：</strong>投入互动活动，练习所学知识，巩固新技能。",
+      "modalUseCasesTitle": "适用人群",
+      "modalUseCasesH4_1": "语言学习者",
+      "modalUseCasesP_1": "用您真正感兴趣的现实世界内容补充您的正规学习，使学习不再像一件苦差事。",
+      "modalUseCasesH4_2": "专业人士",
+      "modalUseCasesP_2": "在提高商务语言技能的同时，随时了解行业新闻。在您所在领域的时事背景下学习技术词汇。",
+      "modalLanguagesTitle": "支持的语言",
+      "modalLanguagesP_1": "目前，您可以将您的用户界面和目标语言设置为以下任何一种：",
+      "modalPricingTitle": "简单透明的定价",
+      "modalPricingH4_1": "免费计划",
+      "modalPricingP_2": "<strong>解锁无限的课程生成</strong>。只需支付少量月费，您就可以随时随地随心所欲地学习。"
     },
     "signIn": {
       "welcome": "欢迎来到 StreamLearn AI",
@@ -63,7 +86,7 @@
       "topicPlaceholder": "例如：人工智能、太空、烹饪",
       "search": "搜索",
       "popularTopics": "或选择一个热门主题：",
-      "prompt": "通过适合您兴趣和水平的文章学习英语。",
+      "prompt": "通过适合您兴趣和水平的文章学习语言。",
       "freeLimit": "您本月的 {{count}} 节免费课程已用完。",
       "upgrade": "升级到 Pro",
       "toSearch": "以搜索更多内容。",
@@ -138,7 +161,7 @@
       "h1": "1. 接受条款",
       "p1": "通过创建帐户、访问或使用本服务，即表示您同意受本条款的约束。如果您不同意本条款，请勿使用本服务。",
       "h2": "2. 本服务",
-      "p2_1": "StreamLearn 是一个语言学习平台，通过基于当前新闻文章生成定制课程来帮助用户学习英语。本服务使用第三方 API（包括 Gemini API 和 Bright Data SERP API）来查找文章和生成课程内容。",
+      "p2_1": "StreamLearn 是一个语言学习平台，通过基于当前新闻文章生成定制课程来帮助用户学习語言。本服务使用第三方 API（包括 Gemini API 和 Bright Data SERP API）来查找文章和生成课程内容。",
       "p2_2": "我们提供一个使用受限的免费套餐（例如，每月课程数量有限）和一个功能更丰富的付费“StreamLearn Pro”订阅计划。",
       "h3": "3. 用户帐户",
       "p3": "要使用本服务的大多数功能，您必须通过 Google 登录进行身份验证来注册一个帐户。您同意：",

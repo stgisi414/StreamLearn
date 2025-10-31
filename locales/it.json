@@ -1,6 +1,8 @@
 {
   "translation": {
     "common": {
+      "appTitle": "StreamLearn: Impara le Lingue con l'IA",
+      "appDescription": "Impara le lingue con lezioni basate sull'intelligenza artificiale da veri articoli di notizie.",
       "signOut": "Esci",
       "loading": "Caricamento...",
       "initializing": "Inizializzazione...",
@@ -28,6 +30,29 @@
       "intermediate": "Intermedio",
       "advanced": "Avanzato",
       "proBadge": "PRO"
+    },
+    "landing": {
+      "modalFeaturesTitle": "Caratteristiche Principali",
+      "modalFeaturesH4_1": "Lezioni Potenziate dall'IA",
+      "modalFeaturesP_1": "Genera istantaneamente lezioni di lingua complete da qualsiasi articolo di notizie o argomento tu scelga. Ogni lezione è personalizzata in base al tuo livello di competenza selezionato.",
+      "modalFeaturesH4_2": "Attività Interattive",
+      "modalFeaturesP_2": "Rafforza il tuo apprendimento con esercizi coinvolgenti. Metti alla prova le tue conoscenze con flashcard di vocabolario, quiz di grammatica, test di comprensione della lettura e suggerimenti di scrittura valutati dall'IA.",
+      "modalHowTitle": "Come Funziona",
+      "modalHowOl_1": "<strong>Scegli un Argomento:</strong> Inserisci qualsiasi argomento che ti interessa, da \"esplorazione spaziale\" a \"economia globale\", o seleziona dalla nostra lista di argomenti popolari.",
+      "modalHowOl_2": "<strong>Genera la Tua Lezione:</strong> In pochi secondi, la nostra IA genera una lezione completa che include un riassunto, vocabolario chiave, punti grammaticali e domande di comprensione.",
+      "modalHowOl_3": "<strong>Pratica e Impara:</strong> Tuffati nelle attività interattive per praticare ciò che hai imparato e consolidare le tue nuove abilità.",
+      "modalUseCasesTitle": "Per Chi È?",
+      "modalUseCasesH4_1": "Studenti di Lingue",
+      "modalUseCasesP_1": "Integra i tuoi studi formali con contenuti del mondo reale che ti interessano veramente, rendendo l'apprendimento meno un dovere.",
+      "modalUseCasesH4_2": "Professionisti",
+      "modalUseCasesP_2": "Rimani aggiornato sulle notizie del settore migliorando al contempo il tuo linguaggio commerciale. Impara il vocabolario tecnico nel contesto degli eventi attuali nel tuo campo.",
+      "modalLanguagesTitle": "Lingue Supportate",
+      "modalLanguagesP_1": "Attualmente, puoi impostare la lingua dell'interfaccia e la lingua di destinazione su una delle seguenti:",
+      "modalPricingTitle": "Prezzi Semplici e Trasparenti",
+      "modalPricingH4_1": "Piano Gratuito",
+      "modalPricingP_1": "Genera fino a <strong>{{count}} lezioni al mese</strong>, con accesso completo a tutte le attività di apprendimento.",
+      "modalPricingH4_2": "Piano Pro",
+      "modalPricingP_2": "Sblocca <strong>generazioni illimitate di lezioni</strong>. Per una piccola tariffa mensile, puoi imparare quanto vuoi, quando vuoi."
     },
     "signIn": {
       "welcome": "Benvenuto in StreamLearn AI",
@@ -63,7 +88,7 @@
       "topicPlaceholder": "es: IA, Spazio, Cucina",
       "search": "Cerca",
       "popularTopics": "Oppure seleziona un argomento popolare:",
-      "prompt": "Impara l'inglese con articoli su misura per i tuoi interessi e il tuo livello.",
+      "prompt": "Impara le lingue con articoli su misura per i tuoi interessi e il tuo livello.",
       "freeLimit": "Hai utilizzato tutte le {{count}} lezioni gratuite per questo mese.",
       "upgrade": "Passa a Pro",
       "toSearch": "per cercare di più.",
@@ -138,7 +163,7 @@
       "h1": "1. Accettazione dei Termini",
       "p1": "Creando un account, accedendo o utilizzando il Servizio, l'utente accetta di essere vincolato da questi Termini. Se non si accettano questi Termini, non utilizzare il Servizio.",
       "h2": "2. Il Servizio",
-      "p2_1": "StreamLearn è una piattaforma di apprendimento linguistico che aiuta gli utenti a imparare l'inglese generando lezioni personalizzate basate su articoli di notizie attuali. Il Servizio utilizza API di terze parti, tra cui l'API Gemini e l'API SERP di Bright Data, per trovare articoli e generare contenuti per le lezioni.",
+      "p2_1": "StreamLearn è una piattaforma di apprendimento linguistico che aiuta gli utenti a imparare le lingue generando lezioni personalizzate basate su articoli di notizie attuali. Il Servizio utilizza API di terze parti, tra cui l'API Gemini e l'API SERP di Bright Data, per trovare articoli e generare contenuti per le lezioni.",
       "p2_2": "Offriamo un livello gratuito con utilizzo limitato (ad es. un numero limitato di lezioni al mese) e un piano di abbonamento a pagamento \"StreamLearn Pro\" con funzionalità estese.",
       "h3": "3. Account Utente",
       "p3": "Per utilizzare la maggior parte delle funzionalità del Servizio, è necessario registrarsi per un account autenticandosi con Google Sign-In. L'utente accetta di:",
