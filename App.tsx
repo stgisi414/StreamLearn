@@ -1640,7 +1640,7 @@ const App: React.FC = () => {
             onClick={handleSignOut}
             className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1 flex-shrink-0"
           >
-            Sign Out ({user.displayName?.split(' ')[0] || user.email?.split('@')[0] || 'User'})
+            {t('common.signOutUser', { user: user.displayName?.split(' ')[0] || user.email?.split('@')[0] || 'User' })}
           </button>
         )}
       </div>
@@ -1652,7 +1652,7 @@ const App: React.FC = () => {
           onClick={goToInput}
           className="flex items-center justify-center gap-2 bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-lg"
         >
-          <RestartIcon className="w-5 h-5" /> Start New Lesson
+          <RestartIcon className="w-5 h-5" /> {t('dashboard.startLesson')}
         </button>
         <button
           onClick={() => navigate('/wordbank')}
@@ -1660,27 +1660,27 @@ const App: React.FC = () => {
           className="flex items-center justify-center gap-2 bg-purple-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-purple-600 transition duration-150 shadow-lg disabled:opacity-50"
         >
           <BookOpenIcon className="w-5 h-5" />
-          My Word Bank ({wordBank.length})
+          {t('dashboard.wordBank', { count: wordBank.length })}
         </button>
 
         {/* Subscription Button */}
         {isBillingLoading ? (
             <button disabled className="flex items-center justify-center gap-2 bg-gray-400 text-white font-bold py-3 px-4 rounded-lg shadow-lg disabled:opacity-50">
-              <LoadingSpinner className="w-5 h-5" /> Loading...
+              <LoadingSpinner className="w-5 h-5" /> {t('common.loading')}
             </button>
         ) : isSubscribed ? (
             <button
               onClick={handleManageBilling}
               className="flex items-center justify-center gap-2 bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 transition duration-150 shadow-lg"
             >
-              <CreditCardIcon className="w-5 h-5" /> Manage Billing
+              <CreditCardIcon className="w-5 h-5" /> {t('dashboard.manageBilling')}
             </button>
         ) : (
             <button
               onClick={() => navigate('/pricing')}
               className="flex items-center justify-center gap-2 bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition duration-150 shadow-lg"
             >
-              <CreditCardIcon className="w-5 h-5" /> Upgrade to Pro
+              <CreditCardIcon className="w-5 h-5" /> {t('dashboard.upgradePro')}
             </button>
         )}
       </div>
@@ -1688,20 +1688,20 @@ const App: React.FC = () => {
       
       {/* Footer for TOS/Privacy */}
       <div className="text-center text-xs text-gray-400 space-x-4 pt-2">
-        <a href="/terms" onClick={(e) => { e.preventDefault(); navigate('/terms'); }} className="hover:underline">Terms of Service</a>
+        <a href="/terms" onClick={(e) => { e.preventDefault(); navigate('/terms'); }} className="hover:underline">{t('dashboard.tos')}</a>
         <span>&bull;</span>
-        <a href="/privacy" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }} className="hover:underline">Privacy Policy</a>
+        <a href="/privacy" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }} className="hover:underline">{t('dashboard.privacy')}</a>
       </div>
 
       {/* --- NEW: Language Settings --- */}
       <div className="space-y-3 border-t pt-4">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
-          <LanguageIcon className="w-6 h-6" /> Language Settings
+          <LanguageIcon className="w-6 h-6" /> {t('dashboard.langSettings')}
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              My UI Language (What I see)
+              {t('dashboard.uiLang')}
             </label>
             <select
               value={uiLanguage}
@@ -1715,7 +1715,7 @@ const App: React.FC = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              My Target Language (What I want to learn)
+              {t('dashboard.targetLang')}
             </label>
             <select
               value={targetLanguage}
@@ -1732,7 +1732,7 @@ const App: React.FC = () => {
 
       {/* Lesson History */}
       <div className="space-y-3">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 border-t pt-4">Your Lesson History</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 border-t pt-4">{t('dashboard.historyTitle')}</h2>
 
         <div className="relative">
           <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
@@ -1742,18 +1742,21 @@ const App: React.FC = () => {
             type="text"
             value={dashboardSearchTerm}
             onChange={(e) => setDashboardSearchTerm(e.target.value)}
-            placeholder="Search by title, topic, or source..."
+            placeholder={t('dashboard.historySearch')}
             className="w-full p-3 pl-10 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
 
         {isHistoryLoading ? (
-          <LoadingSpinner text="Loading your lessons..." />
+          <LoadingSpinner text={t('dashboard.historyLoading')} />
         ) : lessonHistory.length === 0 ? (
-          <p className="text-center text-gray-500 py-4">You haven't completed any lessons yet. Start a new one!</p>
+          <p className="text-center text-gray-500 py-4">{t('dashboard.historyEmpty')}</p>
         ) : (
           <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
-            {filteredLessonHistory.map((lesson) => (
+            {filteredLessonHistory.length === 0 && dashboardSearchTerm.trim() !== '' ? (
+              <p className="text-center text-gray-500 py-4">{t('dashboard.historyNoResults', { term: dashboardSearchTerm })}</p>
+            ) : (
+              filteredLessonHistory.map((lesson) => (
               <button
                 key={lesson.id}
                 onClick={() => handleSelectPastLesson(lesson)}
@@ -1776,17 +1779,18 @@ const App: React.FC = () => {
                     {lesson.lessonData.articleTitle}
                   </p>
                   <p className="text-sm text-gray-600 mt-1">
-                    Topic: <span className="font-medium text-gray-800">{lesson.topic}</span>
+                    {t('dashboard.topic')} <span className="font-medium text-gray-800">{lesson.topic}</span>
                     <span className="mx-2">|</span>
-                    Level: <span className="font-medium text-gray-800">{lesson.level}</span>
+                    {t('common.level')} <span className="font-medium text-gray-800">{lesson.level}</span>
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    Source: {lesson.source} ({lesson.date})
+                    {t('common.source')}: {lesson.source} ({lesson.date})
                   </p>
                 </div>
                 <ArrowLeftIcon className="w-5 h-5 text-gray-400 transform rotate-180 flex-shrink-0" />
               </button>
-            ))}
+            ))
+            )}
           </div>
         )}
       </div>
@@ -1809,17 +1813,17 @@ const App: React.FC = () => {
               navigate('/');
             }}
             className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
-            title="Back to Dashboard"
+            title={t('dashboard.title')}
           >
-            <ArrowLeftIcon className="w-4 h-4 mr-1" /> Dashboard
+            <ArrowLeftIcon className="w-4 h-4 mr-1" /> {t('dashboard.title')}
         </button>
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">My Word Bank</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">{t('wordBank.title')}</h2>
         {user && (
           <button
             onClick={handleSignOut}
             className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1 flex-shrink-0"
           >
-            Sign Out
+            {t('common.signOut')}
           </button>
         )}
       </div>
@@ -1827,16 +1831,16 @@ const App: React.FC = () => {
       {/* Temporary Message */}
       {wordBankMessage && (
         <div className={`p-2 text-sm text-center rounded ${wordBankMessage.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-          {wordBankMessage.text}
+          {t(wordBankMessage.text)}
         </div>
       )}
 
       {/* Word List */}
       <div className="space-y-3">
         {isWordBankLoading ? (
-          <LoadingSpinner text="Loading your saved words..." />
+          <LoadingSpinner text={t('wordBank.loading')} />
         ) : wordBank.length === 0 ? (
-          <p className="text-center text-gray-500 py-4">You haven't saved any words yet. Save words from the vocabulary list in your lessons!</p>
+          <p className="text-center text-gray-500 py-4">{t('wordBank.empty')}</p>
         ) : (
           <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
             {wordBank.map((item) => (
@@ -1848,13 +1852,13 @@ const App: React.FC = () => {
                   <strong className="text-lg text-purple-800">{item.word}</strong>
                   <p className="text-gray-700">{item.definition}</p>
                   <p className="text-sm italic text-gray-500 mt-1">
-                    Example: "{item.articleExample}"
+                    {t('common.example')}: "{item.articleExample}"
                     <SpeakButton text={item.articleExample} />
                   </p>
                 </div>
                 <button
                   onClick={() => handleDeleteWord(item.word)}
-                  title="Delete word"
+                  title={t('common.deleteWord')}
                   className="p-1 text-gray-400 hover:text-red-600 flex-shrink-0"
                 >
                   {/* Simple 'X' icon for delete */}
@@ -1889,7 +1893,7 @@ const App: React.FC = () => {
     </button>
   );
 
-  const StaticPageWrapper: React.FC<{ title: string, children: React.ReactNode }> = ({ title, children }) => (
+  const StaticPageWrapper: React.FC<{ titleKey: string, children: React.ReactNode }> = ({ titleKey, children }) => (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto bg-white rounded-xl shadow-2xl space-y-5">
       <div className="flex justify-between items-center gap-2 border-b pb-3">
         <button
@@ -1899,7 +1903,7 @@ const App: React.FC = () => {
           >
             <ArrowLeftIcon className="w-4 h-4 mr-1" /> {t('dashboard.title')}
         </button>
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">{title}</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">{t(titleKey)}</h2>
         <div className="w-24"></div> {/* Spacer */}
       </div>
       <div className="prose prose-lg max-w-none text-gray-700">
@@ -1915,19 +1919,19 @@ const App: React.FC = () => {
         <button
           onClick={() => navigate('/')}
           className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
-          title="Back to Dashboard"
+          title={t('dashboard.title')}
         >
-          <ArrowLeftIcon className="w-4 h-4 mr-1" /> Dashboard
+          <ArrowLeftIcon className="w-4 h-4 mr-1" /> {t('dashboard.title')}
         </button>
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 text-center">
-          Plans & Pricing
+          {t('pricing.title')}
         </h1>
         {user ? (
           <button
             onClick={handleSignOut}
             className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1 flex-shrink-0"
           >
-            Sign Out
+            {t('common.signOut')}
           </button>
         ) : (
           <div className="w-24"></div> // Spacer to balance the header
@@ -1935,7 +1939,7 @@ const App: React.FC = () => {
       </div>
       
       <p className="text-lg text-gray-600 text-center">
-        Choose the plan that's right for your learning journey.
+        {t('pricing.description')}
       </p>
 
       {/* Pricing Grid */}
@@ -1943,22 +1947,22 @@ const App: React.FC = () => {
         
         {/* Free Plan Card */}
         <div className="border border-gray-200 rounded-xl p-6 shadow-lg flex flex-col">
-          <h2 className="text-2xl font-semibold text-gray-800">Free Plan</h2>
-          <p className="text-gray-500 mt-2">Perfect for trying out the app.</p>
+          <h2 className="text-2xl font-semibold text-gray-800">{t('pricing.freeTitle')}</h2>
+          <p className="text-gray-500 mt-2">{t('pricing.freeDescription')}</p>
           
           <div className="my-6">
             <span className="text-4xl font-extrabold text-gray-900">$0</span>
-            <span className="text-lg font-medium text-gray-500">/ month</span>
+            <span className="text-lg font-medium text-gray-500">/ {t('pricing.billing').split(' ')[1]}</span>
           </div>
           
           <ul className="space-y-3 mb-8">
             <li className="flex items-center gap-3">
               <CheckCircleIcon className="w-6 h-6 text-green-500 flex-shrink-0" />
-              <span className="text-gray-700"><strong>{FREE_LESSON_LIMIT} free lessons</strong> per month</span>
+              <span className="text-gray-700" dangerouslySetInnerHTML={{ __html: t('pricing.freeFeature', { count: FREE_LESSON_LIMIT, interpolation: { escapeValue: false } }) }} />
             </li>
             <li className="flex items-center gap-3">
               <CheckCircleIcon className="w-6 h-6 text-green-500 flex-shrink-0" />
-              <span className="text-gray-700">Full access to all activity types</span>
+              <span className="text-gray-700">{t('pricing.feature2').replace('Unlimited', 'Full access to all')}</span>
             </li>
           </ul>
           
@@ -1969,7 +1973,7 @@ const App: React.FC = () => {
             onClick={() => navigate('/')} // Just go back to dashboard
             className="w-full bg-white text-blue-600 border border-blue-600 font-bold py-3 px-6 rounded-lg hover:bg-blue-50 transition duration-150"
           >
-            Your Current Plan
+            {t('pricing.currentPlan')}
           </button>
         </div>
 
@@ -1978,40 +1982,40 @@ const App: React.FC = () => {
           {/* "Most Popular" Badge */}
           <div className="absolute top-0 -translate-y-1/2 left-1/2 -translate-x-1/2">
             <span className="inline-flex items-center px-4 py-1 rounded-full text-sm font-semibold text-white bg-blue-600 shadow-md">
-              Most Popular
+              {t('pricing.mostPopular')}
             </span>
           </div>
 
-          <h2 className="text-2xl font-semibold text-blue-700">StreamLearn Pro</h2>
-          <p className="text-gray-500 mt-2">Unlimited access to all features.</p>
+          <h2 className="text-2xl font-semibold text-blue-700">{t('pricing.proTitle')}</h2>
+          <p className="text-gray-500 mt-2">{t('pricing.proDescription')}</p>
           
           <div className="my-6">
-            <span className="text-4xl font-extrabold text-gray-900">$20</span>
-            <span className="text-lg font-medium text-gray-500">/ month</span>
+            <span className="text-4xl font-extrabold text-gray-900">{t('pricing.price')}</span>
+            <span className="text-lg font-medium text-gray-500">/ {t('pricing.billing').split(' ')[1]}</span>
           </div>
           
-          <p className="text-sm text-gray-500 -mt-2 text-center">Cancel anytime.</p>
+          <p className="text-sm text-gray-500 -mt-2 text-center">{t('pricing.billing').split('.')[1]}.</p>
           
           <ul className="space-y-3 my-8">
             <li className="flex items-center gap-3">
               <CheckCircleIcon className="w-6 h-6 text-blue-600 flex-shrink-0" />
-              <span className="text-gray-700"><strong>Unlimited</strong> lesson generation</span>
+              <span className="text-gray-700" dangerouslySetInnerHTML={{ __html: t('pricing.feature1') }} />
             </li>
             <li className="flex items-center gap-3">
               <CheckCircleIcon className="w-6 h-6 text-blue-600 flex-shrink-0" />
-              <span className="text-gray-700"><strong>Unlimited</strong> vocabulary practice</span>
+              <span className="text-gray-700" dangerouslySetInnerHTML={{ __html: t('pricing.feature2') }} />
             </li>
             <li className="flex items-center gap-3">
               <CheckCircleIcon className="w-6 h-6 text-blue-600 flex-shrink-0" />
-              <span className="text-gray-700"><strong>Unlimited</strong> writing practice</span>
+              <span className="text-gray-700" dangerouslySetInnerHTML={{ __html: t('pricing.feature3') }} />
             </li>
             <li className="flex items-center gap-3">
               <CheckCircleIcon className="w-6 h-6 text-blue-600 flex-shrink-0" />
-              <span className="text-gray-700"><strong>Full access</strong> to your lesson history</span>
+              <span className="text-gray-700" dangerouslySetInnerHTML={{ __html: t('pricing.feature4') }} />
             </li>
             <li className="flex items-center gap-3">
               <CheckCircleIcon className="w-6 h-6 text-blue-600 flex-shrink-0" />
-              <span className="text-gray-700"><strong>Full access</strong> to your Word Bank</span>
+              <span className="text-gray-700" dangerouslySetInnerHTML={{ __html: t('pricing.feature5') }} />
             </li>
           </ul>
           
@@ -2025,7 +2029,7 @@ const App: React.FC = () => {
           >
             {isBillingLoading ? (
               <LoadingSpinner className="w-5 h-5 inline-block" />
-            ) : "Get Started with Pro"}
+            ) : t('pricing.button')}
           </button>
         </div>
       </div>
@@ -2033,256 +2037,120 @@ const App: React.FC = () => {
   );
 
   const renderTermsPage = () => (
-    <StaticPageWrapper title="Terms of Service">
+    <StaticPageWrapper titleKey="tos.title">
       <>
-        <p className="lead">Last updated: October 30, 2025</p>
-        <p>
-          Welcome to StreamLearn! These Terms of Service ("Terms") govern your
-          access to and use of the StreamLearn website, services, and
-          applications (collectively, the "Service"). Please read these Terms
-          carefully.
-        </p>
+        <p className="lead">{t('tos.lastUpdated')}</p>
+        <p>{t('tos.p1')}</p>
 
-        <h3>1. Acceptance of Terms</h3>
-        <p>
-          By creating an account, accessing, or using the Service, you agree to
-          be bound by these Terms. If you do not agree to these Terms, do not
-          use the Service.
-        </p>
+        <h3>{t('tos.h1')}</h3>
+        <p>{t('tos.p1')}</p>
 
-        <h3>2. The Service</h3>
-        <p>
-          StreamLearn is a language learning platform that helps users learn
-          English by generating customized lessons based on current news
-          articles. The Service uses third-party APIs, including the Gemini API
-          and Bright Data SERP API, to find articles and generate lesson
-          content.
-        </p>
-        <p>
-          We offer a free tier with limited usage (e.g., a limited number of
-          lessons per month) and a paid "StreamLearn Pro" subscription plan
-          with expanded features.
-        </p>
+        <h3>{t('tos.h2')}</h3>
+        <p>{t('tos.p2_1')}</p>
+        <p>{t('tos.p2_2')}</p>
 
-        <h3>3. User Accounts</h3>
-        <p>
-          To use most features of the Service, you must register for an account
-          by authenticating with Google Sign-In. You agree to:
-        </p>
+        <h3>{t('tos.h3')}</h3>
+        <p>{t('tos.p3')}</p>
         <ul>
+          <li>{t('tos.p3_li1')}</li>
           <li>
-            Be solely responsible for all activities that occur under your
-            account.
-          </li>
-          <li>
-            Notify us immediately at{' '}
-            <a href="mailto:support@streamlearn.xyz">
-              support@streamlearn.xyz
-            </a>{' '}
-            of any unauthorized use of your account.
+            {t('tos.p3_li2').split('support@streamlearn.xyz')[0]}
+            <a href="mailto:support@streamlearn.xyz">support@streamlearn.xyz</a>
+            {t('tos.p3_li2').split('support@streamlearn.xyz')[1]}
           </li>
         </ul>
 
-        <h3>4. Subscriptions and Payments</h3>
-        <p>
-          <strong>Billing:</strong> We use a third-party payment processor
-          (Stripe) to bill you for subscription plans. The processing of
-          payments is subject to the terms and conditions of Stripe. We do not
-          store your credit card information.
-        </p>
-        <p>
-          <strong>Recurring Charges:</strong> By purchasing a subscription, you
-          authorize us to charge your payment method on a recurring (e.g.,
-          monthly) basis, at the rate then in effect, until you cancel.
-        </p>
-        <p>
-          <strong>Cancellation:</strong> You may cancel your subscription at any
-          time through the "Manage Billing" portal on your dashboard.
-          Cancellation will be effective at the end of your current billing
-          cycle.
-        </p>
+        <h3>{t('tos.h4')}</h3>
+        <p dangerouslySetInnerHTML={{ __html: t('tos.p4_1') }} />
+        <p dangerouslySetInnerHTML={{ __html: t('tos.p4_2') }} />
+        <p dangerouslySetInnerHTML={{ __html: t('tos.p4_3') }} />
+        
+        <h3>{t('tos.h5')}</h3>
+        <p dangerouslySetInnerHTML={{ __html: t('tos.p5') }} />
 
-        <h3>5. User Content</h3>
-        <p>
-          You retain all rights to the content you create or store in the
-          Service, such as your saved lesson history and personal word bank.
-          You grant us a limited, non-exclusive, worldwide, royalty-free
-          license to use, store, and display your content solely for the
-          purpose of providing and improving the Service *to you*.
-        </p>
+        <h3>{t('tos.h6')}</h3>
+        <p>{t('tos.p6')}</p>
 
-        <h3>6. Third-Party Links & Content</h3>
-        <p>
-          The Service generates lessons based on content from third-party news
-          websites. We are not responsible for the accuracy, legality, or
-          content of these external sites or the articles sourced from them.
-          Your access and use of such third-party content is at your own risk.
-        </p>
+        <h3>{t('tos.h7')}</h3>
+        <p>{t('tos.p7')}</p>
 
-        <h3>7. Termination</h3>
-        <p>
-          You are free to stop using the Service at any time. We reserve the
-          right to suspend or terminate your account at our discretion, without
-          notice, if you breach these Terms.
-        </p>
+        <h3>{t('tos.h8')}</h3>
+        <p>{t('tos.p8')}</p>
 
-        <h3>8. Disclaimers and Limitation of Liability</h3>
-        <p>
-          THE SERVICE IS PROVIDED "AS IS." TO THE FULLEST EXTENT PERMITTED BY
-          LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED. WE WILL NOT BE
-          LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR
-          PUNITIVE DAMAGES ARISING OUT OF OR RELATING TO YOUR USE OF THE
-          SERVICE.
-        </p>
+        <h3>{t('tos.h9')}</h3>
+        <p>{t('tos.p9')}</p>
 
-        <h3>9. Changes to Terms</h3>
+        <h3>{t('tos.h10')}</h3>
         <p>
-          We may modify these Terms at any time. We will notify you of any
-          changes by posting the new Terms on this page. Your continued use of
-          the Service after such changes constitutes your acceptance of the new
-          Terms.
-        </p>
-
-        <h3>10. Contact Us</h3>
-        <p>
-          If you have any questions about these Terms, please contact us at{' '}
-          <a href="mailto:support@streamlearn.xyz">
-            support@streamlearn.xyz
-          </a>
-          .
+          {t('tos.p10').split('support@streamlearn.xyz')[0]}
+          <a href="mailto:support@streamlearn.xyz">support@streamlearn.xyz</a>
+          {t('tos.p10').split('support@streamlearn.xyz')[1]}
         </p>
       </>
     </StaticPageWrapper>
   );
 
   const renderPrivacyPage = () => (
-    <StaticPageWrapper title="Privacy Policy">
+    <StaticPageWrapper titleKey="privacy.title">
       <>
-        <p className="lead">Last updated: October 30, 2025</p>
-        <p>
-          This Privacy Policy describes how StreamLearn ("we," "us," or "our")
-          collects, uses, and shares your information when you use our Service.
-        </p>
+        <p className="lead">{t('privacy.lastUpdated')}</p>
+        <p>{t('privacy.p1')}</p>
 
-        <h3>1. Information We Collect</h3>
+        <h3>{t('privacy.h1')}</h3>
         <ul>
+          <li dangerouslySetInnerHTML={{ __html: t('privacy.p1_li1') }} />
+          <li dangerouslySetInnerHTML={{ __html: t('privacy.p1_li2') }} />
+          <li dangerouslySetInnerHTML={{ __html: t('privacy.p1_li3') }} />
+        </ul>
+
+        <h3>{t('privacy.h2')}</h3>
+        <p>{t('privacy.p2')}</p>
+        <ul>
+          <li>{t('privacy.p2_li1')}</li>
+          <li>{t('privacy.p2_li2')}</li>
+          <li>{t('privacy.p2_li3')}</li>
           <li>
-            <strong>Account Information:</strong> When you sign up using Google
-            Sign-In, we receive your name, email address, and profile picture
-            as provided by Google.
-          </li>
-          <li>
-            <strong>User Content:</strong> We collect and store the information
-            you create within the app, including your saved lessons, your
-            personal word bank, and your chosen topics of interest.
-          </li>
-          <li>
-            <strong>Payment Information:</strong> We do not collect or store
-            your payment card details. Our third-party payment processor,
-            Stripe, handles all payment transactions. We only store your Stripe
-            Customer ID and your subscription status (e.g., "active", "free").
+            {t('privacy.p2_li4').split('support@streamlearn.xyz')[0]}
+            <a href="mailto:support@streamlearn.xyz">support@streamlearn.xyz</a>
+            {t('privacy.p2_li4').split('support@streamlearn.xyz')[1]}
           </li>
         </ul>
 
-        <h3>2. How We Use Information</h3>
-        <p>
-          We use your information for the following purposes:
-        </p>
+        <h3>{t('privacy.h3')}</h3>
+        <p>{t('privacy.p3')}</p>
         <ul>
-          <li>To provide, maintain, and improve the Service.</li>
-          <li>
-            To personalize your learning experience by saving your lessons and
-            word bank.
-          </li>
-          <li>To process your subscription payments via Stripe.</li>
-          <li>
-            To communicate with you, such as responding to support requests
-            sent to{' '}
-            <a href="mailto:support@streamlearn.xyz">
-              support@streamlearn.xyz
-            </a>
-            .
-          </li>
-        </ul>
-
-        <h3>3. How We Share Information</h3>
-        <p>
-          We do not sell your personal information. We share information only
-          in the following limited circumstances:
-        </p>
-        <ul>
-          <li>
-            <strong>Third-Party Service Providers:</strong>
+          <li dangerouslySetInnerHTML={{ __html: t('privacy.p3_li1') }} />
             <ul>
-              <li>
-                <strong>Google:</strong> For authentication (Google Sign-In) and
-                data storage (Google Cloud Firestore).
-              </li>
-              <li>
-                <strong>Stripe:</strong> To process subscription payments and
-                manage billing.
-              </li>
-              <li>
-                <strong>Google (Gemini API):</strong> Prompts you generate
-                (like lesson requests, topics, and activity answers) are sent
-                to the Gemini API to generate responses.
-              </li>
-              <li>
-                <strong>Bright Data:</strong> Your search topics are sent to the
-                Bright Data SERP API to find news articles.
-              </li>
-              <li>
-                <strong>Google Cloud TTS:</strong> Text you select for text-to-speech
-                is sent to Google's API to generate audio.
-              </li>
+              <li dangerouslySetInnerHTML={{ __html: t('privacy.p3_li1_1') }} />
+              <li dangerouslySetInnerHTML={{ __html: t('privacy.p3_li1_2') }} />
+              <li dangerouslySetInnerHTML={{ __html: t('privacy.p3_li1_3') }} />
+              <li dangerouslySetInnerHTML={{ __html: t('privacy.p3_li1_4') }} />
+              <li dangerouslySetInnerHTML={{ __html: t('privacy.p3_li1_5') }} />
             </ul>
-          </li>
-          <li>
-            <strong>Legal Requirements:</strong> We may disclose your
-            information if required to do so by law or in response to valid
-            requests by public authorities.
-          </li>
+          <li dangerouslySetInnerHTML={{ __html: t('privacy.p3_li2') }} />
         </ul>
 
-        <h3>4. Data Storage and Security</h3>
+        <h3>{t('privacy.h4')}</h3>
+        <p>{t('privacy.p4')}</p>
+        
+        <h3>{t('privacy.h5')}</h3>
         <p>
-          Your personal data (account info, lesson history, word bank) is
-          stored using Google Cloud Firestore, a service operated by Google.
-          We take reasonable measures to protect your information, but no
-          security system is impenetrable.
-        </p>
-        <h3>5. Your Rights</h3>
-        <p>
-          Depending on your location, you may have rights regarding your
-          personal information, such as the right to access, correct, or
-          delete your data. To make such a request, please contact us at{' '}
-          <a href="mailto:support@streamlearn.xyz">
-            support@streamlearn.xyz
-          </a>
-          .
+          {t('privacy.p5').split('support@streamlearn.xyz')[0]}
+          <a href="mailto:support@streamlearn.xyz">support@streamlearn.xyz</a>
+          {t('privacy.p5').split('support@streamlearn.xyz')[1]}
         </p>
 
-        <h3>6. Children's Privacy</h3>
-        <p>
-          The Service is not intended for or directed to children under the
-          age of 13. We do not knowingly collect personal information from
-          children under 13.
-        </p>
+        <h3>{t('privacy.h6')}</h3>
+        <p>{t('privacy.p6')}</p>
 
-        <h3>7. Changes to This Policy</h3>
-        <p>
-          We may update this Privacy Policy from time to time. We will notify
-          you of any changes by posting the new policy on this page.
-        </p>
+        <h3>{t('privacy.h7')}</h3>
+        <p>{t('privacy.p7')}</p>
 
-        <h3>8. Contact Us</h3>
+        <h3>{t('privacy.h8')}</h3>
         <p>
-          If you have any questions about this Privacy Policy, please contact
-          us at{' '}
-          <a href="mailto:support@streamlearn.xyz">
-            support@streamlearn.xyz
-          </a>
-          .
+          {t('privacy.p8').split('support@streamlearn.xyz')[0]}
+          <a href="mailto:support@streamlearn.xyz">support@streamlearn.xyz</a>
+          {t('privacy.p8').split('support@streamlearn.xyz')[1]}
         </p>
       </>
     </StaticPageWrapper>
@@ -2290,6 +2158,7 @@ const App: React.FC = () => {
 
   const renderInput = () => {
     const isFreeTierLimitReached = !isSubscribed && monthlyLessonCount >= FREE_LESSON_LIMIT;
+    const shortUser = user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'User';
 
     return (
       // Add padding-x for mobile screens to prevent elements touching edges
@@ -2300,9 +2169,9 @@ const App: React.FC = () => {
           <button
               onClick={() => navigate('/')} // <-- Takes user back to dashboard
               className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
-              title="Back to Dashboard"
+              title={t('dashboard.title')}
             >
-              <ArrowLeftIcon className="w-4 h-4 mr-1" /> Dashboard
+              <ArrowLeftIcon className="w-4 h-4 mr-1" /> {t('dashboard.title')}
           </button>
           {user && (
             <button
@@ -2310,24 +2179,24 @@ const App: React.FC = () => {
               // Adjusted padding and margin for better fit
               className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1 flex-shrink-0"
             >
-              Sign Out ({user.displayName?.split(' ')[0] || user.email?.split('@')[0] || 'User'})
+              {t('common.signOutUser', { user: shortUser })}
             </button>
           )}
         </div>
          <p className="text-gray-500 text-center">
-           Learn English with articles tailored to your interests and level.
+           {t('input.prompt')}
          </p>
         {isFreeTierLimitReached && (
           <div className="p-3 bg-yellow-100 border border-yellow-300 text-yellow-800 rounded-lg text-sm text-center">
-            You have used all {FREE_LESSON_LIMIT} free lessons for this month. 
+            {t('input.freeLimit', { count: FREE_LESSON_LIMIT })}{' '}
             <button onClick={() => navigate('/pricing')} className="font-bold underline ml-1 hover:text-yellow-900">
-              Upgrade to Pro
-            </button> to search for more.
+              {t('input.upgrade')}
+            </button> {t('input.toSearch')}
           </div>
         )}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Your English Level
+            {t('input.levelLabel', { language: languageOptions[targetLanguage].split(' ')[0] })}
           </label>
           <select
             value={inputLevel}
@@ -2341,7 +2210,7 @@ const App: React.FC = () => {
         </div>
         <div>
           <label htmlFor="topic" className="block text-sm font-medium text-gray-700 mb-2">
-            Enter a topic or choose one below:
+            {t('input.topicLabel')}
           </label>
           {/* Use flex-wrap for the input and button on small screens */}
           <div className="flex flex-wrap sm:flex-nowrap gap-2">
@@ -2350,7 +2219,7 @@ const App: React.FC = () => {
               type="text"
               value={inputTopic}
               onChange={(e) => setInputTopic(e.target.value.slice(0, 25))}
-              placeholder="e.g., AI, Space, Cooking"
+              placeholder={t('input.topicPlaceholder')}
               maxLength={25}
               className="flex-grow p-3 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 w-full sm:w-auto" // Ensure input takes full width on small screens
               onKeyDown={(e) => { if (e.key === 'Enter') handleFindArticles() }}
@@ -2360,14 +2229,14 @@ const App: React.FC = () => {
               disabled={isApiLoading || !inputTopic.trim() || isFreeTierLimitReached}
               // Make button full width on small screens, adjust padding
               className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto flex-shrink-0"
-              title={isFreeTierLimitReached ? "Free lesson limit reached" : "Find articles for the entered topic"}
+              title={isFreeTierLimitReached ? t('input.limitReachedTitle') : t('input.findArticlesTitle')}
             >
-              Search
+              {t('input.search')}
             </button>
           </div>
         </div>
         <div>
-          <p className="text-sm font-medium text-gray-700 mb-3 text-center">Or select a popular topic:</p>
+          <p className="text-sm font-medium text-gray-700 mb-3 text-center">{t('input.popularTopics')}</p>
           {/* --- CHANGE HERE: grid-cols-2 by default, md:grid-cols-4 for medium and up --- */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {newsTopics.map((topic) => (
@@ -2379,7 +2248,7 @@ const App: React.FC = () => {
                 }}
                 disabled={isApiLoading || isFreeTierLimitReached}
                 className="bg-gray-100 text-gray-700 text-sm font-medium py-2 px-1 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition duration-150 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed text-center truncate"
-                title={isFreeTierLimitReached ? "Free lesson limit reached" : `Find articles about ${topic}`}
+                title={isFreeTierLimitReached ? t('input.limitReachedTitle') : t('input.findTopicTitle', { topic })}
               >
                 {topic}
               </button>
@@ -2388,7 +2257,7 @@ const App: React.FC = () => {
         </div>
       </div>
     );
-}
+  }
 
   const renderNewsList = () => (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto bg-white rounded-xl shadow-2xl space-y-4">
@@ -2405,32 +2274,32 @@ const App: React.FC = () => {
             onClick={handleSignOut}
             className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1 flex-shrink-0"
           >
-            Sign Out
+            {t('common.signOut')}
         </button>
         {/* Back button and Title on a new line, spanning full width */}
         <div className="w-full flex justify-between items-center mt-2 gap-2">
             <button
               onClick={goToInput}
               className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium flex-shrink-0"
-              title="Change Topic"
+              title={t('news.changeTopicTitle')}
             >
-              <ArrowLeftIcon className="w-4 h-4 mr-1" /> Back
+              <ArrowLeftIcon className="w-4 h-4 mr-1" /> {t('common.back')}
             </button>
             {/* Title - allow wrapping */}
             <h2 className="text-lg sm:text-xl font-bold text-gray-800 text-center flex-grow min-w-0 break-words px-2"> {/* Added break-words and padding */}
-              Articles on "{inputTopic}" ({inputLevel})
+              {t('news.title', { topic: inputTopic, level: inputLevel })}
             </h2>
             {/* Invisible placeholder to balance the flex layout, matching back button space */}
             <div className="flex items-center text-sm font-medium flex-shrink-0 invisible">
-                 <ArrowLeftIcon className="w-4 h-4 mr-1" /> Back
+                 <ArrowLeftIcon className="w-4 h-4 mr-1" /> {t('common.back')}
             </div>
         </div>
       </div>
       <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
         {isApiLoading && !newsResults.length ? ( // Show loading only if results aren't already displayed
-          <LoadingSpinner text="Fetching articles..." />
+          <LoadingSpinner text={t('news.loading')} />
         ) : newsResults.length === 0 && !isApiLoading ? ( // Show no results message
-           <p className="text-center text-gray-500 py-4">No articles found for this topic.</p>
+           <p className="text-center text-gray-500 py-4">{t('news.empty')}</p>
         ) : (
           newsResults.map((article, index) => (
             <div
@@ -2454,7 +2323,7 @@ const App: React.FC = () => {
                   {article.snippet}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  Source: {article.source} ({article.date})
+                  {t('common.source')}: {article.source} ({article.date})
                 </p>
               </div>
             </div>
@@ -2477,16 +2346,16 @@ const App: React.FC = () => {
                           PRO
                         </span>
                       )}
-                     {user && ( <button onClick={handleSignOut} className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1"> Sign Out </button> )}
+                     {user && ( <button onClick={handleSignOut} className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1"> {t('common.signOut')} </button> )}
                  </div>
                  <button
                     // Go back to search results if possible, otherwise input
                     onClick={() => newsResults.length > 0 ? goToSearch(inputTopic, inputLevel) : goToInput()}
                     className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
                 >
-                    <ArrowLeftIcon className="w-4 h-4 mr-1" /> Back
+                    <ArrowLeftIcon className="w-4 h-4 mr-1" /> {t('common.back')}
                 </button>
-                <LoadingSpinner text="Generating your lesson, this may take a moment..." />
+                <LoadingSpinner text={t('lesson.generating')} />
              </div>
         );
     }
@@ -2495,7 +2364,7 @@ const App: React.FC = () => {
     if (!currentLesson) {
        // Fallback case - should ideally not be reached if loading check is correct
        console.error("RenderLessonView: currentLesson is null after loading check.");
-       setError("Failed to load lesson data. Please try again.");
+       setError(t('lesson.loadFail'));
        goToInput(); // Navigate back safely
        return null; // Don't render anything
     }
@@ -2517,15 +2386,15 @@ const App: React.FC = () => {
                  <button
                     onClick={goToInput}
                     className="flex items-center text-indigo-600 hover:text-indigo-800 text-sm font-medium p-1 rounded hover:bg-indigo-50"
-                    title="Start New Topic"
+                    title={t('lesson.newTopic')}
                   >
-                    <RestartIcon className="w-4 h-4 sm:mr-1" /> <span className="hidden sm:inline">New Topic</span>
+                    <RestartIcon className="w-4 h-4 sm:mr-1" /> <span className="hidden sm:inline">{t('lesson.newTopic')}</span>
                   </button>
                  <button
                     onClick={handleSignOut}
                     className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1"
                   >
-                    Sign Out
+                    {t('common.signOut')}
                  </button>
             </div>
             {/* Back button and Title on a new line, spanning full width */}
@@ -2533,30 +2402,30 @@ const App: React.FC = () => {
                  <button
                     onClick={() => goToSearch(inputTopic, inputLevel)}
                     className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium flex-shrink-0"
-                    title="Back to Articles"
+                    title={t('news.back')}
                   >
-                    <ArrowLeftIcon className="w-4 h-4 mr-1" /> Back
+                    <ArrowLeftIcon className="w-4 h-4 mr-1" /> {t('common.back')}
                   </button>
                 {/* Title - allow wrapping */}
                  <h2 className="text-xl sm:text-2xl font-bold text-blue-700 text-center flex-grow min-w-0 break-words px-2"> {/* Added break-words and padding */}
-                   {currentLesson?.articleTitle || "Generated Lesson"}
+                   {currentLesson?.articleTitle || t('lesson.generating')}
                  </h2>
                  {/* Invisible placeholder to balance */}
                  <div className="flex items-center text-sm font-medium flex-shrink-0 invisible">
-                      <ArrowLeftIcon className="w-4 h-4 mr-1" /> Back
+                      <ArrowLeftIcon className="w-4 h-4 mr-1" /> {t('common.back')}
                  </div>
             </div>
         </div>
 
         <p className="text-sm text-gray-600">
-          <strong>Source:</strong> <a href={currentArticle?.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{currentArticle?.source}</a> ({currentArticle?.date})
+          <strong>{t('common.source')}:</strong> <a href={currentArticle?.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{currentArticle?.source}</a> ({currentArticle?.date})
         </p>
 
         {/* Article Summary Section */}
         <div className="space-y-2 border-l-4 border-blue-500 pl-4 bg-blue-50 p-3 rounded-lg">
-          <h3 className="text-xl font-bold text-blue-700">Article Summary</h3>
+          <h3 className="text-xl font-bold text-blue-700">{t('lesson.summaryTitle')}</h3>
            {isSummaryAudioLoading && <LoadingSpinner className="w-5 h-5 inline-block mr-2"/>}
-           {summaryAudioError && <span className="text-red-600 text-xs ml-2">{summaryAudioError}</span>}
+           {summaryAudioError && <span className="text-red-600 text-xs ml-2">{t('lesson.audioFail')} {summaryAudioError}</span>}
 
            {/* --- Summary Audio Player MODIFIED --- */}
            {summaryAudioSrc && summaryAudioDuration > 0 && (
@@ -2566,7 +2435,7 @@ const App: React.FC = () => {
                    onClick={toggleSummaryPlayPause}
                    // Add flex-shrink-0 to prevent button from shrinking excessively
                    className="p-1 text-blue-600 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded flex-shrink-0"
-                   aria-label={isSummaryPlaying ? 'Pause summary' : 'Play summary'}
+                   aria-label={isSummaryPlaying ? t('lesson.pauseAudio') : t('lesson.playAudio')}
                  >
                    {isSummaryPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />} {/* Slightly smaller icon */}
                  </button>
@@ -2611,21 +2480,21 @@ const App: React.FC = () => {
             disabled={!currentLesson?.vocabularyList || currentLesson.vocabularyList.length === 0}
             className="bg-yellow-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-yellow-600 transition duration-150 disabled:opacity-50"
           >
-            Review Vocabulary ({currentLesson?.vocabularyList?.length || 0})
+            {t('lesson.reviewVocab', { count: currentLesson?.vocabularyList?.length || 0 })}
           </button>
           <button
             onClick={() => startActivity('grammar')}
             disabled={!currentLesson?.grammarFocus?.topic}
             className="bg-purple-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-600 transition duration-150 disabled:opacity-50"
           >
-            Grammar Quiz (5 Qs)
+            {t('lesson.grammarQuiz', { count: 5 })}
           </button>
           <button
             onClick={() => startActivity('comprehension')}
             disabled={!currentLesson?.comprehensionQuestions || currentLesson.comprehensionQuestions.length === 0}
             className="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition duration-150 disabled:opacity-50"
           >
-            Comprehension Test ({currentLesson?.comprehensionQuestions?.length || 0})
+            {t('lesson.comprehensionTest', { count: currentLesson?.comprehensionQuestions?.length || 0 })}
           </button>
           {/* --- ADD: Writing Practice Button --- */}
           <button
@@ -2633,14 +2502,14 @@ const App: React.FC = () => {
             disabled={!currentLesson?.summary}
             className="bg-sky-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-sky-600 transition duration-150 disabled:opacity-50"
           >
-            Writing Practice (1 Q)
+            {t('lesson.writingPractice', { count: 1 })}
           </button>
         </div>
 
         {/* Vocabulary Section */}
         <div className="space-y-3 border-l-4 border-yellow-500 pl-4 bg-yellow-50 p-3 rounded-lg">
           <div className="flex justify-between items-center">
-            <h3 className="text-xl font-bold text-yellow-700">Vocabulary Builder</h3>
+            <h3 className="text-xl font-bold text-yellow-700">{t('lesson.vocabBuilder')}</h3>
             {/* --- START ADD: Show feedback message --- */}
             {wordBankMessage && (
               <span className={`text-sm ${wordBankMessage.type === 'success' ? 'text-green-700' : 'text-red-700'}`}>
@@ -2659,13 +2528,13 @@ const App: React.FC = () => {
                 <li key={index} className="text-gray-800 flex justify-between items-start gap-2">
                   <div className="flex-grow">
                     <strong className="text-yellow-900">{item.word}:</strong> {item.definition}
-                    <p className="text-sm italic text-gray-600 mt-1">Example: "{item.articleExample}"</p>
+                    <p className="text-sm italic text-gray-600 mt-1">{t('common.example')} "{item.articleExample}"</p>
                   </div>
                   {/* --- START ADD: Save Button --- */}
                   <button
                     onClick={() => handleSaveWord(item)}
                     disabled={isSaved}
-                    title={isSaved ? "Saved" : "Save word"}
+                    title={isSaved ? t('common.saved') : t('common.saveWord')}
                     className="p-1 text-purple-600 hover:text-purple-800 disabled:text-gray-400 disabled:cursor-default flex-shrink-0"
                   >
                     <BookmarkIcon className="w-5 h-5" isSolid={isSaved} />
@@ -2679,7 +2548,7 @@ const App: React.FC = () => {
 
         {/* Grammar Section */}
         <div className="space-y-3 border-l-4 border-purple-500 pl-4 bg-purple-50 p-3 rounded-lg">
-          <h3 className="text-xl font-bold text-purple-700">Grammar Focus: {currentLesson?.grammarFocus?.topic}</h3>
+          <h3 className="text-xl font-bold text-purple-700">{t('lesson.grammarFocus')} {currentLesson?.grammarFocus?.topic}</h3>
           <p className="text-gray-800 whitespace-pre-wrap"> {/* Added pre-wrap here too */}
              {currentLesson?.grammarFocus?.explanation}
           </p>
@@ -2687,7 +2556,7 @@ const App: React.FC = () => {
 
         {/* Comprehension Section */}
         <div className="space-y-3 border-l-4 border-green-500 pl-4 bg-green-50 p-3 rounded-lg">
-          <h3 className="text-xl font-bold text-green-700">Comprehension Questions</h3>
+          <h3 className="text-xl font-bold text-green-700">{t('lesson.comprehensionQuestions')}</h3>
           <ol className="list-decimal list-inside space-y-2">
             {currentLesson?.comprehensionQuestions?.map((q, index) => (
               <li key={index} className="text-gray-800">
@@ -2712,16 +2581,18 @@ const App: React.FC = () => {
     if (isLoadingData) {
        // Determine loading text more accurately based on activityState existence
        const loadingText = activityState?.type === 'grammar'
-                           ? "Generating grammar question..."
+                           ? t('activity.generatingGrammar')
+                           : activityState?.type === 'writing'
+                           ? t('activity.generatingWriting')
                            : activityState // If state exists but data doesn't (initial sync load)
-                             ? "Loading..."
-                             : "Initializing activity..."; // If state itself is null
+                             ? t('common.loading')
+                             : t('activity.init'); // If state itself is null
 
         return (
             <div className="p-6 max-w-2xl mx-auto bg-white rounded-xl shadow-2xl space-y-4">
                <LoadingSpinner text={loadingText} />
                {/* Allow quitting */}
-               <button onClick={quitActivity} className="block mx-auto mt-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+               <button onClick={quitActivity} className="block mx-auto mt-2 text-sm text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
             </div>
           );
     }
@@ -2731,13 +2602,13 @@ const App: React.FC = () => {
      if (isFinished) {
         return (
              <div className="p-6 max-w-2xl mx-auto bg-white rounded-xl shadow-2xl space-y-4 text-center">
-                 <h2 className="text-2xl font-bold text-blue-700">Activity Complete!</h2>
-                 <p className="text-lg text-gray-700">Your score: {score} / {total}</p>
+                 <h2 className="text-2xl font-bold text-blue-700">{t('activity.complete')}</h2>
+                 <p className="text-lg text-gray-700">{t('activity.yourScore', { score, total })}</p>
                  <button
                      onClick={quitActivity}
                      className="mt-4 bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-150"
                  >
-                     Back to Lesson
+                     {t('activity.backToLesson')}
                  </button>
             </div>
         );
@@ -2753,10 +2624,10 @@ const App: React.FC = () => {
       <div className={`p-6 max-w-2xl mx-auto bg-white rounded-xl shadow-2xl space-y-4 border-2 ${feedbackColor}`}>
         {/* Header with Progress and Score */}
         <div className="flex justify-between items-center text-sm text-gray-600">
-          <span>{type.charAt(0).toUpperCase() + type.slice(1)} Activity</span>
-          <span>Score: {score}/{total}</span>
-          <span>Question: {index + 1}/{total}</span>
-          <button onClick={quitActivity} className="text-xs text-gray-500 hover:text-gray-700">Quit</button>
+          <span>{t('activity.title', { type })}</span>
+          <span>{t('common.score')} {score}/{total}</span>
+          <span>{t('common.question')} {index + 1}/{total}</span>
+          <button onClick={quitActivity} className="text-xs text-gray-500 hover:text-gray-700">{t('common.quit')}</button>
         </div>
         <hr/>
 
@@ -2769,7 +2640,7 @@ const App: React.FC = () => {
           {type === 'vocab' && currentData && ( // Added currentData check
              <div>
                <p className="text-lg font-semibold text-gray-700 mb-2">
-                 Definition:
+                 {t('activity.definition')}
                  {currentData.definition && <SpeakButton text={currentData.definition} />}
                </p>
                <p className="p-3 bg-gray-100 text-gray-900 rounded mb-4">{currentData.definition}</p>
@@ -2777,7 +2648,7 @@ const App: React.FC = () => {
                {/* Conditional Rendering based on Level */}
                {inputLevel === 'Advanced' ? (
                  <>
-                   <label htmlFor="vocab-guess" className="block text-sm font-medium text-gray-700 mb-1">Type the word:</label>
+                   <label htmlFor="vocab-guess" className="block text-sm font-medium text-gray-700 mb-1">{t('activity.typeWord')}</label>
                    <input
                      id="vocab-guess"
                      type="text"
@@ -2790,7 +2661,7 @@ const App: React.FC = () => {
                  </>
                ) : ( // Beginner or Intermediate (Multiple Choice)
                  <>
-                    <p className="block text-sm font-medium text-gray-700 mb-2">Choose the correct word:</p>
+                    <p className="block text-sm font-medium text-gray-700 mb-2">{t('activity.chooseWord')}</p>
                     <div className="space-y-2">
                         {currentData.options?.map((option: string) => {
                             let buttonClass = "w-full text-left text-gray-900 p-3 border rounded transition duration-150 ";
@@ -2884,7 +2755,7 @@ const App: React.FC = () => {
                 disabled={feedback.isCorrect !== null || isSubmitting}
                 rows={4}
                 className="w-full p-2 border border-gray-300 text-gray-900 rounded disabled:bg-gray-100"
-                placeholder="Type your answer here..."
+                placeholder={t('activity.typeAnswer')}
               />
             </div>
           )}
@@ -2893,13 +2764,13 @@ const App: React.FC = () => {
           {type === 'writing' && currentData && (
             <div>
               <p className="text-lg font-semibold text-gray-700 mb-2">
-                Writing Prompt:
+                {t('activity.writingPrompt')}
                 {currentData.prompt && <SpeakButton text={currentData.prompt} />}
               </p>
               <p className="p-3 bg-gray-100 text-gray-900 rounded mb-2">{currentData.prompt}</p>
               {currentData.vocabularyHint && (
                 <p className="text-sm text-gray-600 mb-3">
-                  Try to use these words: <span className="font-medium">{currentData.vocabularyHint}</span>
+                  {t('activity.tryWords', { words: currentData.vocabularyHint })}
                 </p>
               )}
               <textarea
@@ -2908,7 +2779,7 @@ const App: React.FC = () => {
                 disabled={feedback.isCorrect !== null || isSubmitting}
                 rows={6}
                 className="w-full p-2 border border-gray-300 text-gray-900 rounded disabled:bg-gray-100"
-                placeholder="Write your response here..."
+                placeholder={t('activity.writeResponse')}
               />
             </div>
           )}
@@ -2929,14 +2800,14 @@ const App: React.FC = () => {
               disabled={userAnswer === null || userAnswer === '' || isSubmitting}
               className="bg-blue-600 text-white font-bold py-2 px-5 rounded-lg hover:bg-blue-700 transition duration-150 disabled:opacity-50"
             >
-              {isSubmitting ? <LoadingSpinner className="w-5 h-5 inline-block"/> : "Submit"}
+              {isSubmitting ? <LoadingSpinner className="w-5 h-5 inline-block"/> : t('common.submit')}
             </button>
           ) : ( // Show Next/Finish after grading
             <button
               onClick={handleNextQuestion}
               className="bg-gray-600 text-white font-bold py-2 px-5 rounded-lg hover:bg-gray-700 transition duration-150"
             >
-             {index + 1 >= total ? "Finish" : "Next"}
+             {index + 1 >= total ? t('common.finish') : t('common.next')}
             </button>
           )}
         </div>
