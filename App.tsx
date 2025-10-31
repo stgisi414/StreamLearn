@@ -429,6 +429,17 @@ const App: React.FC = () => {
         return;
     }
 
+    // Client-side check for immediate UX feedback
+    const isFreeTierLimitReached = !isSubscribed && monthlyLessonCount >= FREE_LESSON_LIMIT;
+    if (isFreeTierLimitReached) {
+      setError(`You have used all ${FREE_LESSON_LIMIT} of your free lessons for this month. Please upgrade to create more.`);
+      setIsApiLoading(false);
+      setIsLessonGenerating(false);
+      // If they're on the lesson page, send them back to input.
+      goToInput();
+      return;
+    }
+
     if (!skipNavigation && currentArticle?.link === article.link && currentLesson) {
         console.log("Clicked same article, lesson exists. Navigating without refetch.");
         goToLesson(article);
@@ -502,7 +513,9 @@ const App: React.FC = () => {
         }
 
       if (lessonToSave) {
-          const lessonDocId = `${user.uid}-${Date.now()}`;
+          const lessonDocId = btoa(article.link)
+            .replace(/\//g, '_') // Replace '/' with '_'
+            .replace(/\+/g, '-'); // Replace '+' with '-'
           await setDoc(doc(db, `users/${user.uid}/lessons`, lessonDocId), {
               userId: user.uid,
               topic: inputTopic,
@@ -2272,8 +2285,9 @@ const App: React.FC = () => {
               id="topic"
               type="text"
               value={inputTopic}
-              onChange={(e) => setInputTopic(e.target.value)}
+              onChange={(e) => setInputTopic(e.target.value.slice(0, 25))}
               placeholder="e.g., AI, Space, Cooking"
+              maxLength={25}
               className="flex-grow p-3 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 w-full sm:w-auto" // Ensure input takes full width on small screens
               onKeyDown={(e) => { if (e.key === 'Enter') handleFindArticles() }}
             />
