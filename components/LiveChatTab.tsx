@@ -247,40 +247,21 @@ YOUR ROLE AND RULES:
       workletNode.port.onmessage = (event) => {
         // We received 16-bit PCM data from the worklet
         const pcmData = event.data;
-        // --- START FIX ---
-        // Check our own state, not a non-existent method
+
         if (isListeningRef.current && newSession) { 
-          // Optional: log to confirm
-          console.log(`DEBUG: Sending audio chunk, size: ${pcmData.byteLength}`); // <-- UNCOMMENT THIS
+          console.log(`DEBUG: Sending audio chunk, size: ${pcmData.byteLength}`); 
           
-          // Send the raw buffer to Gemini
-          try { // <-- ADD TRY/CATCH
+          // This try/catch is all we need.
+          try { 
             newSession.sendRealtimeInput({ 
               audio: { data: pcmData, mimeType: `audio/pcm;rate=${TARGET_SAMPLE_RATE}` }
             });
           } catch (e) {
+            // This will now catch the "WebSocket is already in CLOSING" error
             console.error("DEBUG: ERROR during sendRealtimeInput:", e);
             setError(`Send error: ${(e as Error).message}`);
-            handleStartStopChat(); // Stop on send error
+            handleStartStopChat(); // This stops the loop
           }
-        }
-      };
-
-      // 6. Connect the audio pipeline
-      // This is where the magic happens
-      workletNode.port.onmessage = (event) => {
-        // We received 16-bit PCM data from the worklet
-        const pcmData = event.data;
-        // --- START FIX ---
-        // Use newSession, which is in this closure, not the stale 'session' state
-        if (isListeningRef.current && newSession) { 
-          // Optional: log to confirm
-          // console.log(`Sending audio chunk, size: ${pcmData.byteLength}`); 
-
-          // Send the raw buffer to Gemini
-          newSession.sendRealtimeInput({ // <-- Use newSession here
-            audio: { data: pcmData, mimeType: `audio/pcm;rate=${TARGET_SAMPLE_RATE}` }
-          });
         }
       };
 
