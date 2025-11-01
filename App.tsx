@@ -186,6 +186,11 @@ interface ActivityState {
 }
 
 const App: React.FC = () => {
+  // DEBUG: Add render count
+  const appRenderCount = useRef(0);
+  appRenderCount.current += 1;
+  // END DEBUG
+
   console.log("DEBUG: --- App Component Re-render ---");
   const { t, i18n } = useTranslation();
 
@@ -266,6 +271,9 @@ const App: React.FC = () => {
     "Climate Change", "Cybersecurity", "Electric Vehicles", "Global Economy"
   ];
 
+  // DEBUG: Log component state
+  console.log(`DEBUG_APP: Render #${appRenderCount.current} | View: ${currentView} | AuthState: ${authState} | SubLoading: ${isSubLoading} | SummaryAudioProgress: ${summaryAudioProgress}`);
+
   // --- Firebase Service Memos ---
   const db = useMemo(() => getFirestore(app), []);
   const auth = useMemo(() => getAuth(app), []);
@@ -341,43 +349,26 @@ const App: React.FC = () => {
   }, [navigate, setCurrentArticle]);
 
   // --- Core Fetch Helper ---
-  const authenticatedFetch = useCallback(async (functionName: string, body: any) => {
+  const authenticatedFetch = useCallback(async (functionName: string, data: object) => {
+    const user = auth.currentUser;
     if (!user) {
-        setError("You must be signed in to perform this action.");
-        throw new Error("Authentication failed: User token missing.");
+      console.error("No user signed in to make authenticated call.");
+      throw new Error("User not authenticated.");
     }
-    let idToken;
+    
+    // Get the ID token
+    const token = await user.getIdToken();
+    
+    const callable = httpsCallable(functions, functionName);
+    
     try {
-      idToken = await user.getIdToken(true);
-    } catch (tokenError) {
-      console.error("Error getting ID token:", tokenError);
-      setError("Authentication session expired or invalid. Please sign out and sign back in.");
-      throw new Error("Failed to get valid ID token.");
-    }
-    const url = `${BASE_FUNCTION_URL}/${functionName}`;
-    try {
-        const response = await fetch(url, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${idToken}`,
-            },
-            body: JSON.stringify(body),
-        });
-        if (!response.ok) {
-            const errorText = await response.text();
-            let errorData: any = {};
-            try { errorData = JSON.parse(errorText); } catch { /* Ignore */ }
-            const errorMessage = errorData.error || errorData.details || `Request failed with status ${response.status}: ${errorText.substring(0, 100)}`;
-            throw new Error(errorMessage);
-        }
-        return response.json();
+      const result = await callable({ ...data, __token: token });
+      return result.data as any; // Cast to 'any' to handle various response types
     } catch (e) {
-        console.error(`Fetch error in ${functionName}:`, e);
-        setError(`API request failed: ${(e as Error).message}`);
-        throw e;
+      console.error(`Error calling function ${functionName}:`, e);
+      throw e; // Re-throw the original error
     }
-  }, [user]); // Depends only on user
+  }, [functions]); // Add stable dependency 'functions'
 
   const monthlyLessonCount = useMemo(() => {
     if (!lessonHistory) return 0;
@@ -452,8 +443,16 @@ const App: React.FC = () => {
   ]);
 
   // --- NEW: Helper to fetch summary audio ---
+  // --- NEW: Helper to fetch summary audio ---
   const fetchSummaryAudio = useCallback(async (summaryText: string, langCode: LanguageCode) => {
     if (!summaryText || isSummaryAudioLoading || summaryAudioSrc) return; // Don't fetch if loading, already have src, or no text
+
+    // --- START FIX: Add length check and truncation ---
+    if (summaryText.length > 1500) {
+      console.warn(`Summary is too long for TTS (${summaryText.length} > 1500 chars). Truncating.`);
+      summaryText = summaryText.substring(0, 1500); // Truncate the text
+    }
+    // --- END FIX ---
 
     console.log("Fetching summary audio...");
     setIsSummaryAudioLoading(true);
@@ -556,6 +555,7 @@ const App: React.FC = () => {
                 console.log("Lesson generated successfully, calling setCurrentLesson.");
                 setCurrentLesson(lessonToSave);
                 if (lessonToSave.summary) {
+                    // --- FIX 2: Pass targetLanguage ---
                     fetchSummaryAudio(lessonToSave.summary, targetLanguage);
                 }
             } else {
@@ -568,6 +568,7 @@ const App: React.FC = () => {
         } else {
            console.log("Lesson already exists in state, potentially fetching audio.");
            if (lessonToSave.summary && !summaryAudioSrc && !isSummaryAudioLoading) {
+               // --- FIX 3: Pass targetLanguage ---
                fetchSummaryAudio(lessonToSave.summary, targetLanguage);
            }
         }
@@ -959,7 +960,9 @@ const App: React.FC = () => {
             // Lesson and article match URL, check if audio needs fetching
             if (currentLesson.summary && !summaryAudioSrc && !isSummaryAudioLoading) {
                console.log("handleUrlChange: Fetching summary audio for existing lesson on nav/refresh.");
-               fetchSummaryAudio(currentLesson.summary);
+               // --- START FIX: Add missing targetLanguage ---
+               fetchSummaryAudio(currentLesson.summary, targetLanguage);
+               // --- END FIX ---
             }
         }
      }
@@ -1144,14 +1147,9 @@ const App: React.FC = () => {
     }
   };
 
-  const handleClearChat = () => {
-    setChatHistory([]);
-    setChatError(null);
-  };
-
-  const handleFetchAuthToken = async (): Promise<string> => {
-    // Note: This function throws an error on failure, which the
-    // LiveChatTab component will catch.
+  // This function is now stable because its dependency 'authenticatedFetch' is stable
+  const handleFetchAuthToken = useCallback(async (): Promise<string> => {
+    console.log("DEBUG_APP: handleFetchAuthToken called");
     try {
       const response = await authenticatedFetch('getEphemeralToken', {});
       if (response.token) {
@@ -1163,16 +1161,22 @@ const App: React.FC = () => {
       console.error("handleFetchAuthToken error:", e);
       throw new Error(`Failed to get ephemeral token: ${(e as Error).message}`);
     }
-  };
+  }, [authenticatedFetch]);
 
-  const handleChatSubmit = async (userInput: string) => {
+  // This function is now stable
+  const handleClearChat = useCallback(() => {
+    console.log("DEBUG_APP: handleClearChat called");
+    setChatHistory([]);
+    setChatError(null);
+  }, [setChatHistory, setChatError]);
+
+  const handleChatSubmit = useCallback(async (userInput: string) => {
     if (!userInput.trim() || !currentLesson || isChatLoading) return;
 
-    console.log("Submitting to chat assistant:", userInput);
+    console.log("DEBUG_APP: handleChatSubmit called with:", userInput);
     setIsChatLoading(true);
     setChatError(null);
     
-    // Add user message and apply limit
     const userMessage: ChatMessage = { role: 'user', text: userInput };
     const newHistory = [...chatHistory, userMessage];
     
@@ -1183,7 +1187,6 @@ const App: React.FC = () => {
     setChatHistory(trimmedHistory);
   
     try {
-      // Send the full lesson and new history to the backend
       const response = await authenticatedFetch('chatWithAssistant', {
         lessonData: currentLesson,
         chatHistory: newHistory,
@@ -1192,7 +1195,6 @@ const App: React.FC = () => {
       });
   
       if (response.text) {
-        // Add the model's response and apply limit
         const modelMessage: ChatMessage = { role: 'model', text: response.text };
         setChatHistory(prev => {
           const updatedHistory = [...prev, modelMessage];
@@ -1206,12 +1208,14 @@ const App: React.FC = () => {
     } catch (e) {
       const errorMsg = `Error: ${(e as Error).message}`;
       setChatError(errorMsg);
-      // Add a temporary error message to the chat history
       setChatHistory(prev => [...prev, { role: 'model', text: errorMsg }]);
     } finally {
       setIsChatLoading(false);
     }
-  };
+  }, [ // Add all dependencies
+    currentLesson, isChatLoading, chatHistory, setChatHistory, 
+    authenticatedFetch, uiLanguage, targetLanguage, setChatError, setIsChatLoading
+  ]);
 
   // --- NEW: Activity Logic ---
   const startActivity = (type: ActivityType) => {
@@ -1748,7 +1752,8 @@ const App: React.FC = () => {
       setIsSummaryPlaying(!isSummaryPlaying);
     } else if (currentLesson?.summary && !isSummaryAudioLoading) {
         // If audio not loaded yet, fetch it and then play (will happen via useEffect)
-        fetchSummaryAudio(currentLesson.summary);
+        // --- FIX 5: Pass targetLanguage ---
+        fetchSummaryAudio(currentLesson.summary, targetLanguage);
     }
   };
 
@@ -2910,7 +2915,7 @@ const LandingPage: React.FC<{
           </ol>
         </div>
 
-
+        {console.log(`DEBUG_APP: Rendering ChatAssistant. History length: ${chatHistory.length}, ChatLoading: ${isChatLoading}`)}
         <ChatAssistant
           lesson={currentLesson}
           uiLanguage={uiLanguage}

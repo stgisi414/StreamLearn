@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Lesson, LanguageCode, ChatMessage } from '../types';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ChatBubbleIcon } from './icons/ChatBubbleIcon';
@@ -17,7 +17,7 @@ interface ChatAssistantProps {
   fetchAuthToken: () => Promise<string>; // <-- We'll get this from App.tsx
 }
 
-const TextChatTab: React.FC<Omit<ChatAssistantProps, 'fetchAuthToken' | 'lesson'>> = ({
+const TextChatTab: React.FC<Omit<ChatAssistantProps, 'fetchAuthToken' | 'lesson'>> = React.memo(({
   history,
   isLoading,
   error,
@@ -26,6 +26,10 @@ const TextChatTab: React.FC<Omit<ChatAssistantProps, 'fetchAuthToken' | 'lesson'
   uiLanguage,
   targetLanguage
 }) => {
+  const textRenderCount = useRef(0); // DEBUG
+  textRenderCount.current += 1; // DEBUG
+  console.log(`DEBUG_CHAT_TEXT: Render #${textRenderCount.current}`);
+
   const { t } = useTranslation();
   const [userInput, setUserInput] = useState('');
   const chatBodyRef = React.useRef<HTMLDivElement>(null);
@@ -110,10 +114,19 @@ const TextChatTab: React.FC<Omit<ChatAssistantProps, 'fetchAuthToken' | 'lesson'
       )}
     </div>
   );
-};
+});
 
 
-export const ChatAssistant: React.FC<ChatAssistantProps> = (props) => {
+export const ChatAssistant: React.FC<ChatAssistantProps> = React.memo((props) => {
+  const assistantRenderCount = useRef(0); // DEBUG
+  assistantRenderCount.current += 1; // DEBUG
+  console.log(`DEBUG_CHAT_ASSISTANT: Render #${assistantRenderCount.current}`);
+
+  // DEBUG: Log prop changes
+  useEffect(() => {
+    console.log("DEBUG_CHAT_ASSISTANT: Props changed (or component mounted)");
+  }, [props.lesson, props.history, props.isLoading, props.error, props.onSubmit, props.onClearChat, props.fetchAuthToken]);
+
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'text' | 'live'>('text');
 
@@ -184,4 +197,4 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = (props) => {
       </div>
     </div>
   );
-};
+});

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Lesson, LanguageCode } from '../types';
 import { useTranslation } from 'react-i18next';
 import { LoadingSpinner } from './LoadingSpinner';
-import { GoogleGenAI, Modality, Content } from '@google/genai';
+import { GoogleGenAI, Modality } from '@google/genai'; // Removed unused Content
 
 interface LiveChatTabProps {
   lesson: Lesson;
@@ -11,26 +11,32 @@ interface LiveChatTabProps {
   fetchAuthToken: () => Promise<string>; 
 }
 
-// Gemini API requirements
 const TARGET_SAMPLE_RATE = 16000;
 const INCOMING_SAMPLE_RATE = 24000;
 
-export const LiveChatTab: React.FC<LiveChatTabProps> = ({ 
+export const LiveChatTab: React.FC<LiveChatTabProps> = React.memo(({ 
   lesson, 
   uiLanguage, 
   targetLanguage, 
   fetchAuthToken 
 }) => {
   
+  // DEBUG: Component Render Log
+  const renderCount = useRef(0);
+  renderCount.current += 1;
+  const [isListening, setIsListening] = useState(false);
+  console.log(`%cDEBUG_LIVE_TAB: Render #${renderCount.current} | isListening (state): ${isListening}`, 'color: #00aaff');
+
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isListening, setIsListening] = useState(false);
-  const [transcript, setTranscript] = useState<string>(""); // To show live transcript
-  const [session, setSession] = useState<any | null>(null); // The live session
-  const isListeningRef = useRef(false);
+  const [transcript, setTranscript] = useState<string>("");
 
-  // --- Audio & API Refs ---
+  const sessionRef = useRef<any | null>(null);
+  const isListeningRef = useRef(false);
+  const isSessionReadyRef = useRef(false);
+
+  // Audio & API Refs
   const audioContextRef = useRef<AudioContext | null>(null);
   const micNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
@@ -38,10 +44,8 @@ export const LiveChatTab: React.FC<LiveChatTabProps> = ({
   const playbackQueueRef = useRef<ArrayBuffer[]>([]);
   const isPlayingRef = useRef(false);
 
-  // --- 1. Get Language Names ---
   const getLanguageName = (code: LanguageCode): string => t(`languages.${code}`);
 
-  // --- 2. System Prompt Generation ---
   const getSystemPrompt = useCallback(() => {
     const uiLangName = getLanguageName(uiLanguage);
     const targetLangName = getLanguageName(targetLanguage);
@@ -73,8 +77,33 @@ YOUR ROLE AND RULES:
 5.  You MUST respond with both TEXT and AUDIO.`;
   }, [lesson, uiLanguage, targetLanguage, t]);
 
-  // --- 3. Audio Playback ---
-  // Plays the queue of incoming audio buffers from Gemini
+  const cleanupAudioResources = useCallback(() => {
+    console.log("%cDEBUG_LIVE_TAB: cleanupAudioResources() CALLED", 'color: #ff0000; font-weight: bold;');
+    
+    if (workletNodeRef.current) {
+        console.log("%cDEBUG_LIVE_TAB: Disconnecting workletNodeRef", 'color: #ff0000');
+        workletNodeRef.current.disconnect();
+        workletNodeRef.current = null;
+    }
+    if (micNodeRef.current) {
+        console.log("%cDEBUG_LIVE_TAB: Disconnecting micNodeRef", 'color: #ff0000');
+        micNodeRef.current.disconnect();
+        micNodeRef.current = null;
+    }
+    if (streamRef.current) {
+        console.log("%cDEBUG_LIVE_TAB: Stopping media stream tracks", 'color: #ff0000');
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+    }
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        console.log("%cDEBUG_LIVE_TAB: Closing AudioContext", 'color: #ff0000');
+        audioContextRef.current.close().catch(e => console.warn("Error closing audio context", e));
+        audioContextRef.current = null;
+    }
+    playbackQueueRef.current = [];
+    isPlayingRef.current = false;
+  }, []);
+
   const playAudioQueue = useCallback(async () => {
     if (isPlayingRef.current || playbackQueueRef.current.length === 0) {
       return;
@@ -88,28 +117,24 @@ YOUR ROLE AND RULES:
     }
 
     try {
-      if (!audioContextRef.current) {
+      if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
       const audioCtx = audioContextRef.current;
 
-      // The audio from Gemini is 16-bit PCM @ 24kHz.
-      // We need to convert it to Float32Array for the browser to play.
       const pcmData = new Int16Array(audioBufferRaw);
       const floatData = new Float32Array(pcmData.length);
       for (let i = 0; i < pcmData.length; i++) {
-        floatData[i] = pcmData[i] / 32768.0; // Convert from Int16 to Float32
+        floatData[i] = pcmData[i] / 32768.0;
       }
 
-      // Create an AudioBuffer
       const audioBuffer = audioCtx.createBuffer(
-        1, // 1 channel (mono)
-        floatData.length, // buffer size
-        INCOMING_SAMPLE_RATE // sample rate (24kHz)
+        1, 
+        floatData.length,
+        INCOMING_SAMPLE_RATE 
       );
       audioBuffer.getChannelData(0).set(floatData);
 
-      // Play the buffer
       const source = audioCtx.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(audioCtx.destination);
@@ -124,156 +149,156 @@ YOUR ROLE AND RULES:
       setError(`Audio playback error: ${(e as Error).message}`);
       isPlayingRef.current = false;
     }
-  }, []);
+  }, [setError]);
 
-  // --- 4. Main Start/Stop Function ---
   const handleStartStopChat = async () => {
-    if (isListening) {
+    const callId = `call_${Date.now()}`; // DEBUG
+    console.log(`%cDEBUG_LIVE_TAB: handleStartStopChat [${callId}] | Current isListeningRef: ${isListeningRef.current}`, 'color: #ffaa00');
+
+    if (isListeningRef.current) {
       // --- STOP LISTENING ---
-      console.log("DEBUG: STOP LISTENING triggered."); // <-- ADD THIS
+      console.log(`%cDEBUG_LIVE_TAB: [${callId}] STOPPING...`, 'color: #ff0000');
       isListeningRef.current = false; 
-      setSession(prevSession => {
-        if (prevSession) {
-          console.log("DEBUG: Calling session.close()"); // <-- ADD THIS
-          prevSession.close();
-        }
-        return null; // Ensure state is cleared
-      });
-      if (workletNodeRef.current) {
-        workletNodeRef.current.disconnect();
-        workletNodeRef.current = null;
-      }
-      if (micNodeRef.current) {
-        micNodeRef.current.disconnect();
-        micNodeRef.current = null;
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
-      }
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close();
-        audioContextRef.current = null;
-      }
+      isSessionReadyRef.current = false;
       
-      setIsListening(false);
-      setIsLoading(false);
-      setTranscript("");
-      playbackQueueRef.current = [];
-      isPlayingRef.current = false;
+      if (sessionRef.current) {
+        console.log(`%cDEBUG_LIVE_TAB: [${callId}] Calling session.close()`, 'color: #ff0000');
+        sessionRef.current.close(); // This will trigger onclose
+      } else {
+        console.log(`%cDEBUG_LIVE_TAB: [${callId}] No session to close, cleaning up manually.`, 'color: #ff0000');
+        cleanupAudioResources();
+        // Manually reset UI state if no session existed
+        setIsListening(false);
+        setIsLoading(false);
+      }
+      sessionRef.current = null;
+      
+      console.log(`%cDEBUG_LIVE_TAB: [${callId}] STOP complete. UI state (isListening) will be set by onclose.`, 'color: #ff0000');
       return;
     }
 
     // --- START LISTENING ---
-    setIsListening(true);
-    isListeningRef.current = true; // <-- ADD THIS
-    setIsLoading(true);
+    console.log(`%cDEBUG_LIVE_TAB: [${callId}] STARTING...`, 'color: #00cc00');
+    isListeningRef.current = true;
+    isSessionReadyRef.current = false;
+    setIsLoading(true); // Show loading spinner
     setError(null);
     setTranscript("");
     playbackQueueRef.current = [];
     
     try {
-      // 1. Get Ephemeral Token
+      console.log(`%cDEBUG_LIVE_TAB: [${callId}] Fetching auth token...`, 'color: #00cc00');
       const token = await fetchAuthToken();
       if (!token) throw new Error("Received empty token");
+      console.log(`%cDEBUG_LIVE_TAB: [${callId}] Got token.`, 'color: #00cc00');
 
-      // 2. Initialize client-side GoogleGenAI SDK
       const ai = new GoogleGenAI({ 
-        apiKey: token, // Use the ephemeral token as the API key
-        httpOptions: { apiVersion: 'v1alpha' } // Must use v1alpha for Live API
+        apiKey: token,
+        httpOptions: { apiVersion: 'v1alpha' }
       });
       
-      // 3. Get AudioContext and Microphone
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({
-        sampleRate: 48000 // Request a common high sample rate
+        sampleRate: 48000
       });
       audioContextRef.current = audioCtx;
+      console.log(`%cDEBUG_LIVE_TAB: [${callId}] AudioContext created, state: ${audioCtx.state}`, 'color: #00cc00');
 
       await audioCtx.audioWorklet.addModule('audio-processor.js');
+      console.log(`%cDEBUG_LIVE_TAB: [${callId}] Audio worklet loaded.`, 'color: #00cc00');
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       const micNode = audioCtx.createMediaStreamSource(stream);
       micNodeRef.current = micNode;
 
-      // 4. Create Audio Worklet for processing
       const workletNode = new AudioWorkletNode(audioCtx, 'audio-processor', {
         processorOptions: {
           targetSampleRate: TARGET_SAMPLE_RATE,
         }
       });
       workletNodeRef.current = workletNode;
+      console.log(`%cDEBUG_LIVE_TAB: [${callId}] Mic and worklet node created.`, 'color: #00cc00');
 
-      // 5. Connect to the Live API
+      console.log(`%cDEBUG_LIVE_TAB: [${callId}] Calling ai.live.connect...`, 'color: #00cc00');
       const newSession = await ai.live.connect({
-        model: "gemini-live-2.5-flash", // Use the model specified in the docs
+        model: "gemini-live-2.5-flash",
         config: {
           responseModalities: [Modality.TEXT, Modality.AUDIO],
           systemInstruction: getSystemPrompt(),
         },
         callbacks: {
           onopen: () => {
-            console.log('DEBUG: Live session open.'); // <-- MODIFY THIS
-            setIsLoading(false);
+            console.log(`%cDEBUG_LIVE_TAB: [${callId}] ===> ON_OPEN fired <===`, 'color: #00cc00; font-weight: bold');
+            setIsLoading(false); // Hide spinner
+            setIsListening(true); // Set button to "Stop"
+            isSessionReadyRef.current = true; // Flag as ready for audio
           },
           onmessage: (message) => {
-            console.log("DEBUG: Received message from AI", message); // <-- ADD THIS
-            // Got a message from Gemini
+            console.log(`%cDEBUG_LIVE_TAB: [${callId}] ===> ON_MESSAGE received <===`, 'color: #00cc00', message);
             if (message.text) {
-              // Add raw audio buffer to queue
               playbackQueueRef.current.push(message.data);
               playAudioQueue();
             }
           },
           onerror: (e) => {
-            console.error('DEBUG: Live error:', e); // <-- MODIFY THIS
+            console.error(`%cDEBUG_LIVE_TAB: [${callId}] ===> ON_ERROR fired <===`, 'color: #ff0000; font-weight: bold', e);
             setError(`Live error: ${e.message}`);
-            handleStartStopChat(); // Force stop
+            isSessionReadyRef.current = false; // Stop sends
           },
           onclose: () => {
-            console.log('DEBUG: Live session closed.'); // <-- MODIFY THIS
-            // Ensure we are fully stopped
-            if (isListeningRef.current) { // <-- Check the ref here
-              handleStartStopChat();
+            console.log(`%cDEBUG_LIVE_TAB: [${callId}] ===> ON_CLOSE fired <===`, 'color: #ff0000; font-weight: bold');
+            cleanupAudioResources(); // ALWAYS clean up resources
+            
+            // Check if closure was unexpected
+            if (isListeningRef.current) {
+              console.log(`%cDEBUG_LIVE_TAB: [${callId}] onclose detected unexpected close. Resetting UI.`, 'color: #ff0000');
+            } else {
+              console.log(`%cDEBUG_LIVE_TAB: [${callId}] onclose was expected.`, 'color: #ffaa00');
             }
+            
+            // Reset all flags and state
+            isListeningRef.current = false;
+            isSessionReadyRef.current = false;
+            sessionRef.current = null;
+            setIsListening(false);
+            setIsLoading(false);
+            console.log(`%cDEBUG_LIVE_TAB: [${callId}] onclose has reset UI state and cleaned resources.`, 'color: #ffaa00');
           },
         },
       });
       
-      setSession(newSession);
+      console.log(`%cDEBUG_LIVE_TAB: [${callId}] ai.live.connect FINISHED. Session object created.`, 'color: #00cc00');
+      sessionRef.current = newSession;
 
-      // 6. Connect the audio pipeline
-      // This is where the magic happens
       workletNode.port.onmessage = (event) => {
-        // We received 16-bit PCM data from the worklet
         const pcmData = event.data;
-        // --- START FIX ---
-        // Check our own state, not a non-existent method
-        if (isListeningRef.current && newSession) { 
-          // Optional: log to confirm
-          console.log(`DEBUG: Sending audio chunk, size: ${pcmData.byteLength}`); // <-- UNCOMMENT THIS
+        const sendTime = Date.now();
+        
+        if (isListeningRef.current && isSessionReadyRef.current && sessionRef.current) { 
+          // console.log(`DEBUG_LIVE_TAB: [${callId}] onmessage: Trying to send audio chunk...`);
           
-          // Send the raw buffer to Gemini
-          try { // <-- ADD TRY/CATCH
-            newSession.sendRealtimeInput({ 
+          // *** ADDING CATCH BLOCK BACK AS REQUESTED ***
+          try { 
+            sessionRef.current.sendRealtimeInput({
               audio: { data: pcmData, mimeType: `audio/pcm;rate=${TARGET_SAMPLE_RATE}` }
-            }).catch(e => {
-              console.error("DEBUG: ERROR during sendRealtimeInput (async):", e);
-              setError(`Send error: ${(e as Error).message}`);
-              handleStartStopChat(); // Stop on send error
             });
           } catch (e) {
-            console.error("DEBUG: ERROR during sendRealtimeInput:", e);
-            setError(`Send error: ${(e as Error).message}`);
-            handleStartStopChat(); // Stop on send error
+            console.error(`%cDEBUG_LIVE_TAB: [${callId}] sendRealtimeInput SYNC ERROR at ${sendTime}:`, 'color: #ff0000', e);
+            // This error means the session is already closing.
+            // Just stop trying to send. onclose will handle the full cleanup.
+            isSessionReadyRef.current = false; 
           }
+        } else {
+          // DEBUG: Log why we skipped sending
+          // if (isListeningRef.current) { // Only log if we're supposed to be listening
+          //   console.log(`DEBUG_LIVE_TAB: [${callId}] onmessage: Skipped sending. isSessionReadyRef: ${isSessionReadyRef.current}, sessionRef: ${!!sessionRef.current}`);
+          // }
         }
       };
 
-      // Connect Mic -> Worklet
       micNode.connect(workletNode);
-      // Connect Worklet -> Destination (this is often needed to keep it "alive")
       workletNode.connect(audioCtx.destination);
+      console.log(`%cDEBUG_LIVE_TAB: [${callId}] Audio pipeline connected.`, 'color: #00cc00');
       
     } catch (e) {
       const msg = (e as Error).message;
@@ -284,24 +309,35 @@ YOUR ROLE AND RULES:
       } else {
         setError(`Failed to start: ${msg}`);
       }
-      console.error("Error in handleStartStopChat:", e);
+      console.error(`%cDEBUG_LIVE_TAB: [${callId}] STARTUP FAILED (catch block):`, 'color: #ff0000', e);
+      // Fallback cleanup
+      isListeningRef.current = false;
+      isSessionReadyRef.current = false;
       setIsListening(false);
       setIsLoading(false);
+      cleanupAudioResources();
     }
   };
 
   // Cleanup on unmount
   useEffect(() => {
+    console.log(`%cDEBUG_LIVE_TAB: useEffect (mount) fired.`, 'color: #00aaff');
     return () => {
-      if (isListening || session) {
-        handleStartStopChat();
+      console.log(`%cDEBUG_LIVE_TAB: useEffect (UNMOUNT) fired. isListeningRef: ${isListeningRef.current}`, 'color: #ff0000; font-weight: bold');
+      isListeningRef.current = false;
+      isSessionReadyRef.current = false;
+      if (sessionRef.current) {
+        console.log(`%cDEBUG_LIVE_TAB: Unmount calling session.close()`, 'color: #ff0000');
+        sessionRef.current.close();
+      } else {
+        cleanupAudioResources();
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run only on mount/unmount
-
+  }, [cleanupAudioResources]); // Stable dependency
+  
   return (
     <div className="space-y-4 text-center">
+      {console.log(`%cDEBUG_LIVE_TAB: Top-level RETURN (render #${renderCount.current})`, 'color: #00aaff')}
       <p className="text-sm text-gray-700">
         {isListening ? "I'm listening..." : t('chat.liveWelcome')}
       </p>
@@ -322,7 +358,6 @@ YOUR ROLE AND RULES:
       )}
       {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
 
-      {/* Live Transcript Area */}
       {transcript && (
         <div className="mt-4 text-left p-3 bg-white border border-indigo-200 rounded-lg h-32 overflow-y-auto whitespace-pre-wrap">
           {transcript}
@@ -330,4 +365,4 @@ YOUR ROLE AND RULES:
       )}
     </div>
   );
-};
+});
