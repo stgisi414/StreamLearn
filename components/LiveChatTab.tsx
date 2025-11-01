@@ -142,6 +142,7 @@ YOUR ROLE AND RULES:
     
     // --- FIX: Use config from working example to match server ---
     const config: any = {
+      model: "models/gemini-2.5-flash-native-audio-preview-09-2025", // <--- ***** ADD THIS LINE *****
       responseModalities: [Modality.AUDIO],
       mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM,
       speechConfig: {

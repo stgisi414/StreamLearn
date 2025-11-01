@@ -112,14 +112,14 @@ export class GenAILiveClient {
       console.log(`${LOG_PREFIX} connect: Calling this.client.live.connect...`);
       this.session = await this.client.live.connect({
         
-        // --- FIX: Use the stored authToken, NOT the apiKey ---
-        authToken: this.authToken,
-        // --- END FIX ---
+        authToken: this.authToken, // This part is correct
 
-        // --- FIX: model and config MUST be undefined to prevent 1011 error ---
-        // They are defined in the token itself.
-        model: undefined,
-        config: undefined,
+        // --- THIS IS THE REAL FIX ---
+        // Pass the model and config from the client.
+        // My previous instruction to set them to 'undefined' was WRONG and caused this error.
+        // The config *must* match the one used to generate the token in the backend.
+        model: this.model,
+        config: config,      
         // --- END FIX ---
         
         callbacks,

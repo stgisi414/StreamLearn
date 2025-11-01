@@ -1111,7 +1111,6 @@ export const getEphemeralToken = onRequest(
       });
 
       // 5. Define the model
-      // --- FIX: Use model from working example ---
       const model = "models/gemini-2.5-flash-native-audio-preview-09-2025"; 
       logger.info(`[${_CALL_ID}] 9/15: Model set to: ${model}`);
 
@@ -1125,7 +1124,6 @@ export const getEphemeralToken = onRequest(
       ).join('\n');
       const comprehensionQuestions = lesson.comprehensionQuestions.join('\n- ');
       
-      // THIS PROMPT MUST BE IDENTICAL TO THE ONE ON THE CLIENT
       const systemPrompt = `
 You are "Max," a friendly, patient, and expert language tutor.
 You are helping a student who is learning ${targetLangName} and speaks ${uiLangName}.
@@ -1152,9 +1150,10 @@ YOUR ROLE AND RULES:
       // 7. Define the *exact* connection config
       logger.info(`[${_CALL_ID}] 11/15: Defining connection config constraints...`);
 
-      // --- FIX: Use config from working example ---
-      // This MUST match the client-side config in LiveChatTab.tsx
+      // ***** THIS IS THE FIX (PART 1) *****
+      // The connectionConfig object should NOT contain the model
       const connectionConfig = {
+        // model: model, // <-- DELETE THIS LINE
         responseModalities: [Modality.AUDIO],
         mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM,
         speechConfig: {
@@ -1166,22 +1165,24 @@ YOUR ROLE AND RULES:
              slidingWindow: { targetTokens: '12800' },
         },
         tools: [],
-        // thinkingConfig was in your example's client, but not the function's
-        // Let's stick to the server-side example's config
       };
-      // --- END FIX ---
+      // **********************************
       logger.info(`[${_CALL_ID}] 11/15: Connection config defined: ${JSON.stringify(connectionConfig)}`);
 
       // 8. Create the ephemeral token config
+      // ***** THIS IS THE FIX (PART 2) *****
+      // The liveConnectConstraints object needs 'model' and 'config' as
+      // separate properties, not merged.
       const tokenConfig = {
         config: {
           uses: 1, 
           liveConnectConstraints: {
-            model: model,
-            config: connectionConfig // Use the identical config here
-          },
+            model: model, // <-- The model string goes here
+            config: connectionConfig // <-- The config object goes here
+          }
         }
       };
+      // **********************************
       logger.info(`[${_CALL_ID}] 12/15: Token config object created. Requesting token from Google...`);
       
       // 9. Create the token
