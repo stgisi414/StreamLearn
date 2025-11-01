@@ -1147,27 +1147,6 @@ const App: React.FC = () => {
     }
   };
 
-  // This function is now stable because its dependency 'authenticatedFetch' is stable
-  const handleFetchAuthToken = useCallback(async (): Promise<string> => {
-    console.log("DEBUG_APP: handleFetchAuthToken called");
-    try {
-      // FIX: Pass all data needed by the backend to build the system prompt
-      const response = await authenticatedFetch('getEphemeralToken', {
-        lessonData: currentLesson,
-        uiLanguage: uiLanguage,
-        targetLanguage: targetLanguage
-      });
-      if (response.token) {
-        return response.token;
-      } else {
-        throw new Error(response.error || "Failed to get ephemeral token from server.");
-      }
-    } catch (e) {
-      console.error("handleFetchAuthToken error:", e);
-      throw new Error(`Failed to get ephemeral token: ${(e as Error).message}`);
-    }
-  }, [authenticatedFetch, currentLesson, uiLanguage, targetLanguage]);
-
   // This function is now stable
   const handleClearChat = useCallback(() => {
     console.log("DEBUG_APP: handleClearChat called");
@@ -2930,8 +2909,10 @@ const LandingPage: React.FC<{
           error={chatError}
           onSubmit={handleChatSubmit}
           onClearChat={handleClearChat}
-          fetchAuthToken={handleFetchAuthToken} 
+          // --- CHANGE IS HERE ---
+          // handleFetchAuthToken={handleFetchAuthToken} // <-- REMOVE THIS
           geminiApiKey={import.meta.env.VITE_GEMINI_API_KEY} // <-- ADD THIS PROP
+          // --- END CHANGE ---
         />
 
       </div>

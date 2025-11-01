@@ -192,8 +192,10 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = React.memo((props) =>
             lesson={props.lesson}
             uiLanguage={props.uiLanguage}
             targetLanguage={props.targetLanguage}
-            fetchAuthToken={props.fetchAuthToken}
-            geminiApiKey={props.geminiApiKey}
+            // --- CHANGE IS HERE ---
+            // fetchAuthToken={props.fetchAuthToken} // <-- REMOVE THIS
+            geminiApiKey={props.geminiApiKey}     // <-- ADD THIS
+            // --- END CHANGE ---
           />
         )}
       </div>

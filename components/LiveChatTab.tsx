@@ -1,41 +1,36 @@
-// stgisi414/streamlearn/StreamLearn-9282341a63ce7e0d409702bc90f81e24e5098e1e/components/LiveChatTab.tsx
+// stgisi414/streamlearn/StreamLearn-5da6eca49904e01182e33e017b9792764ef017c0/components/LiveChatTab.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Lesson, LanguageCode } from '../types';
 import { useTranslation } from 'react-i18next';
 import { LoadingSpinner } from './LoadingSpinner';
-import { GenAILiveClient } from '@/lib/genai-live-client';
+import { GoogleGenAI, Modality, Session, LiveServerMessage } from '@google/genai';
 import { AudioRecorder } from '@/lib/audio-recorder';
 import { AudioStreamer } from '@/lib/audio-streamer';
-import { base64AudioToBlob, audioContext, base64ToArrayBuffer } from '@/lib/utils';
-import { LiveConnectConfig, Modality, MediaResolution } from '@google/genai';
+import { arrayBufferToBase64 } from '@/lib/utils';
 
 // --- LOGGING ---
-const LOG_PREFIX = '[DEBUG_LIVE_TAB]';
+const LOG_PREFIX = '[DEBUG_LIVE_TAB_NEW]';
 console.log(`${LOG_PREFIX} File loaded.`);
-// --- END LOGGING ---
 
 interface LiveChatTabProps {
   lesson: Lesson;
   uiLanguage: LanguageCode;
   targetLanguage: LanguageCode;
-  fetchAuthToken: () => Promise<string>;
-  geminiApiKey: string;
+  geminiApiKey: string; // We now take the API key directly
 }
 
 // --- HELPER FUNCTION ---
 const getSimpleLanguageName = (code: LanguageCode | string): string => {
-// ... (this function is unchanged) ...
-  console.log(`${LOG_PREFIX} getSimpleLanguageName called with code: ${code}`);
   switch (code) {
-    case "en": console.log(`${LOG_PREFIX} getSimpleLanguageName: returning "English"`); return "English";
-    case "es": console.log(`${LOG_PREFIX} getSimpleLanguageName: returning "Spanish"`); return "Spanish";
-    case "fr": console.log(`${LOG_PREFIX} getSimpleLanguageName: returning "French"`); return "French";
-    case "de": console.log(`${LOG_PREFIX} getSimpleLanguageName: returning "German"`); return "German";
-    case "it": console.log(`${LOG_PREFIX} getSimpleLanguageName: returning "Italian"`); return "Italian";
-    case "ko": console.log(`${LOG_PREFIX} getSimpleLanguageName: returning "Korean"`); return "Korean";
-    case "ja": console.log(`${LOG_PREFIX} getSimpleLanguageName: returning "Japanese"`); return "Japanese";
-    case "zh": console.log(`${LOG_PREFIX} getSimpleLanguageName: returning "Chinese"`); return "Chinese";
-    default: console.log(`${LOG_PREFIX} getSimpleLanguageName: returning "English" (default)`); return "English"; // Fallback
+    case "en": return "English";
+    case "es": return "Spanish";
+    case "fr": return "French";
+    case "de": return "German";
+    case "it": return "Italian";
+    case "ko": return "Korean";
+    case "ja": return "Japanese";
+    case "zh": return "Chinese";
+    default: return "English"; // Fallback
   }
 };
 // --- END HELPER FUNCTION ---
@@ -44,73 +39,45 @@ export const LiveChatTab: React.FC<LiveChatTabProps> = React.memo(({
   lesson,
   uiLanguage,
   targetLanguage,
-  fetchAuthToken,
   geminiApiKey
 }) => {
-// ... (states and refs are unchanged) ...
   console.log(`${LOG_PREFIX} LiveChatTab component rendering...`);
-  console.log(`${LOG_PREFIX} Props:`, { lesson: !!lesson, uiLanguage, targetLanguage, fetchAuthToken: !!fetchAuthToken });
-
   const { t } = useTranslation();
-  console.log(`${LOG_PREFIX} t function initialized.`);
 
   // --- State ---
   const [isSessionActive, setIsSessionActive] = useState(false);
-  console.log(`${LOG_PREFIX} State [isSessionActive]:`, isSessionActive);
   const [isConnecting, setIsConnecting] = useState(false);
-  console.log(`${LOG_PREFIX} State [isConnecting]:`, isConnecting);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  console.log(`${LOG_PREFIX} State [errorMessage]:`, errorMessage);
-  
   const [conversationLog, setConversationLog] = useState<string>("");
-  console.log(`${LOG_PREFIX} State [conversationLog] length:`, conversationLog.length);
   const [interimLog, setInterimLog] = useState<string>("");
-  console.log(`${LOG_PREFIX} State [interimLog] length:`, interimLog.length);
-  // --- End State ---
 
   // --- Refs ---
-  const clientRef = useRef<GenAILiveClient | null>(null);
-  console.log(`${LOG_PREFIX} Ref [clientRef.current]:`, clientRef.current ? 'Exists' : 'null');
+  const aiRef = useRef<GoogleGenAI | null>(null);
+  const sessionRef = useRef<Session | null>(null);
   const recorderRef = useRef<AudioRecorder | null>(null);
-  console.log(`${LOG_PREFIX} Ref [recorderRef.current]:`, recorderRef.current ? 'Exists' : 'null');
   const streamerRef = useRef<AudioStreamer | null>(null);
-  console.log(`${LOG_PREFIX} Ref [streamerRef.current]:`, streamerRef.current ? 'Exists' : 'null');
-  const connectionStateRef = useRef(false);
-  console.log(`${LOG_PREFIX} Ref [connectionStateRef.current]:`, connectionStateRef.current);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
-  console.log(`${LOG_PREFIX} Ref [transcriptEndRef.current]:`, transcriptEndRef.current ? 'Exists' : 'null');
-  const audioBufferRef = useRef<string[]>([]); // To hold audio chunks
-  const audioIntervalRef = useRef<NodeJS.Timeout | null>(null); // To manage the send interval
-  // --- End Refs ---
+
+  // This ref holds the response queue from the Google example
+  const responseQueueRef = useRef<LiveServerMessage[]>([]);
 
   // Auto-scroll for transcript
   useEffect(() => {
-    console.log(`${LOG_PREFIX} useEffect [scroll] triggered.`);
-    if (transcriptEndRef.current) {
-      console.log(`${LOG_PREFIX} useEffect [scroll]: Scrolling to bottom.`);
-      transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    } else {
-      console.log(`${LOG_PREFIX} useEffect [scroll]: transcriptEndRef.current is null.`);
-    }
+    transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversationLog, interimLog]);
 
   // --- System Prompt Builder ---
   const getSystemPrompt = useCallback(() => {
-// ... (this function is unchanged) ...
-    console.log(`${LOG_PREFIX} getSystemPrompt (useCallback) called.`);
-    console.log(`${LOG_PREFIX} getSystemPrompt: Using uiLanguage: ${uiLanguage}, targetLanguage: ${targetLanguage}`);
+    console.log(`${LOG_PREFIX} getSystemPrompt called.`);
     const uiLangName = getSimpleLanguageName(uiLanguage);
     const targetLangName = getSimpleLanguageName(targetLanguage);
-    console.log(`${LOG_PREFIX} getSystemPrompt: Resolved names: uiLangName=${uiLangName}, targetLangName=${targetLangName}`);
-
-    console.log(`${LOG_PREFIX} getSystemPrompt: Mapping vocab...`);
     const vocabList = lesson.vocabularyList.map((v: any) =>
       `- ${v.word} (${targetLangName}): ${v.definition} (${uiLangName}). Example: "${v.articleExample}"`
     ).join('\n');
-    console.log(`${LOG_PREFIX} getSystemPrompt: Mapping comprehension questions...`);
     const comprehensionQuestions = lesson.comprehensionQuestions.join('\n- ');
 
-    const prompt = `
+    // This is the system prompt from the Google example, customized with our lesson
+    return `
 You are "Max," a friendly, patient, and expert language tutor.
 You are helping a student who is learning ${targetLangName} and speaks ${uiLangName}.
 Your entire knowledge base for this conversation is STRICTLY limited to the following lesson data:
@@ -130,300 +97,242 @@ YOUR ROLE AND RULES:
 3.  **CRITICAL RULE:** If the user asks a question *outside* the scope of this lesson, you MUST politely decline and guide them back to the lesson.
 4.  Keep your answers concise and easy to understand.
 5.  You MUST respond with both TEXT AND AUDIO.`;
-    console.log(`${LOG_PREFIX} getSystemPrompt: Prompt created.`);
-    return prompt;
   }, [lesson, uiLanguage, targetLanguage]);
 
-  // --- Connection Config Builder ---
-  const getConnectionConfig = useCallback((): LiveConnectConfig => {
-    console.log(`${LOG_PREFIX} getConnectionConfig (useCallback) called.`);
-    const systemPrompt = getSystemPrompt();
-    console.log(`${LOG_PREFIX} getConnectionConfig: Got system prompt.`);
-    
-    // --- FIX: Remove the 'model' property from this config object ---
-    // The model is added one level up by the GenAILiveClient.
-    const config: any = {
-      // model: "models/gemini-2.5-flash-native-audio-preview-09-2025", // <--- ***** REMOVED THIS LINE *****
-      responseModalities: [Modality.AUDIO],
-      mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM,
-      speechConfig: {
-        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
-      },
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      contextWindowCompression: {
-           triggerTokens: '25600',
-           slidingWindow: { targetTokens: '12800' },
-      },
-      tools: [],
-    };
-    // --- END FIX ---
-    
-    console.log(`${LOG_PREFIX} getConnectionConfig: Config object created:`, config);
-    return config as LiveConnectConfig;
-  }, [getSystemPrompt]);
+
+  /**
+   * This function is adapted from the Google doc example.
+   * It waits for the next message in the queue.
+   */
+  const waitMessage = async (): Promise<LiveServerMessage> => {
+    let done = false;
+    let message: LiveServerMessage | undefined = undefined;
+    while (!done) {
+        message = responseQueueRef.current.shift();
+        if (message) {
+            done = true;
+        } else {
+            // Wait 100ms for a new message
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+    }
+    return message!;
+  }
+
+  /**
+   * This function is adapted from the Google doc example.
+   * It processes messages until a 'turnComplete' signal is received.
+   */
+  const handleTurn = async () => {
+    console.log(`${LOG_PREFIX} handleTurn: Waiting for messages...`);
+    const turns = [];
+    let done = false;
+    while (!done) {
+        const message = await waitMessage();
+        console.log(`${LOG_PREFIX} handleTurn: Dequeued message:`, message);
+        turns.push(message);
+
+        // --- Process messages as they come in ---
+        
+        // Handle input transcription
+        if (message.serverContent?.inputTranscription) {
+          const trans = message.serverContent.inputTranscription;
+          const isFinal = (trans as any).isFinal ?? false;
+           if (isFinal) {
+              setConversationLog(prev => prev + `USER: ${trans.text}\n`);
+              setInterimLog("");
+            } else {
+              setInterimLog(`USER: ${trans.text}`);
+            }
+        }
+        
+        // Handle output transcription
+        if (message.serverContent?.outputTranscription) {
+            const trans = message.serverContent.outputTranscription;
+            const isFinal = (trans as any).isFinal ?? false;
+            setConversationLog(prev => { 
+              let newLog;
+              if (prev.endsWith('\n') || prev.length === 0) {
+                newLog = prev + `MAX: ${trans.text}` + (isFinal ? '\n' : '');
+              } else {
+                const lastNewline = prev.lastIndexOf('\n');
+                const base = prev.substring(0, lastNewline + 1);
+                newLog = base + `MAX: ${trans.text}` + (isFinal ? '\n' : '');
+              }
+              return newLog;
+            });
+        }
+        
+        // Handle audio data
+        if (message.data) {
+           console.log(`${LOG_PREFIX} handleTurn: Got audio data chunk.`);
+           // The data is base64 16-bit PCM. Our new streamer handles this.
+           streamerRef.current?.addAudio(message.data);
+        }
+
+        // Check if the turn is complete
+        if (message.serverContent && message.serverContent.turnComplete) {
+            console.log(`${LOG_PREFIX} handleTurn: Turn complete.`);
+            done = true;
+        }
+    }
+    return turns;
+  }
 
   // --- Main Cleanup Function ---
   const cleanupConnection = useCallback(() => {
-    console.log(`${LOG_PREFIX} cleanupConnection (useCallback) called. connectionStateRef.current: ${connectionStateRef.current}`);
-    connectionStateRef.current = false;
-    console.log(`${LOG_PREFIX} cleanupConnection: Set connectionStateRef.current = false.`);
-
-    // --- ADD THIS BLOCK to clear the interval and buffer ---
-    if (audioIntervalRef.current) {
-      console.log(`${LOG_PREFIX} cleanupConnection: Clearing audio send interval.`);
-      clearInterval(audioIntervalRef.current);
-      audioIntervalRef.current = null;
-    }
-    audioBufferRef.current = []; // Clear buffer
-    // --- END ADD ---
-
-    if (clientRef.current) {
+    console.log(`${LOG_PREFIX} cleanupConnection called.`);
+    
+    if (sessionRef.current) {
       console.log(`${LOG_PREFIX} cleanupConnection: Disconnecting client...`);
-      clientRef.current.disconnect();
-      clientRef.current = null;
-      console.log(`${LOG_PREFIX} cleanupConnection: clientRef.current set to null.`);
-    } else {
-      console.log(`${LOG_PREFIX} cleanupConnection: No clientRef.current to disconnect.`);
+      sessionRef.current.close();
+      sessionRef.current = null;
     }
     
     if (recorderRef.current) {
       console.log(`${LOG_PREFIX} cleanupConnection: Stopping recorder...`);
       recorderRef.current.stop();
       recorderRef.current = null;
-      console.log(`${LOG_PREFIX} cleanupConnection: recorderRef.current set to null.`);
-    } else {
-      console.log(`${LOG_PREFIX} cleanupConnection: No recorderRef.current to stop.`);
     }
     
     if (streamerRef.current) {
       console.log(`${LOG_PREFIX} cleanupConnection: Stopping streamer...`);
       streamerRef.current.stop();
       streamerRef.current = null;
-      console.log(`${LOG_PREFIX} cleanupConnection: streamerRef.current set to null.`);
-    } else {
-      console.log(`${LOG_PREFIX} cleanupConnection: No streamerRef.current to stop.`);
     }
-    
-    console.log(`${LOG_PREFIX} cleanupConnection: Setting states...`);
+
+    responseQueueRef.current = []; // Clear message queue
     setIsSessionActive(false);
     setIsConnecting(false);
     setInterimLog("");
     console.log(`${LOG_PREFIX} cleanupConnection: States set.`);
-  }, []); // No dependencies, it's a static utility
+  }, []);
 
   // --- Start/Stop Handler ---
   const handleToggleConnection = async () => {
-    console.log(`${LOG_PREFIX} handleToggleConnection called. connectionStateRef.current: ${connectionStateRef.current}`);
+    console.log(`${LOG_PREFIX} handleToggleConnection called.`);
 
     // --- STOPPING ---
-    if (connectionStateRef.current) {
+    if (isSessionActive || isConnecting) {
       console.log(`${LOG_PREFIX} handleToggleConnection: STOPPING connection.`);
       cleanupConnection();
-      console.log(`${LOG_PREFIX} handleToggleConnection: STOP complete.`);
       return;
     }
 
     // --- STARTING ---
     console.log(`${LOG_PREFIX} handleToggleConnection: STARTING connection.`);
-    console.log(`${LOG_PREFIX} handleToggleConnection: Setting initial states...`);
     setIsConnecting(true);
     setErrorMessage(null);
     setConversationLog("");
     setInterimLog("");
-    connectionStateRef.current = true; // Set lock
-    console.log(`${LOG_PREFIX} handleToggleConnection: Initial states set. connectionStateRef.current = true.`);
+    responseQueueRef.current = [];
 
     try {
-      // 1. Get auth token
-      console.log(`${LOG_PREFIX} handleToggleConnection: 1. Fetching auth token...`);
-      const token = await fetchAuthToken();
-      if (!token) {
-        console.error(`${LOG_PREFIX} handleToggleConnection: Token is null or empty.`);
-        throw new Error("Received empty token");
-      }
-      console.log(`${LOG_PREFIX} handleToggleConnection: 1. Auth token received (length: ${token.length}).`);
-      
-      if (!connectionStateRef.current) {
-        console.warn(`${LOG_PREFIX} handleToggleConnection: Connection cancelled during auth token fetch. Aborting start.`);
-        return; // Check if user cancelled during fetch
-      }
-
-      // 2. Init classes
-      console.log(`${LOG_PREFIX} handleToggleConnection: 2. Initializing client and peripherals...`);
-      // --- FIX: Pass BOTH the API key (for constructor) and the Token (for connect) ---
-      const client = new GenAILiveClient(geminiApiKey, token);
-      // --- END FIX ---
-      clientRef.current = client;
-      console.log(`${LOG_PREFIX} handleToggleConnection: 2. GenAILiveClient created.`);
-
-      const recorder = new AudioRecorder();
-      recorderRef.current = recorder;
-      console.log(`${LOG_PREFIX} handleToggleConnection: 2. AudioRecorder created.`);
-
-      // *** THE FIX: Match the recorder's sample rate ***
-      console.log(`${LOG_PREFIX} handleToggleConnection: 2. Creating AudioContext for streamer (16000Hz)...`);
-      const audioCtx = await audioContext({ sampleRate: 16000 }); 
-      // *** END FIX ***
-      console.log(`${LOG_PREFIX} handleToggleConnection: 2. AudioContext state: ${audioCtx.state}.`);
-      if (audioCtx.state === 'suspended') {
-        console.log(`${LOG_PREFIX} handleToggleConnection: 2. Resuming AudioContext...`);
-        await audioCtx.resume();
-        console.log(`${LOG_PREFIX} handleToggleConnection: 2. AudioContext resumed. New state: ${audioCtx.state}.`);
-      }
-      const streamer = new AudioStreamer(audioCtx);
-      streamerRef.current = streamer;
-      console.log(`${LOG_PREFIX} handleToggleConnection: 2. AudioStreamer created.`);
-
-      // 3. Setup Client Event Handlers
-// ... (this section is unchanged) ...
-      console.log(`${LOG_PREFIX} handleToggleConnection: 3. Setting up client event handlers...`);
-      client.on('open', () => {
-        console.log(`${LOG_PREFIX} client.on('open'): FIRED.`);
-        if (!connectionStateRef.current) {
-          console.log(`${LOG_PREFIX} client.on('open'): Connection already cancelled. Ignoring.`);
-          return;
-        }
-        console.log(`${LOG_PREFIX} client.on('open'): Setting state: isConnecting=false, isSessionActive=true.`);
-        setIsConnecting(false);
-        setIsSessionActive(true);
-      });
-
-      client.on('close', (e) => {
-        console.log(`${LOG_PREFIX} client.on('close'): FIRED. Reason: ${e.reason} Code: ${e.code}`);
-        if (connectionStateRef.current) {
-          console.error(`${LOG_PREFIX} client.on('close'): Connection closed unexpectedly.`);
-          setErrorMessage("Connection closed unexpectedly. " + e.reason);
-        } else {
-          console.log(`${LOG_PREFIX} client.on('close'): Connection closed expectedly.`);
-        }
-        cleanupConnection();
-      });
-
-      client.on('error', (e) => {
-        console.error(`${LOG_PREFIX} client.on('error'): FIRED.`, e);
-        setErrorMessage(e.message || "An unknown connection error occurred.");
-        cleanupConnection();
-      });
-
-      client.on('inputTranscription', (text, isFinal) => {
-        console.log(`${LOG_PREFIX} client.on('inputTranscription'): FIRED. isFinal: ${isFinal}, text: ${text}`);
-        if (isFinal) {
-          console.log(`${LOG_PREFIX} client.on('inputTranscription'): Final. Updating conversationLog, clearing interimLog.`);
-          setConversationLog(prev => prev + `USER: ${text}\n`);
-          setInterimLog("");
-        } else {
-          console.log(`${LOG_PREFIX} client.on('inputTranscription'): Interim. Updating interimLog.`);
-          setInterimLog(`USER: ${text}`);
-        }
-      });
-
-      client.on('outputTranscription', (text, isFinal) => {
-        console.log(`${LOG_PREFIX} client.on('outputTranscription'): FIRED. isFinal: ${isFinal}, text: ${text}`);
-        setConversationLog(prev => { 
-          let newLog;
-          if (prev.endsWith('\n') || prev.length === 0) {
-            newLog = prev + `MAX: ${text}` + (isFinal ? '\n' : '');
-            console.log(`${LOG_PREFIX} client.on('outputTranscription'): Appending new 'MAX:' line.`);
-          } else {
-            const lastNewline = prev.lastIndexOf('\n');
-            const base = prev.substring(0, lastNewline + 1);
-            newLog = base + `MAX: ${text}` + (isFinal ? '\n' : '');
-            console.log(`${LOG_PREFIX} client.on('outputTranscription'): Replacing existing 'MAX:' line.`);
+      // 1. Init SDK (as per doc example)
+      if (!aiRef.current) {
+          if (!geminiApiKey) {
+            console.error(`${LOG_PREFIX} FATAL: Gemini API Key is missing.`);
+            throw new Error("Gemini API Key is not configured.");
           }
-          return newLog;
-        });
-      });
-
-      client.on('audio', (audioData) => {
-        console.log(`${LOG_PREFIX} client.on('audio'): FIRED. Received ${audioData.byteLength} bytes.`);
-        if (streamerRef.current) {
-          console.log(`${LOG_PREFIX} client.on('audio'): Sending data to streamer.`);
-          streamerRef.current.addPCM16(new Uint8Array(audioData));
-        } else {
-          console.warn(`${LOG_PREFIX} client.on('audio'): streamerRef.current is null, cannot play audio.`);
-        }
-      });
-      console.log(`${LOG_PREFIX} handleToggleConnection: 3. Client event handlers set.`);
-
-      // 4. Setup Recorder Event Handler
-// ... (this section is unchanged) ...
-      console.log(`${LOG_PREFIX} handleToggleConnection: 4. Setting up recorder event handler...`);
-      recorder.on('data', (base64Audio) => {
-        // console.log(`${LOG_PREFIX} recorder.on('data'): Buffering audio chunk.`); // Quieter log
-        if (connectionStateRef.current) {
-          audioBufferRef.current.push(base64Audio as string); // Push to buffer instead of sending
-        }
-      });
-      console.log(`${LOG_PREFIX} handleToggleConnection: 4. Recorder event handler set.`);
-
-      // 5. Connect Client
-// ... (this section is unchanged) ...
-      console.log(`${LOG_PREFIX} handleToggleConnection: 5. Getting connection config...`);
-      const config = getConnectionConfig();
-      console.log(`${LOG_PREFIX} handleToggleConnection: 5. Calling client.connect()...`);
-      await client.connect(config);
-      console.log(`${LOG_PREFIX} handleToggleConnection: 5. client.connect() promise resolved.`);
-      
-      if (!connectionStateRef.current) {
-        console.warn(`${LOG_PREFIX} handleToggleConnection: Connection cancelled during client.connect(). Cleaning up.`);
-        cleanupConnection();
-        return;
+          // WARNING: Do not use API keys in client-side (browser based) applications
+          // Consider using Ephemeral Tokens instead
+          // More information at: https://ai.google.dev/gemini-api/docs/ephemeral-tokens
+          aiRef.current = new GoogleGenAI({ apiKey: geminiApiKey });
+          console.log(`${LOG_PREFIX} GoogleGenAI client initialized.`);
       }
-
-      // 6. Start Recorder
-      console.log(`${LOG_PREFIX} handleToggleConnection: 6. Calling recorder.start()...`);
-      await recorder.start();
-      console.log(`${LOG_PREFIX} handleToggleConnection: 6. recorder.start() promise resolved. Live session is fully active.`);
-
-      // 7. Start Audio Buffering Interval
-      if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
-      audioBufferRef.current = []; // Ensure buffer is clear
       
-      // --- FIX: Ensure 300ms interval is still present ---
-      // (This was my previous fix for the 1006 error, it should remain)
-      audioIntervalRef.current = setInterval(() => {
-        if (audioBufferRef.current.length > 0 && clientRef.current?.status === 'connected') {
-          
-          const bufferedBase64Strings = [...audioBufferRef.current];
-          audioBufferRef.current = []; 
+      // 2. Init Audio Recorder and Streamer
+      recorderRef.current = new AudioRecorder(16000); // 16kHz input
+      streamerRef.current = new AudioStreamer(); // 24kHz output
+      console.log(`${LOG_PREFIX} AudioRecorder and AudioStreamer initialized.`);
 
-          try {
-            const arrayBuffers = bufferedBase64Strings.map(b64 => base64ToArrayBuffer(b64));
+      // 3. Define Model and Config (as per doc example)
+      const model = "gemini-2.5-flash-native-audio-preview-09-2025";
+      const config = {
+        responseModalities: [Modality.AUDIO],
+        systemInstruction: { parts: [{ text: getSystemPrompt() }] },
+      };
+      console.log(`${LOG_PREFIX} Model and Config defined.`);
+
+      // 4. Connect
+      console.log(`${LOG_PREFIX} Calling ai.live.connect...`);
+      sessionRef.current = await aiRef.current.live.connect({
+        model: model,
+        config: config,
+        callbacks: {
+          onopen: () => {
+            console.log(`${LOG_PREFIX} client.on('open'): FIRED.`);
+            setIsConnecting(false);
+            setIsSessionActive(true);
+          },
+          onmessage: (message: LiveServerMessage) => {
+            // console.log(`${LOG_PREFIX} client.on('message'): Received message, pushing to queue.`); // Too noisy
+            responseQueueRef.current.push(message);
+          },
+          onerror: (e: ErrorEvent) => {
+            console.error(`${LOG_PREFIX} client.on('error'): FIRED.`, e);
+            setErrorMessage(e.message || "An unknown connection error occurred.");
+            cleanupConnection();
+          },
+          onclose: (e: CloseEvent) => {
+            console.log(`${LOG_PREFIX} client.on('close'): FIRED. Reason: ${e.reason} Code: ${e.code}`);
+            if (e.code !== 1000) { // 1000 is normal closure
+               setErrorMessage(`Connection closed: ${e.reason} (Code: ${e.code})`);
+            }
+            cleanupConnection();
+          },
+        },
+      });
+      console.log(`${LOG_PREFIX} ai.live.connect() promise resolved.`);
+
+      // 5. Start Audio Recorder and pipe to Gemini
+      recorderRef.current.on('data', (arrayBuffer: ArrayBuffer) => {
+          if (sessionRef.current) {
             
-            let totalLength = 0;
-            for (const buffer of arrayBuffers) {
-              totalLength += buffer.byteLength;
-            }
+            // --- THIS IS THE FIX ---
+            // Convert the ArrayBuffer to a base64 string
+            const base64Audio = arrayBufferToBase64(arrayBuffer);
 
-            const combinedUint8Array = new Uint8Array(totalLength);
-            let offset = 0;
-            for (const buffer of arrayBuffers) {
-              combinedUint8Array.set(new Uint8Array(buffer), offset);
-              offset += buffer.byteLength;
-            }
-
-            const combinedBlob = new Blob([combinedUint8Array.buffer], { type: 'audio/pcm' });
-            clientRef.current.sendRealtimeInput([combinedBlob]);
-          
-          } catch (e) {
-            console.error(`${LOG_PREFIX} AudioInterval: Error processing audio buffer:`, e);
+            // Send in the exact format from the documentation
+            sessionRef.current.sendRealtimeInput({
+                audio: {
+                    data: base64Audio,
+                    mimeType: "audio/pcm;rate=16000"
+                }
+            });
+            // --- END FIX ---
           }
-        }
-      }, 300); // Keep the 300ms batching interval
+      });
       
-      console.log(`${LOG_PREFIX} handleToggleConnection: 7. Audio send interval (800ms) started.`);
+      await recorderRef.current.start();
+      console.log(`${LOG_PREFIX} Recorder started.`);
+
+      // 6. Start the message processing loop
+      console.log(`${LOG_PREFIX} Starting main processing loop (handleTurn).`);
+      // Run in a non-blocking way
+      (async () => {
+          while (sessionRef.current) {
+             try {
+                await handleTurn();
+             } catch (e) {
+                console.error(`${LOG_PREFIX} Error in handleTurn loop:`, e);
+                // If session is still active, this was a processing error
+                if (sessionRef.current) {
+                   setErrorMessage(`Error processing response: ${(e as Error).message}`);
+                }
+                // If session is null, cleanupConnection was already called
+                break;
+             }
+          }
+          console.log(`${LOG_PREFIX} Main processing loop exited.`);
+      })();
 
     } catch (e) {
       const msg = (e as Error).message;
       console.error(`${LOG_PREFIX} handleToggleConnection: STARTUP FAILED (catch block):`, e);
       if (msg.includes("Permission denied") || msg.includes("denied")) {
-        console.error(`${LOG_PREFIX} Mic permission denied.`);
         setErrorMessage(t('chat.liveMicError'));
-      } else if (msg.includes("token")) {
-        console.error(`${LOG_PREFIX} Token error.`);
-        setErrorMessage(t('chat.liveTokenError'));
       } else {
-        console.error(`${LOG_PREFIX} Unknown startup error.`);
         setErrorMessage(`Failed to start: ${msg}`);
       }
       cleanupConnection();
@@ -432,9 +341,7 @@ YOUR ROLE AND RULES:
 
   // --- Unmount Cleanup ---
   useEffect(() => {
-// ... (this function is unchanged) ...
     console.log(`${LOG_PREFIX} useEffect [unmount] setup.`);
-    // Return a cleanup function
     return () => {
       console.log(`${LOG_PREFIX} useEffect [unmount]: Component unmounting, running cleanup...`);
       cleanupConnection();
@@ -442,71 +349,44 @@ YOUR ROLE AND RULES:
   }, [cleanupConnection]); // Dependency array includes the stable cleanup function
 
   // --- RENDER ---
-  console.log(`${LOG_PREFIX} render() called.`);
   return (
-// ... (this section is unchanged) ...
     <div className="space-y-4 text-center">
-      {console.log(`${LOG_PREFIX} render: Rendering <p>`)}
       <p className="text-sm text-gray-700">
         {isSessionActive ? "I'm listening..." : t('chat.liveWelcome')}
       </p>
 
       {isConnecting ? (
-        <>
-          {console.log(`${LOG_PREFIX} render: Rendering <LoadingSpinner>`)}
-          <LoadingSpinner text={t('chat.liveLoading')} />
-        </>
+        <LoadingSpinner text={t('chat.liveLoading')} />
       ) : (
-        <>
-          {console.log(`${LOG_PREFIX} render: Rendering <button>`)}
-          <button
-            onClick={handleToggleConnection}
-            className={`font-bold py-3 px-6 rounded-lg text-white transition-all ${
-              isSessionActive
-                ? 'bg-red-600 hover:bg-red-700'
-                : 'bg-green-600 hover:bg-green-700'
-            }`}
-          >
-            {isSessionActive ? t('chat.liveStop') : t('chat.liveStart')}
-          </button>
-        </>
+        <button
+          onClick={handleToggleConnection}
+          className={`font-bold py-3 px-6 rounded-lg text-white transition-all ${
+            isSessionActive
+              ? 'bg-red-600 hover:bg-red-700'
+              : 'bg-green-600 hover:bg-green-700'
+          }`}
+        >
+          {isSessionActive ? t('chat.liveStop') : t('chat.liveStart')}
+        </button>
       )}
       {errorMessage && (
-        <>
-          {console.log(`${LOG_PREFIX} render: Rendering error message:`, errorMessage)}
-          <p className="text-sm text-red-600 mt-2">{errorMessage}</p>
-        </>
+        <p className="text-sm text-red-600 mt-2">{errorMessage}</p>
       )}
 
       {/* Transcript Area */}
-      {(isSessionActive || isConnecting || conversationLog || interimLog) ? (
-        <>
-          {console.log(`${LOG_PREFIX} render: Rendering transcript area.`)}
-          <div
-            className="mt-4 text-left p-3 bg-white border border-indigo-200 rounded-lg h-32 overflow-y-auto whitespace-pre-wrap"
-          >
-            {console.log(`${LOG_PREFIX} render: Rendering conversationLog...`)}
-            {conversationLog}
-            {interimLog && (
-              <>
-                {console.log(`${LOG_PREFIX} render: Rendering interimLog...`)}
-                <span className="text-gray-400">{interimLog}</span>
-              </>
-            )}
-            {(!conversationLog && !interimLog && isSessionActive) && (
-              <>
-                {console.log(`${LOG_PREFIX} render: Rendering 'Listening...' placeholder.`)}
-                <span className="text-gray-400">Listening...</span>
-              </>
-            )}
-            <div ref={transcriptEndRef} />
-          </div>
-        </>
-      ) : (
-        <>
-          {console.log(`${LOG_PREFIX} render: Not rendering transcript area.`)}
-          {null}
-        </>
+      {(isSessionActive || isConnecting || conversationLog || interimLog) && (
+        <div
+          className="mt-4 text-left p-3 bg-white border border-indigo-200 rounded-lg h-32 overflow-y-auto whitespace-pre-wrap"
+        >
+          {conversationLog}
+          {interimLog && (
+            <span className="text-gray-400">{interimLog}</span>
+          )}
+          {(!conversationLog && !interimLog && isSessionActive) && (
+            <span className="text-gray-400">Listening...</span>
+          )}
+          <div ref={transcriptEndRef} />
+        </div>
       )}
     </div>
   );

@@ -38,10 +38,6 @@
         "function": "createPortalLink"
       },
       {
-        "source": "/api/getEphemeralToken",
-        "function": "getEphemeralToken"
-      },
-      {
         "source": "**",
         "destination": "/index.html"
       }
