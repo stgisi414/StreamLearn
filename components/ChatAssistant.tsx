@@ -15,9 +15,10 @@ interface ChatAssistantProps {
   onSubmit: (input: string) => Promise<void>;
   onClearChat: () => void;
   fetchAuthToken: () => Promise<string>;
+  geminiApiKey: string; // <-- ADD THIS
 }
 
-const TextChatTab: React.FC<Omit<ChatAssistantProps, 'fetchAuthToken' | 'lesson'>> = React.memo(({
+const TextChatTab: React.FC<Omit<ChatAssistantProps, 'fetchAuthToken' | 'lesson' | 'geminiApiKey'>> = React.memo(({
   history,
   isLoading,
   error,
@@ -192,6 +193,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = React.memo((props) =>
             uiLanguage={props.uiLanguage}
             targetLanguage={props.targetLanguage}
             fetchAuthToken={props.fetchAuthToken}
+            geminiApiKey={props.geminiApiKey}
           />
         )}
       </div>

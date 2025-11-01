@@ -51,9 +51,7 @@ export interface LiveClientEventTypes {
 }
 
 export class GenAILiveClient {
-  // --- FIX: This MUST match the model in getEphemeralToken ---
   public readonly model: string = "models/gemini-2.5-flash-native-audio-preview-09-2025";
-  // --- END FIX ---
   
   private emitter = new EventEmitter<LiveClientEventTypes>();
   public on = this.emitter.on.bind(this.emitter);
@@ -61,6 +59,7 @@ export class GenAILiveClient {
 
   protected readonly client: GoogleGenAI;
   protected session?: Session;
+  private authToken: string; // <-- ADD THIS
 
   private _status: 'connected' | 'disconnected' | 'connecting' = 'disconnected';
   public get status() {
@@ -68,25 +67,30 @@ export class GenAILiveClient {
     return this._status;
   }
 
-  constructor(apiKey: string, model?: string) {
+  constructor(apiKey: string, authToken: string) {
     console.log(`${LOG_PREFIX} constructor() called.`);
-    if (model) {
-      this.model = model;
-      console.log(`${LOG_PREFIX} constructor: Model overridden to: ${model}`);
-    } else {
-      console.log(`${LOG_PREFIX} constructor: Using default model: ${this.model}`);
+    
+    if (!apiKey) {
+      // This is the error you are seeing. The apiKey is required for the constructor.
+      throw new Error("An API Key must be set when running in a browser");
     }
+    if (!authToken) {
+      throw new Error("An Auth Token must be provided to use for connection.");
+    }
+    
+    console.log(`${LOG_PREFIX} constructor: Using default model: ${this.model}`);
 
     this.client = new GoogleGenAI({
-      apiKey: apiKey,
+      apiKey: apiKey, // Use the real API key here
       httpOptions: { apiVersion: 'v1alpha' }
     });
-    console.log(`${LOG_PREFIX} constructor: GoogleGenAI client created.`);
+    this.authToken = authToken; // Store the auth token for connect()
+    console.log(`${LOG_PREFIX} constructor: GoogleGenAI client created with API Key.`);
   }
 
   public async connect(config: LiveConnectConfig): Promise<boolean> {
     console.log(`${LOG_PREFIX} connect() called. Current status: ${this._status}`);
-    console.log(`${LOG_PREFIX} connect: Config received:`, JSON.stringify(config));
+    console.log(`${LOG_PREFIX} connect: Config received (will be ignored):`, JSON.stringify(config));
 
     if (this._status === 'connected' || this._status === 'connecting') {
       console.warn(`${LOG_PREFIX} connect: Already connected or connecting. Aborting.`);
@@ -108,17 +112,16 @@ export class GenAILiveClient {
       console.log(`${LOG_PREFIX} connect: Calling this.client.live.connect...`);
       this.session = await this.client.live.connect({
         
-        // --- THIS IS THE FIX ---
-        // Change "model: this.model," to "model: undefined,"
-        // We must NOT send a model, because the token we're using
-        // already has the model ("gemini-2.5-flash-native-audio-preview-09-2025")
-        // defined inside it.
-        model: undefined,
+        // --- FIX: Use the stored authToken, NOT the apiKey ---
+        authToken: this.authToken,
         // --- END FIX ---
 
-        config: {
-          ...config,
-        },
+        // --- FIX: model and config MUST be undefined to prevent 1011 error ---
+        // They are defined in the token itself.
+        model: undefined,
+        config: undefined,
+        // --- END FIX ---
+        
         callbacks,
       });
       console.log(`${LOG_PREFIX} connect: this.client.live.connect() promise resolved.`);

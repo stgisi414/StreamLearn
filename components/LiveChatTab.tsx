@@ -19,6 +19,7 @@ interface LiveChatTabProps {
   uiLanguage: LanguageCode;
   targetLanguage: LanguageCode;
   fetchAuthToken: () => Promise<string>;
+  geminiApiKey: string;
 }
 
 // --- HELPER FUNCTION ---
@@ -43,7 +44,8 @@ export const LiveChatTab: React.FC<LiveChatTabProps> = React.memo(({
   lesson,
   uiLanguage,
   targetLanguage,
-  fetchAuthToken
+  fetchAuthToken,
+  geminiApiKey
 }) => {
 // ... (states and refs are unchanged) ...
   console.log(`${LOG_PREFIX} LiveChatTab component rendering...`);
@@ -232,7 +234,6 @@ YOUR ROLE AND RULES:
 
     try {
       // 1. Get auth token
-// ... (this section is unchanged) ...
       console.log(`${LOG_PREFIX} handleToggleConnection: 1. Fetching auth token...`);
       const token = await fetchAuthToken();
       if (!token) {
@@ -248,7 +249,9 @@ YOUR ROLE AND RULES:
 
       // 2. Init classes
       console.log(`${LOG_PREFIX} handleToggleConnection: 2. Initializing client and peripherals...`);
-      const client = new GenAILiveClient(token);
+      // --- FIX: Pass BOTH the API key (for constructor) and the Token (for connect) ---
+      const client = new GenAILiveClient(geminiApiKey, token);
+      // --- END FIX ---
       clientRef.current = client;
       console.log(`${LOG_PREFIX} handleToggleConnection: 2. GenAILiveClient created.`);
 

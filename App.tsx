@@ -2931,7 +2931,8 @@ const LandingPage: React.FC<{
           onSubmit={handleChatSubmit}
           onClearChat={handleClearChat}
           fetchAuthToken={handleFetchAuthToken} 
-        /> 
+          geminiApiKey={firebaseConfig.apiKey} // <-- ADD THIS PROP
+        />
 
       </div>
     );
