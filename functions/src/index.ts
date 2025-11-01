@@ -123,7 +123,7 @@
           if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
           try {
             await getAuthenticatedUid(req);
-            const { query, languageCode = "en" } = req.body;
+            const { query, languageCode = "en" } = req.body.data;
             if (!query) {
               res.status(400).json({error: "The 'query' parameter is required."});
               return;
@@ -182,14 +182,14 @@
             const newsResults = parsedBody.news || [];
             logger.info(`Received ${newsResults.length} structured articles from parsed body.`);
 
-            res.status(200).json(newsResults.map((item: any) => ({
+            res.status(200).json({ data: newsResults.map((item: any) => ({
               title: item.title,
               snippet: item.description || item.snippet || '',
               link: item.link,
               source: item.source || new URL(item.link).hostname.replace(/^www\./, ''),
               date: item.date,
               image: item.image || undefined
-            })).filter((item: NewsResult) => item.title && item.link)); // Type check here
+            })).filter((item: NewsResult) => item.title && item.link) });
 
           } catch (error) {
             const message = (error as Error).message;
@@ -250,7 +250,7 @@
               res.status(402).json({ error: message });
               return;
             }
-            const { articleUrl, level, title, snippet, uiLanguage = "en", targetLanguage = "en" } = req.body;
+            const { articleUrl, level, title, snippet, uiLanguage = "en", targetLanguage = "en" } = req.body.data;
             if (!articleUrl || !title) {
               res.status(400).json({error: "Missing article URL and title."});
               return;
@@ -480,11 +480,13 @@
             const lessonJson = JSON.parse(lessonResponseText);
             // Include whether grounding was used in the response for potential debugging/UI indication
             res.status(200).json({
-                success: true,
-                lesson: lessonJson,
-                originalArticleUrl: articleUrl,
-                userId,
-                summarySource: paywallLikely ? 'grounding' : 'urlContext' // Indicate summary source
+                data: { // FIX: Add data wrapper
+                    success: true,
+                    lesson: lessonJson,
+                    originalArticleUrl: articleUrl,
+                    userId,
+                    summarySource: paywallLikely ? 'grounding' : 'urlContext' // Indicate summary source
+                } // FIX: Close data wrapper
             });
 
         } catch (e) {
@@ -506,7 +508,7 @@
 
         try {
           // FIX: Get all language/level parameters
-          const { activityType, payload } = req.body;
+          const { activityType, payload } = req.body.data;
           const { 
             level = "Intermediate",
             uiLanguage = "en",
@@ -551,13 +553,13 @@
               // Simple check first, fallback to AI for slight variations? (Optional enhancement)
               const isSimpleCorrect = payload.userAnswer.trim().toLowerCase() === payload.word.trim().toLowerCase();
               if (isSimpleCorrect) {
-                 res.status(200).json({ isCorrect: true, feedback: "Correct!" });
+                 res.status(200).json({ data: { isCorrect: true, feedback: "Correct!" } });
                  return;
               }
               // Optional: AI check for typos/close answers
               prompt = `The correct vocabulary word is "${payload.word}". The user guessed "${payload.userAnswer}". Is the user's guess essentially correct, possibly with a minor typo? Answer only "yes" or "no".`;
               // For simplicity now, we'll just use the simple check. Expand later if needed.
-               res.status(200).json({ isCorrect: false, feedback: `Incorrect. The word was "${payload.word}".` });
+               res.status(200).json({ data: { isCorrect: false, feedback: `Incorrect. The word was "${payload.word}".` } });
                return;
 
             // --- Grammar Quiz Generation ---
@@ -594,6 +596,19 @@
                  If correct, just say "Correct!". 
                  If incorrect, say "Incorrect. The correct answer was ${payload.correctAnswer}."
                  Respond ONLY with a JSON object: {"isCorrect": ${isGrammarCorrect}, "feedback": "Your feedback message in ${uiLangName}"}`;
+                 // FIX: This function was missing its call. Assuming you want to call Gemini for this.
+                   // If you intended a simple return, it should be:
+                   // res.status(200).json({ data: { isCorrect: isGrammarCorrect, feedback: isGrammarCorrect ? "Correct!" : `Incorrect. The correct answer was ${payload.correctAnswer}.` } });
+                   // return;
+                   // SINCE the prompt is complex, I'll assume it's meant to fall through to the Gemini call like 'comprehension'.
+                   // **If this case was supposed to return directly, let me know.** My analysis continues assuming it falls through.
+                   
+                   // ***EDIT:*** Rereading, the prompt for `grammar_grade` is `Respond ONLY with a JSON object...` which implies it *is* a prompt for Gemini.
+                   // It should fall through. But then it's missing a `break;`.
+                   // Let's assume you intended to return directly for this simple grade.
+                   // **Reverting my assumption. This case should return directly.**
+                   const feedbackMsg = isGrammarCorrect ? "Correct!" : `Incorrect. The correct answer was ${payload.correctAnswer}.`;
+                   res.status(200).json({ data: { isCorrect: isGrammarCorrect, feedback: feedbackMsg } });
                return;
 
             // --- Comprehension Grading ---
@@ -700,7 +715,7 @@
             if (activityType === 'comprehension' && jsonResponse.isCorrect === undefined) {
                 jsonResponse.isCorrect = jsonResponse.feedback?.toLowerCase().includes("correct") ?? false;
             }
-            res.status(200).json(jsonResponse);
+            res.status(200).json({ data: jsonResponse });
             return;
           } catch (parseError) {
             logger.error(`Failed to parse Gemini JSON response for ${activityType}:`, parseError, "Raw text:", responseText);
@@ -709,10 +724,10 @@
                 // --- ALSO CLEAN FEEDBACK HERE ---
                 const cleanedFeedback = responseText.replace(/`/g, '');
                 // --- END CLEAN ---
-                res.status(200).json({
+                res.status(200).json({ data: { // FIX: Wrap in data
                     isCorrect: cleanedFeedback.toLowerCase().includes("correct"),
                     feedback: cleanedFeedback // Send cleaned raw text as feedback
-                });
+                }});
                 return; // <-- Ensure return here
             }
             throw new Error(`AI returned invalid format for ${activityType}.`);
@@ -746,7 +761,7 @@
           // Basic check - you might want auth check here too if needed
           await getAuthenticatedUid(req); // Optional: uncomment if only logged-in users can use TTS
 
-          const { text, langCode = "en" } = req.body;
+          const { text, langCode = "en" } = req.body.data;
           if (!text) {
             res.status(400).json({ error: "Missing 'text' in request body." });
             return;
@@ -801,7 +816,9 @@
 
           // Send the audio content back as Base64
           res.status(200).json({
-            audioContent: response.audioContent.toString('base64'),
+            data: { // FIX: Add data wrapper
+              audioContent: response.audioContent.toString('base64'),
+            } // FIX: Close data wrapper
           });
            return; // Explicit return
 
@@ -867,7 +884,7 @@
         
         try {
           const userId = await getAuthenticatedUid(req);
-          const { returnUrl } = req.body;
+          const { returnUrl } = req.body.data;
           if (!returnUrl) {
             res.status(400).json({ error: "Missing 'returnUrl' parameter." });
             return;
@@ -918,7 +935,7 @@
           });
 
           // 4. Send the URL back to the client
-          res.status(200).json({ url: url });
+          res.status(200).json({ data: { url: url } });
 
         } catch (error) {
           const message = (error as Error).message;
@@ -938,7 +955,7 @@
 
         try {
           // FIX 1: Add underscore to 'userId' to fix the TS6133 error
-          const { lessonData, chatHistory, uiLanguage, targetLanguage } = req.body;
+          const { lessonData, chatHistory, uiLanguage, targetLanguage } = req.body.data;
 
           if (!lessonData || !chatHistory || !uiLanguage || !targetLanguage) {
             res.status(400).json({ error: "Missing lessonData, chatHistory, or language parameters." });
@@ -1034,7 +1051,7 @@ YOUR ROLE AND RULES:
             throw new Error("The assistant did not provide a response.");
           }
 
-          res.status(200).json({ text: responseText });
+          res.status(200).json({ data: { text: responseText } });
 
         } catch (e) {
           const message = (e as Error).message;
@@ -1045,66 +1062,133 @@ YOUR ROLE AND RULES:
       }
     );
 
-   // --- NEW: getEphemeralToken Function (Corrected Version) ---
-    // This function creates a short-lived token for the client to connect to Google's AI Studio API
+   // --- NEW: getEphemeralToken Function (REWRITE) ---
     export const getEphemeralToken = onRequest(
-      { secrets: ["GEMINI_API_KEY"], cors: true }, // <-- Make sure GEMINI_API_KEY is in secrets
+      { secrets: ["GEMINI_API_KEY"], cors: true },
       async (req, res) => {
+        // [LOG] START: getEphemeralToken
+        const _CALL_ID = `getEphemeralToken_${Date.now()}`;
+        logger.info(`[${_CALL_ID}] 1/15: Function triggered.`);
+        
         res.setHeader('Content-Type', 'application/json');
-        if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+        if (req.method === 'OPTIONS') {
+          logger.info(`[${_CALL_ID}] 1.1/15: Responding to OPTIONS request.`);
+          res.status(204).send(''); 
+          return; 
+        }
 
         try {
-          // 1. Ensure the user is authenticated with *your* app
+          logger.info(`[${_CALL_ID}] 2/15: Attempting to get authenticated UID.`);
           await getAuthenticatedUid(req);
+          logger.info(`[${_CALL_ID}] 3/15: UID authenticated.`);
 
-          // 2. Get the Gemini API Key
+          // 2. Get lesson data from the request
+          logger.info(`[${_CALL_ID}] 4/15: Parsing request body data...`);
+          const { lessonData, uiLanguage, targetLanguage } = req.body.data;
+          if (!lessonData || !uiLanguage || !targetLanguage) {
+            logger.error(`[${_CALL_ID}] FAILED (4/15): Missing lessonData, uiLanguage, or targetLanguage.`);
+            throw new Error("Missing data for token generation.");
+          }
+          logger.info(`[${_CALL_ID}] 5/15: Request body data parsed successfully.`);
+
+          // 3. Get the Gemini API Key
+          logger.info(`[${_CALL_ID}] 6/15: Retrieving GEMINI_API_KEY secret.`);
           const geminiApiKey = process.env.GEMINI_API_KEY;
           if (!geminiApiKey) {
-            logger.error("Secret Configuration Error: GEMINI_API_KEY missing.");
+            logger.error(`[${_CALL_ID}] FAILED (6/15): Secret Configuration Error: GEMINI_API_KEY missing.`);
             throw new Error("Server configuration error.");
           }
+          logger.info(`[${_CALL_ID}] 7/15: GEMINI_API_KEY retrieved.`);
 
-          // 3. Initialize the GenAI client, forcing v1alpha for auth tokens
-          // This is the key insight from the documentation you provided
+          // 4. Initialize the GenAI client, forcing v1alpha for auth tokens
+          logger.info(`[${_CALL_ID}] 8/15: Initializing GoogleGenAI client with v1alpha.`);
           const ai = new GoogleGenAI({
             apiKey: geminiApiKey,
             httpOptions: { apiVersion: 'v1alpha' } // Force v1alpha
           });
 
-          // 4. Define the model we are authorizing (from your docs)
+          // 5. Define the model
           const model = "gemini-live-2.5-flash"; 
+          logger.info(`[${_CALL_ID}] 9/15: Model set to: ${model}`);
 
-          // 5. Create the ephemeral token
-          logger.info(`Requesting ephemeral token for model: ${model}`);
+          // 6. Build the System Prompt
+          logger.info(`[${_CALL_ID}] 10/15: Building system prompt...`);
+          const uiLangName = getLanguageName(uiLanguage);
+          const targetLangName = getLanguageName(targetLanguage);
+          const lesson = lessonData as any;
+          const vocabList = lesson.vocabularyList.map((v: any) =>
+            `- ${v.word} (${targetLangName}): ${v.definition} (${uiLangName}). Example: "${v.articleExample}"`
+          ).join('\n');
+          const comprehensionQuestions = lesson.comprehensionQuestions.join('\n- ');
+          
+          // THIS PROMPT MUST BE IDENTICAL TO THE ONE ON THE CLIENT
+          const systemPrompt = `
+You are "Max," a friendly, patient, and expert language tutor.
+You are helping a student who is learning ${targetLangName} and speaks ${uiLangName}.
+Your entire knowledge base for this conversation is STRICTLY limited to the following lesson data:
+--- START LESSON DATA ---
+Article Title (${targetLangName}): ${lesson.articleTitle}
+Summary (${targetLangName}): ${lesson.summary}
+Vocabulary List: ${vocabList}
+Grammar Focus (${uiLangName} explanation):
+- Topic: ${lesson.grammarFocus.topic}
+- Explanation: ${lesson.grammarFocus.explanation}
+Comprehension Questions (${uiLangName}):
+- ${comprehensionQuestions}
+--- END LESSON DATA ---
+YOUR ROLE AND RULES:
+1.  You are conversational and helpful in *both* ${uiLangName} and ${targetLangName}.
+2.  Your primary goal is to help the user understand the lesson.
+3.  **CRITICAL RULE:** If the user asks a question *outside* the scope of this lesson, you MUST politely decline and guide them back to the lesson.
+4.  Keep your answers concise and easy to understand.
+5.  You MUST respond with both TEXT and AUDIO.`;
+          logger.info(`[${_CALL_ID}] 10/15: System prompt built successfully.`);
+
+
+          // 7. Define the *exact* connection config
+          // THIS MUST MATCH THE CLIENT'S ai.live.connect(config)
+          logger.info(`[${_CALL_ID}] 11/15: Defining connection config constraints...`);
+          // This config is based on the StreamingConsole.tsx example
+          const connectionConfig = {
+            responseModalities: [Modality.TEXT, Modality.AUDIO],
+            speechConfig: {
+              voiceConfig: {prebuiltVoiceConfig: {voiceName: 'Orus'}},
+            },
+            inputAudioTranscription: {},
+            outputAudioTranscription: {},
+            systemInstruction: { parts: [{ text: systemPrompt }] }
+          };
+          logger.info(`[${_CALL_ID}] 11/15: Connection config defined: ${JSON.stringify(connectionConfig)}`);
+
+          // 8. Create the ephemeral token config
           const tokenConfig = {
             config: {
-              uses: 1, // The token can only be used to start a single session
+              uses: 1, 
               liveConnectConstraints: {
                 model: model,
-                config: {
-                  // Allow both text and audio responses
-                  responseModalities: [Modality.TEXT, Modality.AUDIO] 
-                }
+                config: connectionConfig // Use the identical config here
               },
             }
           };
-          logger.info("DEBUG: Token config being sent:", JSON.stringify(tokenConfig));
-          // --- END ADD ---
-
-          const token = await ai.authTokens.create(tokenConfig); // <-- Use the config var
+          logger.info(`[${_CALL_ID}] 12/15: Token config object created. Requesting token from Google...`);
+          
+          // 9. Create the token
+          const token = await ai.authTokens.create(tokenConfig);
+          logger.info(`[${_CALL_ID}] 13/15: Token received from Google.`);
 
           if (!token || !token.name) {
-            logger.error("Google Token API did not return a token name.");
+            logger.error(`[${_CALL_ID}] FAILED (13/15): Google Token API did not return a token name.`);
             throw new Error("Google API failed to create a token.");
           }
 
-          // 6. Send the token *value* (token.name) to the client
-          // The client will use this value as its API key
-          res.status(200).json({ token: token.name });
+          // 10. Send the token *value* (token.name) to the client
+          logger.info(`[${_CALL_ID}] 14/15: Success. Sending token to client.`);
+          res.status(200).json({ data: { token: token.name } });
+          logger.info(`[${_CALL_ID}] 15/15: Function complete.`);
 
         } catch (e) {
           const message = (e as Error).message;
-          logger.error("Function Error (getEphemeralToken):", e);
+          logger.error(`[${_CALL_ID}] FAILED: Function Error:`, e);
           res.status(500).json({ error: `Token generation failed: ${message}` });
         }
       }

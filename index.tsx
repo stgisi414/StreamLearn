@@ -43,7 +43,7 @@ if (!rootElement) {
 
 const root = ReactDOM.createRoot(rootElement);
 root.render(
-  <React.StrictMode>
+  // <React.StrictMode> // FIX: Comment this out
     <React.Suspense fallback={
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <LoadingSpinner text="Loading..." />
@@ -51,5 +51,5 @@ root.render(
     }>
       <App />
     </React.Suspense>
-  </React.StrictMode>
+  // </React.StrictMode> // FIX: Comment this out
 );

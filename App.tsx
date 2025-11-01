@@ -1151,7 +1151,12 @@ const App: React.FC = () => {
   const handleFetchAuthToken = useCallback(async (): Promise<string> => {
     console.log("DEBUG_APP: handleFetchAuthToken called");
     try {
-      const response = await authenticatedFetch('getEphemeralToken', {});
+      // FIX: Pass all data needed by the backend to build the system prompt
+      const response = await authenticatedFetch('getEphemeralToken', {
+        lessonData: currentLesson,
+        uiLanguage: uiLanguage,
+        targetLanguage: targetLanguage
+      });
       if (response.token) {
         return response.token;
       } else {
@@ -1161,7 +1166,7 @@ const App: React.FC = () => {
       console.error("handleFetchAuthToken error:", e);
       throw new Error(`Failed to get ephemeral token: ${(e as Error).message}`);
     }
-  }, [authenticatedFetch]);
+  }, [authenticatedFetch, currentLesson, uiLanguage, targetLanguage]);
 
   // This function is now stable
   const handleClearChat = useCallback(() => {

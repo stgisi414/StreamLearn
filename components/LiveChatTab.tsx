@@ -2,8 +2,17 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Lesson, LanguageCode } from '../types';
 import { useTranslation } from 'react-i18next';
 import { LoadingSpinner } from './LoadingSpinner';
-import { GoogleGenAI, Modality } from '@google/genai'; // Removed unused Content
+import { GoogleGenAI, Modality, LiveServerMessage } from '@google/genai';
 
+// --- CONSTANTS ---
+const INCOMING_SAMPLE_RATE = 24000;
+const DEBUG_COLOR_INFO = 'color: #00aaff'; // Blue
+const DEBUG_COLOR_START = 'color: #00cc00'; // Green
+const DEBUG_COLOR_STOP = 'color: #ff0000'; // Red
+const DEBUG_COLOR_WARN = 'color: #ffaa00'; // Orange
+const DEBUG_COLOR_AUDIO = 'color: #c026d3'; // Purple
+
+// --- INTERFACE ---
 interface LiveChatTabProps {
   lesson: Lesson;
   uiLanguage: LanguageCode;
@@ -11,8 +20,9 @@ interface LiveChatTabProps {
   fetchAuthToken: () => Promise<string>; 
 }
 
-const TARGET_SAMPLE_RATE = 16000;
-const INCOMING_SAMPLE_RATE = 24000;
+// --- HELPER to get a unique call ID for logs ---
+let callCounter = 0;
+const getCallId = () => `call_${Date.now()}_${callCounter++}`;
 
 export const LiveChatTab: React.FC<LiveChatTabProps> = React.memo(({ 
   lesson, 
@@ -21,43 +31,47 @@ export const LiveChatTab: React.FC<LiveChatTabProps> = React.memo(({
   fetchAuthToken 
 }) => {
   
-  // DEBUG: Component Render Log
+  // --- STATE ---
+  const [isConnectionActive, setIsConnectionActive] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fullTranscript, setFullTranscript] = useState<string>("");
+  const [interimUserTranscript, setInterimUserTranscript] = useState<string>("");
+
+  // --- REFS ---
+  const activeSession = useRef<any | null>(null);
+  const playbackAudioContext = useRef<AudioContext | null>(null);
+  const audioPlaybackQueue = useRef<ArrayBuffer[]>([]);
+  const isAudioPlaying = useRef(false);
+  
+  // FIX: This ref is CRITICAL to work around React Strict Mode
+  const connectionStateRef = useRef(false);
+  
+  // Ref to hold the component's unique ID for logging
+  const componentInstanceId = useRef(`LiveChatTab_${Date.now()}`);
   const renderCount = useRef(0);
   renderCount.current += 1;
-  const [isListening, setIsListening] = useState(false);
-  console.log(`%cDEBUG_LIVE_TAB: Render #${renderCount.current} | isListening (state): ${isListening}`, 'color: #00aaff');
 
   const { t } = useTranslation();
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [transcript, setTranscript] = useState<string>("");
 
-  const sessionRef = useRef<any | null>(null);
-  const isListeningRef = useRef(false);
-  const isSessionReadyRef = useRef(false);
+  const LOG_PREFIX = `[${componentInstanceId.current} | Render #${renderCount.current}]`;
+  console.log(`%c${LOG_PREFIX} === COMPONENT RENDER === | isConnectionActive (state): ${isConnectionActive}`, DEBUG_COLOR_INFO);
 
-  // Audio & API Refs
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const micNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const playbackQueueRef = useRef<ArrayBuffer[]>([]);
-  const isPlayingRef = useRef(false);
-
-  const getLanguageName = (code: LanguageCode): string => t(`languages.${code}`);
-
+  // --- SYSTEM PROMPT ---
+  // This MUST be identical to the one in `getEphemeralToken`
   const getSystemPrompt = useCallback(() => {
-    const uiLangName = getLanguageName(uiLanguage);
-    const targetLangName = getLanguageName(targetLanguage);
+    console.log(`%c${LOG_PREFIX} getSystemPrompt() called.`, DEBUG_COLOR_INFO);
+    const uiLangName = t(`languages.${uiLanguage}`);
+    const targetLangName = t(`languages.${targetLanguage}`);
     const vocabList = lesson.vocabularyList.map((v: any) => 
       `- ${v.word} (${targetLangName}): ${v.definition} (${uiLangName}). Example: "${v.articleExample}"`
     ).join('\n');
     const comprehensionQuestions = lesson.comprehensionQuestions.join('\n- ');
 
-    return `You are "Max," a friendly, patient, and expert language tutor.
+    const prompt = `
+You are "Max," a friendly, patient, and expert language tutor.
 You are helping a student who is learning ${targetLangName} and speaks ${uiLangName}.
 Your entire knowledge base for this conversation is STRICTLY limited to the following lesson data:
-
 --- START LESSON DATA ---
 Article Title (${targetLangName}): ${lesson.articleTitle}
 Summary (${targetLangName}): ${lesson.summary}
@@ -68,65 +82,78 @@ Grammar Focus (${uiLangName} explanation):
 Comprehension Questions (${uiLangName}):
 - ${comprehensionQuestions}
 --- END LESSON DATA ---
-
 YOUR ROLE AND RULES:
 1.  You are conversational and helpful in *both* ${uiLangName} and ${targetLangName}.
 2.  Your primary goal is to help the user understand the lesson.
 3.  **CRITICAL RULE:** If the user asks a question *outside* the scope of this lesson, you MUST politely decline and guide them back to the lesson.
 4.  Keep your answers concise and easy to understand.
 5.  You MUST respond with both TEXT and AUDIO.`;
-  }, [lesson, uiLanguage, targetLanguage, t]);
 
-  const cleanupAudioResources = useCallback(() => {
-    console.log("%cDEBUG_LIVE_TAB: cleanupAudioResources() CALLED", 'color: #ff0000; font-weight: bold;');
+    console.log(`%c${LOG_PREFIX} getSystemPrompt() generated.`, DEBUG_COLOR_INFO);
+    return prompt;
+  }, [lesson, uiLanguage, targetLanguage, t, LOG_PREFIX]);
+
+
+  // --- AUDIO CLEANUP ---
+  const cleanupPlaybackResources = useCallback(() => {
+    const _CALL_ID = getCallId();
+    console.log(`%c${LOG_PREFIX} [${_CALL_ID}] cleanupPlaybackResources() CALLED.`, DEBUG_COLOR_STOP);
     
-    if (workletNodeRef.current) {
-        console.log("%cDEBUG_LIVE_TAB: Disconnecting workletNodeRef", 'color: #ff0000');
-        workletNodeRef.current.disconnect();
-        workletNodeRef.current = null;
-    }
-    if (micNodeRef.current) {
-        console.log("%cDEBUG_LIVE_TAB: Disconnecting micNodeRef", 'color: #ff0000');
-        micNodeRef.current.disconnect();
-        micNodeRef.current = null;
-    }
-    if (streamRef.current) {
-        console.log("%cDEBUG_LIVE_TAB: Stopping media stream tracks", 'color: #ff0000');
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
-    }
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        console.log("%cDEBUG_LIVE_TAB: Closing AudioContext", 'color: #ff0000');
-        audioContextRef.current.close().catch(e => console.warn("Error closing audio context", e));
-        audioContextRef.current = null;
-    }
-    playbackQueueRef.current = [];
-    isPlayingRef.current = false;
-  }, []);
+    // Stop any audio playback
+    audioPlaybackQueue.current = [];
+    isAudioPlaying.current = false;
 
-  const playAudioQueue = useCallback(async () => {
-    if (isPlayingRef.current || playbackQueueRef.current.length === 0) {
+    if (playbackAudioContext.current && playbackAudioContext.current.state !== 'closed') {
+        console.log(`%c${LOG_PREFIX} [${_CALL_ID}] Closing Playback AudioContext (state: ${playbackAudioContext.current.state}).`, DEBUG_COLOR_STOP);
+        playbackAudioContext.current.close().catch(e => console.warn(`${LOG_PREFIX} [${_CALL_ID}] Error closing playback audio context:`, e));
+        playbackAudioContext.current = null;
+    } else {
+        console.log(`%c${LOG_PREFIX} [${_CALL_ID}] playbackAudioContext is already null or closed.`, DEBUG_COLOR_WARN);
+    }
+    
+    console.log(`%c${LOG_PREFIX} [${_CALL_ID}] cleanupPlaybackResources() FINISHED.`, DEBUG_COLOR_STOP);
+  }, [LOG_PREFIX]); // LOG_PREFIX is stable
+
+
+  // --- AUDIO PLAYBACK ---
+  const playAudioFromQueue = useCallback(async () => {
+    const _CALL_ID = getCallId();
+    console.log(`%c${LOG_PREFIX} [${_CALL_ID}] playAudioFromQueue() CALLED. isPlaying: ${isAudioPlaying.current}, queueLength: ${audioPlaybackQueue.current.length}`, DEBUG_COLOR_AUDIO);
+
+    if (isAudioPlaying.current || audioPlaybackQueue.current.length === 0) {
+      if (isAudioPlaying.current) console.log(`%c${LOG_PREFIX} [${_CALL_ID}] Bailing: Audio is already playing.`, DEBUG_COLOR_WARN);
+      if (audioPlaybackQueue.current.length === 0) console.log(`%c${LOG_PREFIX} [${_CALL_ID}] Bailing: Queue is empty.`, DEBUG_COLOR_WARN);
       return;
     }
     
-    isPlayingRef.current = true;
-    const audioBufferRaw = playbackQueueRef.current.shift();
+    isAudioPlaying.current = true;
+    console.log(`%c${LOG_PREFIX} [${_CALL_ID}] Setting isAudioPlaying.current=true.`, DEBUG_COLOR_AUDIO);
+
+    const audioBufferRaw = audioPlaybackQueue.current.shift();
     if (!audioBufferRaw) {
-      isPlayingRef.current = false;
+      console.log(`%c${LOG_PREFIX} [${_CALL_ID}] FAILED: Dequeued audio buffer is empty/undefined.`, DEBUG_COLOR_STOP);
+      isAudioPlaying.current = false;
       return;
     }
+    console.log(`%c${LOG_PREFIX} [${_CALL_ID}] Dequeued audio buffer of size ${audioBufferRaw.byteLength}.`, DEBUG_COLOR_AUDIO);
+
 
     try {
-      if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (!playbackAudioContext.current || playbackAudioContext.current.state === 'closed') {
+        console.log(`%c${LOG_PREFIX} [${_CALL_ID}] Creating new AudioContext for playback.`, DEBUG_COLOR_WARN);
+        playbackAudioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
-      const audioCtx = audioContextRef.current;
+      const audioCtx = playbackAudioContext.current;
+      console.log(`%c${LOG_PREFIX} [${_CALL_ID}] Playback AudioContext state: ${audioCtx.state}.`, DEBUG_COLOR_AUDIO);
 
+      // --- DECODE PCM ---
+      console.log(`%c${LOG_PREFIX} [${_CALL_ID}] Decoding PCM data...`, DEBUG_COLOR_AUDIO);
       const pcmData = new Int16Array(audioBufferRaw);
       const floatData = new Float32Array(pcmData.length);
       for (let i = 0; i < pcmData.length; i++) {
-        floatData[i] = pcmData[i] / 32768.0;
+        floatData[i] = pcmData[i] / 32768.0; // Convert 16-bit PCM to 32-bit float
       }
+      console.log(`%c${LOG_PREFIX} [${_CALL_ID}] Decoded to ${floatData.length} float samples.`, DEBUG_COLOR_AUDIO);
 
       const audioBuffer = audioCtx.createBuffer(
         1, 
@@ -134,174 +161,189 @@ YOUR ROLE AND RULES:
         INCOMING_SAMPLE_RATE 
       );
       audioBuffer.getChannelData(0).set(floatData);
+      console.log(`%c${LOG_PREFIX} [${_CALL_ID}] Created AudioBuffer.`, DEBUG_COLOR_AUDIO);
 
+      // --- PLAYBACK ---
       const source = audioCtx.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(audioCtx.destination);
       source.onended = () => {
-        isPlayingRef.current = false;
-        playAudioQueue(); // Play next in queue
+        console.log(`%c${LOG_PREFIX} [${_CALL_ID}] source.onended fired.`, DEBUG_COLOR_AUDIO);
+        isAudioPlaying.current = false;
+        playAudioFromQueue(); // Play next in queue
       };
       source.start();
+      console.log(`%c${LOG_PREFIX} [${_CALL_ID}] source.start() called. Playback initiated.`, DEBUG_COLOR_AUDIO);
 
     } catch (e) {
-      console.error("Error playing audio:", e);
+      console.error(`%c${LOG_PREFIX} [${_CALL_ID}] FAILED: Error playing audio:`, e, DEBUG_COLOR_STOP);
       setError(`Audio playback error: ${(e as Error).message}`);
-      isPlayingRef.current = false;
+      isAudioPlaying.current = false;
     }
-  }, [setError]);
+  }, [LOG_PREFIX, setError]);
 
+
+  // --- START/STOP HANDLER ---
   const handleStartStopChat = async () => {
-    const callId = `call_${Date.now()}`; // DEBUG
-    console.log(`%cDEBUG_LIVE_TAB: handleStartStopChat [${callId}] | Current isListeningRef: ${isListeningRef.current}`, 'color: #ffaa00');
+    const _CALL_ID = getCallId();
+    // FIX: Check the REF, not the state
+    console.log(`%c${LOG_PREFIX} [${_CALL_ID}] handleStartStopChat() CALLED. | Current connectionStateRef: ${connectionStateRef.current}`, DEBUG_COLOR_WARN);
 
-    if (isListeningRef.current) {
-      // --- STOP LISTENING ---
-      console.log(`%cDEBUG_LIVE_TAB: [${callId}] STOPPING...`, 'color: #ff0000');
-      isListeningRef.current = false; 
-      isSessionReadyRef.current = false;
+    // --- STOP LISTENING ---
+    if (connectionStateRef.current) {
+      console.log(`%c${LOG_PREFIX} [${_CALL_ID}] STOPPING...`, DEBUG_COLOR_STOP);
+      connectionStateRef.current = false; // Set ref to false *before* closing
       
-      if (sessionRef.current) {
-        console.log(`%cDEBUG_LIVE_TAB: [${callId}] Calling session.close()`, 'color: #ff0000');
-        sessionRef.current.close(); // This will trigger onclose
+      if (activeSession.current) {
+        console.log(`%c${LOG_PREFIX} [${_CALL_ID}] Calling activeSession.current.close()`, DEBUG_COLOR_STOP);
+        activeSession.current.close(); // This will trigger the onclose callback
       } else {
-        console.log(`%cDEBUG_LIVE_TAB: [${callId}] No session to close, cleaning up manually.`, 'color: #ff0000');
-        cleanupAudioResources();
-        // Manually reset UI state if no session existed
-        setIsListening(false);
-        setIsLoading(false);
+        console.log(`%c${LOG_PREFIX} [${_CALL_ID}] No session to close, cleaning up manually.`, DEBUG_COLOR_WARN);
+        cleanupPlaybackResources();
+        // Manually reset UI state
+        setIsConnectionActive(false);
+        setIsProcessing(false);
       }
-      sessionRef.current = null;
+      activeSession.current = null;
       
-      console.log(`%cDEBUG_LIVE_TAB: [${callId}] STOP complete. UI state (isListening) will be set by onclose.`, 'color: #ff0000');
+      console.log(`%c${LOG_PREFIX} [${_CALL_ID}] STOP complete. UI state will be reset by onclose handler.`, DEBUG_COLOR_STOP);
       return;
     }
 
     // --- START LISTENING ---
-    console.log(`%cDEBUG_LIVE_TAB: [${callId}] STARTING...`, 'color: #00cc00');
-    isListeningRef.current = true;
-    isSessionReadyRef.current = false;
-    setIsLoading(true); // Show loading spinner
+    console.log(`%c${LOG_PREFIX} [${_CALL_ID}] STARTING...`, DEBUG_COLOR_START);
+    connectionStateRef.current = true; // Set ref to true immediately
+    setIsProcessing(true); // Show loading spinner
     setError(null);
-    setTranscript("");
-    playbackQueueRef.current = [];
+    setFullTranscript("");
+    setInterimUserTranscript("");
+    audioPlaybackQueue.current = [];
     
     try {
-      console.log(`%cDEBUG_LIVE_TAB: [${callId}] Fetching auth token...`, 'color: #00cc00');
+      console.log(`%c${LOG_PREFIX} [${_CALL_ID}] 1/8. Fetching auth token...`, DEBUG_COLOR_START);
       const token = await fetchAuthToken();
-      if (!token) throw new Error("Received empty token");
-      console.log(`%cDEBUG_LIVE_TAB: [${callId}] Got token.`, 'color: #00cc00');
+      if (!token) {
+        console.error(`%c${LOG_PREFIX} [${_CALL_ID}] FAILED (1/8): Received empty token.`, DEBUG_COLOR_STOP);
+        throw new Error("Received empty token");
+      }
+      console.log(`%c${LOG_PREFIX} [${_CALL_ID}] 2/8. Got token.`, DEBUG_COLOR_START);
 
+      console.log(`%c${LOG_PREFIX} [${_CALL_ID}] 3/8. Initializing GoogleGenAI client with v1alpha.`, DEBUG_COLOR_START);
       const ai = new GoogleGenAI({ 
         apiKey: token,
         httpOptions: { apiVersion: 'v1alpha' }
       });
       
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({
-        sampleRate: 48000
-      });
-      audioContextRef.current = audioCtx;
-      console.log(`%cDEBUG_LIVE_TAB: [${callId}] AudioContext created, state: ${audioCtx.state}`, 'color: #00cc00');
+      console.log(`%c${LOG_PREFIX} [${_CALL_ID}] 4/8. Creating AudioContext for playback.`, DEBUG_COLOR_START);
+      // This context is only for *playback*. The library handles its own *input* context.
+      playbackAudioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      console.log(`%c${LOG_PREFIX} [${_CALL_ID}] 4/8. Playback AudioContext created, state: ${playbackAudioContext.current.state}`, DEBUG_COLOR_START);
 
-      await audioCtx.audioWorklet.addModule('audio-processor.js');
-      console.log(`%cDEBUG_LIVE_TAB: [${callId}] Audio worklet loaded.`, 'color: #00cc00');
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      const micNode = audioCtx.createMediaStreamSource(stream);
-      micNodeRef.current = micNode;
-
-      const workletNode = new AudioWorkletNode(audioCtx, 'audio-processor', {
-        processorOptions: {
-          targetSampleRate: TARGET_SAMPLE_RATE,
-        }
-      });
-      workletNodeRef.current = workletNode;
-      console.log(`%cDEBUG_LIVE_TAB: [${callId}] Mic and worklet node created.`, 'color: #00cc00');
-
-      console.log(`%cDEBUG_LIVE_TAB: [${callId}] Calling ai.live.connect...`, 'color: #00cc00');
+      // --- DEFINE THE CONFIGURATION ---
+      // This MUST identically match the config in getEphemeralToken
+      console.log(`%c${LOG_PREFIX} [${_CALL_ID}] 5/8. Building connection config...`, DEBUG_COLOR_START);
+      const connectionConfig = {
+        responseModalities: [Modality.TEXT, Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {prebuiltVoiceConfig: {voiceName: 'Orus'}},
+        },
+        inputAudioTranscription: {}, // Ask the library to handle the mic
+        outputAudioTranscription: {}, // Ask for text of what the model says
+        systemInstruction: { parts: [{ text: getSystemPrompt() }] },
+      };
+      console.log(`%c${LOG_PREFIX} [${_CALL_ID}] 5/8. Connection config built: ${JSON.stringify(connectionConfig, null, 2)}`, DEBUG_COLOR_START);
+      
+      console.log(`%c${LOG_PREFIX} [${_CALL_ID}] 6/8. Calling ai.live.connect with model 'gemini-live-2.5-flash'...`, DEBUG_COLOR_START);
       const newSession = await ai.live.connect({
         model: "gemini-live-2.5-flash",
-        config: {
-          responseModalities: [Modality.TEXT, Modality.AUDIO],
-          systemInstruction: getSystemPrompt(),
-        },
+        config: connectionConfig, // Use the identical config object
         callbacks: {
           onopen: () => {
-            console.log(`%cDEBUG_LIVE_TAB: [${callId}] ===> ON_OPEN fired <===`, 'color: #00cc00; font-weight: bold');
-            setIsLoading(false); // Hide spinner
-            setIsListening(true); // Set button to "Stop"
-            isSessionReadyRef.current = true; // Flag as ready for audio
+            console.log(`%c${LOG_PREFIX} [${_CALL_ID}] ===> ON_OPEN fired <===`, DEBUG_COLOR_START);
+            setIsProcessing(false); // Hide spinner
+            setIsConnectionActive(true); // Set button to "Stop"
+            console.log(`%c${LOG_PREFIX} [${_CALL_ID}] ON_OPEN: Set state: isProcessing=false, isConnectionActive=true.`, DEBUG_COLOR_START);
           },
-          onmessage: (message) => {
-            console.log(`%cDEBUG_LIVE_TAB: [${callId}] ===> ON_MESSAGE received <===`, 'color: #00cc00', message);
-            if (message.text) {
-              playbackQueueRef.current.push(message.data);
-              playAudioQueue();
+          onmessage: (message: LiveServerMessage) => {
+            console.log(`%c${LOG_PREFIX} [${_CALL_ID}] ===> ON_MESSAGE received <===`, DEBUG_COLOR_INFO, message);
+
+            // Handle Text Transcriptions
+            if (message.inputTranscription) {
+              const { text, isFinal } = message.inputTranscription;
+              console.log(`%c${LOG_PREFIX} [${_CALL_ID}] ON_MESSAGE: Received inputTranscription (isFinal: ${isFinal}): "${text}"`, DEBUG_COLOR_INFO);
+              if (isFinal) {
+                setFullTranscript(prev => prev + `USER: ${text}\n`);
+                setInterimUserTranscript(""); // Clear interim
+              } else {
+                setInterimUserTranscript(`USER: ${text}`); // Show interim
+              }
+            }
+
+            if (message.outputTranscription) {
+               const { text, isFinal } = message.outputTranscription;
+               console.log(`%c${LOG_PREFIX} [${_CALL_ID}] ON_MESSAGE: Received outputTranscription (isFinal: ${isFinal}): "${text}"`, DEBUG_COLOR_INFO);
+               setFullTranscript(prev => {
+                  // This logic appends the text to the *last* line of the transcript
+                  if (prev.endsWith('\n') || prev.length === 0) {
+                    return prev + `MAX: ${text}` + (isFinal ? '\n' : '');
+                  } else {
+                    const lastNewline = prev.lastIndexOf('\n');
+                    const base = prev.substring(0, lastNewline + 1);
+                    return base + `MAX: ${text}` + (isFinal ? '\n' : '');
+                  }
+               });
+            }
+
+            // Handle Audio Playback
+            const audio = message.serverContent?.modelTurn?.parts[0]?.inlineData;
+            if (audio) {
+              console.log(`%c${LOG_PREFIX} [${_CALL_ID}] ON_MESSAGE: Received audio data (${audio.data.byteLength} bytes). Pushing to playback queue.`, DEBUG_COLOR_AUDIO);
+              audioPlaybackQueue.current.push(audio.data);
+              playAudioFromQueue();
+            } else if (message.serverContent) {
+              console.log(`%c${LOG_PREFIX} [${_CALL_ID}] ON_MESSAGE: Received serverContent but no audio data.`, DEBUG_COLOR_WARN, message.serverContent);
             }
           },
           onerror: (e) => {
-            console.error(`%cDEBUG_LIVE_TAB: [${callId}] ===> ON_ERROR fired <===`, 'color: #ff0000; font-weight: bold', e);
+            console.error(`%c${LOG_PREFIX} [${_CALL_ID}] ===> ON_ERROR fired <===`, DEBUG_COLOR_STOP, e);
             setError(`Live error: ${e.message}`);
-            isSessionReadyRef.current = false; // Stop sends
+            console.log(`%c${LOG_PREFIX} [${_CALL_ID}] ON_ERROR: Set state: error.`, DEBUG_COLOR_STOP);
+            // Let onclose handle the state resets
           },
           onclose: () => {
-            console.log(`%cDEBUG_LIVE_TAB: [${callId}] ===> ON_CLOSE fired <===`, 'color: #ff0000; font-weight: bold');
-            cleanupAudioResources(); // ALWAYS clean up resources
+            console.log(`%c${LOG_PREFIX} [${_CALL_ID}] ===> ON_CLOSE fired <===`, DEBUG_COLOR_STOP);
+            cleanupPlaybackResources(); // Clean up audio playback
             
-            // Check if closure was unexpected
-            if (isListeningRef.current) {
-              console.log(`%cDEBUG_LIVE_TAB: [${callId}] onclose detected unexpected close. Resetting UI.`, 'color: #ff0000');
+            // FIX: Check the REF (connectionStateRef.current) not the STATE (isConnectionActive)
+            if (connectionStateRef.current) {
+              // This means it was an *unexpected* close
+              console.log(`%c${LOG_PREFIX} [${_CALL_ID}] ON_CLOSE: Detected unexpected close (connectionStateRef.current was true). Resetting UI.`, DEBUG_COLOR_STOP);
+              setError("Connection closed unexpectedly. Please try again.");
             } else {
-              console.log(`%cDEBUG_LIVE_TAB: [${callId}] onclose was expected.`, 'color: #ffaa00');
+              // This was an *expected* close (user clicked Stop or StrictMode unmount)
+              console.log(`%c${LOG_PREFIX} [${_CALL_ID}] ON_CLOSE: This was an expected closure (connectionStateRef.current was false).`, DEBUG_COLOR_INFO);
             }
             
             // Reset all flags and state
-            isListeningRef.current = false;
-            isSessionReadyRef.current = false;
-            sessionRef.current = null;
-            setIsListening(false);
-            setIsLoading(false);
-            console.log(`%cDEBUG_LIVE_TAB: [${callId}] onclose has reset UI state and cleaned resources.`, 'color: #ffaa00');
+            connectionStateRef.current = false; // Ensure ref is reset
+            activeSession.current = null;
+            setIsConnectionActive(false);
+            setIsProcessing(false);
+            setInterimUserTranscript(""); // Clear interim text
+            console.log(`%c${LOG_PREFIX} [${_CALL_ID}] ON_CLOSE: All state and refs reset.`, DEBUG_COLOR_STOP);
           },
         },
       });
       
-      console.log(`%cDEBUG_LIVE_TAB: [${callId}] ai.live.connect FINISHED. Session object created.`, 'color: #00cc00');
-      sessionRef.current = newSession;
+      console.log(`%c${LOG_PREFIX} [${_CALL_ID}] 7/8. ai.live.connect call FINISHED. Session object created.`, DEBUG_COLOR_START);
+      activeSession.current = newSession;
 
-      workletNode.port.onmessage = (event) => {
-        const pcmData = event.data;
-        const sendTime = Date.now();
-        
-        if (isListeningRef.current && isSessionReadyRef.current && sessionRef.current) { 
-          // console.log(`DEBUG_LIVE_TAB: [${callId}] onmessage: Trying to send audio chunk...`);
-          
-          // *** ADDING CATCH BLOCK BACK AS REQUESTED ***
-          try { 
-            sessionRef.current.sendRealtimeInput({
-              audio: { data: pcmData, mimeType: `audio/pcm;rate=${TARGET_SAMPLE_RATE}` }
-            });
-          } catch (e) {
-            console.error(`%cDEBUG_LIVE_TAB: [${callId}] sendRealtimeInput SYNC ERROR at ${sendTime}:`, 'color: #ff0000', e);
-            // This error means the session is already closing.
-            // Just stop trying to send. onclose will handle the full cleanup.
-            isSessionReadyRef.current = false; 
-          }
-        } else {
-          // DEBUG: Log why we skipped sending
-          // if (isListeningRef.current) { // Only log if we're supposed to be listening
-          //   console.log(`DEBUG_LIVE_TAB: [${callId}] onmessage: Skipped sending. isSessionReadyRef: ${isSessionReadyRef.current}, sessionRef: ${!!sessionRef.current}`);
-          // }
-        }
-      };
-
-      micNode.connect(workletNode);
-      workletNode.connect(audioCtx.destination);
-      console.log(`%cDEBUG_LIVE_TAB: [${callId}] Audio pipeline connected.`, 'color: #00cc00');
+      // The library is now handling the microphone. We are done here.
+      console.log(`%c${LOG_PREFIX} [${_CALL_ID}] 8/8. STARTUP COMPLETE. Library is handling microphone.`, DEBUG_COLOR_START);
       
     } catch (e) {
       const msg = (e as Error).message;
+      console.error(`%c${LOG_PREFIX} [${_CALL_ID}] FAILED: STARTUP FAILED (catch block):`, DEBUG_COLOR_STOP, e);
       if (msg.includes("Permission denied") || msg.includes("denied")) {
         setError(t('chat.liveMicError'));
       } else if (msg.includes("token")) {
@@ -309,60 +351,80 @@ YOUR ROLE AND RULES:
       } else {
         setError(`Failed to start: ${msg}`);
       }
-      console.error(`%cDEBUG_LIVE_TAB: [${callId}] STARTUP FAILED (catch block):`, 'color: #ff0000', e);
+      
       // Fallback cleanup
-      isListeningRef.current = false;
-      isSessionReadyRef.current = false;
-      setIsListening(false);
-      setIsLoading(false);
-      cleanupAudioResources();
+      console.log(`%c${LOG_PREFIX} [${_CALL_ID}] STARTUP FAILED: Running fallback cleanup...`, DEBUG_COLOR_STOP);
+      connectionStateRef.current = false;
+      setIsConnectionActive(false);
+      setIsProcessing(false);
+      cleanupPlaybackResources();
     }
   };
 
-  // Cleanup on unmount
+  // --- UNMOUNT CLEANUP ---
   useEffect(() => {
-    console.log(`%cDEBUG_LIVE_TAB: useEffect (mount) fired.`, 'color: #00aaff');
+    console.log(`%c${LOG_PREFIX} useEffect (mount) fired.`, DEBUG_COLOR_INFO);
     return () => {
-      console.log(`%cDEBUG_LIVE_TAB: useEffect (UNMOUNT) fired. isListeningRef: ${isListeningRef.current}`, 'color: #ff0000; font-weight: bold');
-      isListeningRef.current = false;
-      isSessionReadyRef.current = false;
-      if (sessionRef.current) {
-        console.log(`%cDEBUG_LIVE_TAB: Unmount calling session.close()`, 'color: #ff0000');
-        sessionRef.current.close();
+      // FIX: Check the ref here, which I failed to do before
+      console.log(`%c${LOG_PREFIX} useEffect (UNMOUNT) fired. connectionStateRef.current: ${connectionStateRef.current}`, DEBUG_COLOR_STOP);
+      
+      // FIX: Set ref to false FIRST. This tells the onclose handler
+      // that this closure is intentional (an unmount or "stop").
+      connectionStateRef.current = false; 
+
+      if (activeSession.current) {
+        console.log(`%c${LOG_PREFIX} Unmount: Calling activeSession.current.close()`, DEBUG_COLOR_STOP);
+        activeSession.current.close();
+        activeSession.current = null;
       } else {
-        cleanupAudioResources();
+        console.log(`%c${LOG_PREFIX} Unmount: No session, just cleaning up resources.`, DEBUG_COLOR_WARN);
+        cleanupPlaybackResources();
       }
     };
-  }, [cleanupAudioResources]); // Stable dependency
+  }, [cleanupPlaybackResources, LOG_PREFIX]); // Dependencies are stable
   
+  // --- RENDER ---
   return (
     <div className="space-y-4 text-center">
-      {console.log(`%cDEBUG_LIVE_TAB: Top-level RETURN (render #${renderCount.current})`, 'color: #00aaff')}
+      {console.log(`%c${LOG_PREFIX} Top-level RETURN rendering.`, DEBUG_COLOR_INFO)}
       <p className="text-sm text-gray-700">
-        {isListening ? "I'm listening..." : t('chat.liveWelcome')}
+        {isConnectionActive ? "I'm listening..." : t('chat.liveWelcome')}
       </p>
       
-      {isLoading ? (
+      {isProcessing ? (
         <LoadingSpinner text={t('chat.liveLoading')} />
       ) : (
         <button
           onClick={handleStartStopChat}
           className={`font-bold py-3 px-6 rounded-lg text-white transition-all ${
-            isListening 
+            isConnectionActive 
               ? 'bg-red-600 hover:bg-red-700' 
               : 'bg-green-600 hover:bg-green-700'
           }`}
         >
-          {isListening ? t('chat.liveStop') : t('chat.liveStart')}
+          {isConnectionActive ? t('chat.liveStop') : t('chat.liveStart')}
         </button>
       )}
       {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
 
-      {transcript && (
-        <div className="mt-4 text-left p-3 bg-white border border-indigo-200 rounded-lg h-32 overflow-y-auto whitespace-pre-wrap">
-          {transcript}
+      {/* Transcript Area */}
+      {isConnectionActive || fullTranscript || interimUserTranscript ? ( // Show if listening OR if there is a transcript
+        <div 
+          className="mt-4 text-left p-3 bg-white border border-indigo-200 rounded-lg h-32 overflow-y-auto whitespace-pre-wrap"
+          ref={el => {
+            // Auto-scroll to bottom
+            if (el) el.scrollTop = el.scrollHeight;
+          }}
+        >
+          {fullTranscript}
+          {interimUserTranscript && (
+            <span className="text-gray-400">{interimUserTranscript}</span>
+          )}
+          {(!fullTranscript && !interimUserTranscript && isConnectionActive) && (
+             <span className="text-gray-400">Listening...</span>
+          )}
         </div>
-      )}
+      ) : null}
     </div>
   );
 });
