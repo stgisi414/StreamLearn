@@ -14,7 +14,7 @@ interface ChatAssistantProps {
   error: string | null;
   onSubmit: (input: string) => Promise<void>;
   onClearChat: () => void;
-  fetchAuthToken: () => Promise<string>; // <-- We'll get this from App.tsx
+  fetchAuthToken: () => Promise<string>;
 }
 
 const TextChatTab: React.FC<Omit<ChatAssistantProps, 'fetchAuthToken' | 'lesson'>> = React.memo(({

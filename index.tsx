@@ -1,3 +1,4 @@
+// index.tsx
 // --- NEW SCRIPT FOR BROWSER REDIRECTION ---
 // This script runs immediately to handle redirects for both iOS and Android.
 (function() {
