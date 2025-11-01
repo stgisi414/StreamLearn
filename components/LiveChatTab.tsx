@@ -140,9 +140,10 @@ YOUR ROLE AND RULES:
     const systemPrompt = getSystemPrompt();
     console.log(`${LOG_PREFIX} getConnectionConfig: Got system prompt.`);
     
-    // --- FIX: Use config from working example to match server ---
+    // --- FIX: Remove the 'model' property from this config object ---
+    // The model is added one level up by the GenAILiveClient.
     const config: any = {
-      model: "models/gemini-2.5-flash-native-audio-preview-09-2025", // <--- ***** ADD THIS LINE *****
+      // model: "models/gemini-2.5-flash-native-audio-preview-09-2025", // <--- ***** REMOVED THIS LINE *****
       responseModalities: [Modality.AUDIO],
       mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM,
       speechConfig: {
@@ -160,7 +161,6 @@ YOUR ROLE AND RULES:
     console.log(`${LOG_PREFIX} getConnectionConfig: Config object created:`, config);
     return config as LiveConnectConfig;
   }, [getSystemPrompt]);
-
 
   // --- Main Cleanup Function ---
   const cleanupConnection = useCallback(() => {
