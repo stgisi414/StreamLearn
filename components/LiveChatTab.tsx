@@ -247,20 +247,25 @@ YOUR ROLE AND RULES:
       workletNode.port.onmessage = (event) => {
         // We received 16-bit PCM data from the worklet
         const pcmData = event.data;
-
+        // --- START FIX ---
+        // Check our own state, not a non-existent method
         if (isListeningRef.current && newSession) { 
-          console.log(`DEBUG: Sending audio chunk, size: ${pcmData.byteLength}`); 
+          // Optional: log to confirm
+          console.log(`DEBUG: Sending audio chunk, size: ${pcmData.byteLength}`); // <-- UNCOMMENT THIS
           
-          // This try/catch is all we need.
-          try { 
+          // Send the raw buffer to Gemini
+          try { // <-- ADD TRY/CATCH
             newSession.sendRealtimeInput({ 
               audio: { data: pcmData, mimeType: `audio/pcm;rate=${TARGET_SAMPLE_RATE}` }
+            }).catch(e => {
+              console.error("DEBUG: ERROR during sendRealtimeInput (async):", e);
+              setError(`Send error: ${(e as Error).message}`);
+              handleStartStopChat(); // Stop on send error
             });
           } catch (e) {
-            // This will now catch the "WebSocket is already in CLOSING" error
             console.error("DEBUG: ERROR during sendRealtimeInput:", e);
             setError(`Send error: ${(e as Error).message}`);
-            handleStartStopChat(); // This stops the loop
+            handleStartStopChat(); // Stop on send error
           }
         }
       };
