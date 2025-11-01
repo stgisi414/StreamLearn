@@ -7,7 +7,7 @@ import * as admin from "firebase-admin";
 import "firebase-admin/functions";
 import fetch, { RequestInit } from "node-fetch"; // For fetchNews
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
-import { GoogleGenAI, HarmCategory, HarmBlockThreshold, Type, Modality } from "@google/genai";
+import { GoogleGenAI, HarmCategory, HarmBlockThreshold, Type, Modality, MediaResolution } from "@google/genai";
 import * as logger from "firebase-functions/logger";
 import * as TextToSpeech from '@google-cloud/text-to-speech';
 
@@ -1111,7 +1111,8 @@ export const getEphemeralToken = onRequest(
       });
 
       // 5. Define the model
-      const model = "gemini-live-2.5-flash"; 
+      // --- FIX: Use model from working example ---
+      const model = "models/gemini-2.5-flash-native-audio-preview-09-2025"; 
       logger.info(`[${_CALL_ID}] 9/15: Model set to: ${model}`);
 
       // 6. Build the System Prompt
@@ -1149,25 +1150,26 @@ YOUR ROLE AND RULES:
 
 
       // 7. Define the *exact* connection config
-      // THIS MUST MATCH THE CLIENT'S ai.live.connect(config)
       logger.info(`[${_CALL_ID}] 11/15: Defining connection config constraints...`);
-      // This config is based on the StreamingConsole.tsx example
+
+      // --- FIX: Use config from working example ---
+      // This MUST match the client-side config in LiveChatTab.tsx
       const connectionConfig = {
-        // *** THE FIX: Match the user's working example ***
         responseModalities: [Modality.AUDIO],
+        mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM,
         speechConfig: {
-          voiceConfig: {prebuiltVoiceConfig: {voiceName: 'Orus'}},
+          voiceConfig: {prebuiltVoiceConfig: {voiceName: 'Zephyr'}},
         },
-        inputAudioTranscription: {},
-        outputAudioTranscription: {},
         systemInstruction: { parts: [{ text: systemPrompt }] },
-        // *** ADDING THESE TO MATCH THE EXAMPLE ***
-        tools: [],
-        thinkingConfig: {
-          thinkingBudget: 0
+        contextWindowCompression: {
+             triggerTokens: '25600',
+             slidingWindow: { targetTokens: '12800' },
         },
-        // *** END ADDITION ***
+        tools: [],
+        // thinkingConfig was in your example's client, but not the function's
+        // Let's stick to the server-side example's config
       };
+      // --- END FIX ---
       logger.info(`[${_CALL_ID}] 11/15: Connection config defined: ${JSON.stringify(connectionConfig)}`);
 
       // 8. Create the ephemeral token config

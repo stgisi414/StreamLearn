@@ -6,8 +6,8 @@ import { LoadingSpinner } from './LoadingSpinner';
 import { GenAILiveClient } from '@/lib/genai-live-client';
 import { AudioRecorder } from '@/lib/audio-recorder';
 import { AudioStreamer } from '@/lib/audio-streamer';
-import { base64AudioToBlob, audioContext } from '@/lib/utils';
-import { LiveConnectConfig, Modality } from '@google/genai';
+import { base64AudioToBlob, audioContext, base64ToArrayBuffer } from '@/lib/utils';
+import { LiveConnectConfig, Modality, MediaResolution } from '@google/genai';
 
 // --- LOGGING ---
 const LOG_PREFIX = '[DEBUG_LIVE_TAB]';
@@ -77,6 +77,8 @@ export const LiveChatTab: React.FC<LiveChatTabProps> = React.memo(({
   console.log(`${LOG_PREFIX} Ref [connectionStateRef.current]:`, connectionStateRef.current);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   console.log(`${LOG_PREFIX} Ref [transcriptEndRef.current]:`, transcriptEndRef.current ? 'Exists' : 'null');
+  const audioBufferRef = useRef<string[]>([]); // To hold audio chunks
+  const audioIntervalRef = useRef<NodeJS.Timeout | null>(null); // To manage the send interval
   // --- End Refs ---
 
   // Auto-scroll for transcript
@@ -132,23 +134,26 @@ YOUR ROLE AND RULES:
 
   // --- Connection Config Builder ---
   const getConnectionConfig = useCallback((): LiveConnectConfig => {
-// ... (this function is unchanged) ...
     console.log(`${LOG_PREFIX} getConnectionConfig (useCallback) called.`);
     const systemPrompt = getSystemPrompt();
     console.log(`${LOG_PREFIX} getConnectionConfig: Got system prompt.`);
+    
+    // --- FIX: Use config from working example to match server ---
     const config: any = {
       responseModalities: [Modality.AUDIO],
+      mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM,
       speechConfig: {
-        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Orus' } },
+        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
       },
-      inputAudioTranscription: {},
-      outputAudioTranscription: {},
-      systemInstruction: { parts: [{ text: getSystemPrompt() }] },
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contextWindowCompression: {
+           triggerTokens: '25600',
+           slidingWindow: { targetTokens: '12800' },
+      },
       tools: [],
-      thinkingConfig: {
-        thinkingBudget: 0
-      },
     };
+    // --- END FIX ---
+    
     console.log(`${LOG_PREFIX} getConnectionConfig: Config object created:`, config);
     return config as LiveConnectConfig;
   }, [getSystemPrompt]);
@@ -156,10 +161,18 @@ YOUR ROLE AND RULES:
 
   // --- Main Cleanup Function ---
   const cleanupConnection = useCallback(() => {
-// ... (this function is unchanged) ...
     console.log(`${LOG_PREFIX} cleanupConnection (useCallback) called. connectionStateRef.current: ${connectionStateRef.current}`);
     connectionStateRef.current = false;
     console.log(`${LOG_PREFIX} cleanupConnection: Set connectionStateRef.current = false.`);
+
+    // --- ADD THIS BLOCK to clear the interval and buffer ---
+    if (audioIntervalRef.current) {
+      console.log(`${LOG_PREFIX} cleanupConnection: Clearing audio send interval.`);
+      clearInterval(audioIntervalRef.current);
+      audioIntervalRef.current = null;
+    }
+    audioBufferRef.current = []; // Clear buffer
+    // --- END ADD ---
 
     if (clientRef.current) {
       console.log(`${LOG_PREFIX} cleanupConnection: Disconnecting client...`);
@@ -332,14 +345,9 @@ YOUR ROLE AND RULES:
 // ... (this section is unchanged) ...
       console.log(`${LOG_PREFIX} handleToggleConnection: 4. Setting up recorder event handler...`);
       recorder.on('data', (base64Audio) => {
-        console.log(`${LOG_PREFIX} recorder.on('data'): FIRED. Received audio data (base64 length: ${base64Audio.length}).`);
-        if (clientRef.current && clientRef.current.status === 'connected') {
-          console.log(`${LOG_PREFIX} recorder.on('data'): Client connected, converting base64 to blob...`);
-          const audioBlob = base64AudioToBlob(base64Audio as string);
-          console.log(`${LOG_PREFIX} recorder.on('data'): Sending blob to client.`);
-          clientRef.current.sendRealtimeInput([audioBlob]);
-        } else {
-          console.warn(`${LOG_PREFIX} recorder.on('data'): Client not connected or ref is null. Dropping audio packet.`);
+        // console.log(`${LOG_PREFIX} recorder.on('data'): Buffering audio chunk.`); // Quieter log
+        if (connectionStateRef.current) {
+          audioBufferRef.current.push(base64Audio as string); // Push to buffer instead of sending
         }
       });
       console.log(`${LOG_PREFIX} handleToggleConnection: 4. Recorder event handler set.`);
@@ -359,10 +367,47 @@ YOUR ROLE AND RULES:
       }
 
       // 6. Start Recorder
-// ... (this section is unchanged) ...
       console.log(`${LOG_PREFIX} handleToggleConnection: 6. Calling recorder.start()...`);
       await recorder.start();
       console.log(`${LOG_PREFIX} handleToggleConnection: 6. recorder.start() promise resolved. Live session is fully active.`);
+
+      // 7. Start Audio Buffering Interval
+      if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
+      audioBufferRef.current = []; // Ensure buffer is clear
+      
+      // --- FIX: Ensure 300ms interval is still present ---
+      // (This was my previous fix for the 1006 error, it should remain)
+      audioIntervalRef.current = setInterval(() => {
+        if (audioBufferRef.current.length > 0 && clientRef.current?.status === 'connected') {
+          
+          const bufferedBase64Strings = [...audioBufferRef.current];
+          audioBufferRef.current = []; 
+
+          try {
+            const arrayBuffers = bufferedBase64Strings.map(b64 => base64ToArrayBuffer(b64));
+            
+            let totalLength = 0;
+            for (const buffer of arrayBuffers) {
+              totalLength += buffer.byteLength;
+            }
+
+            const combinedUint8Array = new Uint8Array(totalLength);
+            let offset = 0;
+            for (const buffer of arrayBuffers) {
+              combinedUint8Array.set(new Uint8Array(buffer), offset);
+              offset += buffer.byteLength;
+            }
+
+            const combinedBlob = new Blob([combinedUint8Array.buffer], { type: 'audio/pcm' });
+            clientRef.current.sendRealtimeInput([combinedBlob]);
+          
+          } catch (e) {
+            console.error(`${LOG_PREFIX} AudioInterval: Error processing audio buffer:`, e);
+          }
+        }
+      }, 300); // Keep the 300ms batching interval
+      
+      console.log(`${LOG_PREFIX} handleToggleConnection: 7. Audio send interval (800ms) started.`);
 
     } catch (e) {
       const msg = (e as Error).message;

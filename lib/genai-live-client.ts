@@ -51,7 +51,10 @@ export interface LiveClientEventTypes {
 }
 
 export class GenAILiveClient {
-  public readonly model: string = "gemini-live-2.5-flash";
+  // --- FIX: This MUST match the model in getEphemeralToken ---
+  public readonly model: string = "models/gemini-2.5-flash-native-audio-preview-09-2025";
+  // --- END FIX ---
+  
   private emitter = new EventEmitter<LiveClientEventTypes>();
   public on = this.emitter.on.bind(this.emitter);
   public off = this.emitter.off.bind(this.emitter);
@@ -104,7 +107,15 @@ export class GenAILiveClient {
     try {
       console.log(`${LOG_PREFIX} connect: Calling this.client.live.connect...`);
       this.session = await this.client.live.connect({
-        model: this.model,
+        
+        // --- THIS IS THE FIX ---
+        // Change "model: this.model," to "model: undefined,"
+        // We must NOT send a model, because the token we're using
+        // already has the model ("gemini-2.5-flash-native-audio-preview-09-2025")
+        // defined inside it.
+        model: undefined,
+        // --- END FIX ---
+
         config: {
           ...config,
         },
