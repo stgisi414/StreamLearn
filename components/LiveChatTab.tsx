@@ -17,9 +17,12 @@ interface LiveChatTabProps {
   uiLanguage: LanguageCode;
   targetLanguage: LanguageCode;
   geminiApiKey: string; // We now take the API key directly
+  liveChatUsageCount: number | null; // <-- ADD THIS
+  isUsageLoading: boolean; // <-- ADD THIS
+  onIncrementLiveChatUsage: () => Promise<void>; // <-- ADD THIS
 }
 
-// --- HELPER FUNCTION ---
+// --- HELPER FUNCTIONS ---
 const getSimpleLanguageName = (code: LanguageCode | string): string => {
   switch (code) {
     case "en": return "English";
@@ -33,13 +36,34 @@ const getSimpleLanguageName = (code: LanguageCode | string): string => {
     default: return "English"; // Fallback
   }
 };
-// --- END HELPER FUNCTION ---
+
+/**
+ * Maps app language codes to Google's IETF BCP-47 language codes
+ * for the Gemini Live API speechConfig.
+ */
+const getBcp47LanguageCode = (code: LanguageCode | string): string => {
+  switch (code) {
+    case "en": return "en-US";
+    case "es": return "es-US";
+    case "fr": return "fr-FR";
+    case "de": return "de-DE";
+    case "it": return "it-IT";
+    case "ko": return "ko-KR";
+    case "ja": return "ja-JP";
+    case "zh": return "cmn-CN"; // Mandarin
+    default: return "en-US"; // Fallback
+  }
+};
+// --- END HELPER FUNCTIONS ---
 
 export const LiveChatTab: React.FC<LiveChatTabProps> = React.memo(({
   lesson,
   uiLanguage,
   targetLanguage,
-  geminiApiKey
+  geminiApiKey,
+  liveChatUsageCount,
+  isUsageLoading,
+  onIncrementLiveChatUsage
 }) => {
   console.log(`${LOG_PREFIX} LiveChatTab component rendering...`);
   const { t } = useTranslation();
@@ -96,7 +120,8 @@ YOUR ROLE AND RULES:
 2.  Your primary goal is to help the user understand the lesson.
 3.  **CRITICAL RULE:** If the user asks a question *outside* the scope of this lesson, you MUST politely decline and guide them back to the lesson.
 4.  Keep your answers concise and easy to understand.
-5.  You MUST respond with both TEXT AND AUDIO.`;
+5.  You MUST respond with both TEXT AND AUDIO.
+6.  You MUST use a standard, male-sounding voice for all your audio responses.`;
   }, [lesson, uiLanguage, targetLanguage]);
 
 
@@ -228,6 +253,22 @@ YOUR ROLE AND RULES:
     responseQueueRef.current = [];
 
     try {
+      // --- NEW: Check usage limit before starting ---
+      if (isUsageLoading) {
+        console.log(`${LOG_PREFIX} handleToggleConnection: Usage data is still loading.`);
+        setErrorMessage("Checking usage limit...");
+        setIsConnecting(false); // Not connecting yet
+        return;
+      }
+      
+      if (liveChatUsageCount === null || liveChatUsageCount >= 3) {
+        console.log(`${LOG_PREFIX} handleToggleConnection: User has reached daily limit.`);
+        setErrorMessage(t('chat.liveLimitReached'));
+        setIsConnecting(false);
+        return;
+      }
+      // --- END: Check usage limit ---
+
       // 1. Init SDK (as per doc example)
       if (!aiRef.current) {
           if (!geminiApiKey) {
@@ -250,11 +291,26 @@ YOUR ROLE AND RULES:
       const model = "gemini-2.5-flash-native-audio-preview-09-2025";
       const config = {
         responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: "Puck" } }, // Use "Kore" (male) as you found
+          languageCode: getBcp47LanguageCode(targetLanguage) // Map 'ko' -> 'ko-KR', etc.
+        },
         systemInstruction: { parts: [{ text: getSystemPrompt() }] },
       };
       console.log(`${LOG_PREFIX} Model and Config defined.`);
+      console.log("[DEBUG]: Configuration settings");
+      console.log(config);
 
       // 4. Connect
+      // --- NEW: Increment usage *before* connecting ---
+      try {
+        await onIncrementLiveChatUsage();
+        console.log(`${LOG_PREFIX} Successfully incremented live chat usage.`);
+      } catch (e) {
+        console.error(`${LOG_PREFIX} Failed to increment usage:`, e);
+        throw new Error("Could not update your usage count. Please try again.");
+      }
+      // --- END: Increment usage ---
       console.log(`${LOG_PREFIX} Calling ai.live.connect...`);
       sessionRef.current = await aiRef.current.live.connect({
         model: model,
@@ -351,24 +407,40 @@ YOUR ROLE AND RULES:
   // --- RENDER ---
   return (
     <div className="space-y-4 text-center">
-      <p className="text-sm text-gray-700">
-        {isSessionActive ? "I'm listening..." : t('chat.liveWelcome')}
-      </p>
+      {/* --- NEW: Show remaining count or loading state --- */}
+      {isUsageLoading ? (
+         <p className="text-sm text-gray-500 italic">{t('common.loading')}</p>
+      ) : (
+        <p className="text-sm text-gray-700">
+          {isSessionActive 
+            ? "I'm listening..." 
+            : (liveChatUsageCount !== null && liveChatUsageCount < 3)
+              ? t('chat.liveWelcome')
+              : t('chat.liveLimitReached')
+          }
+          {(liveChatUsageCount !== null && liveChatUsageCount < 3 && !isSessionActive) && (
+            <span className="block text-xs text-gray-500 mt-1">
+              {t('chat.liveSessionsRemaining', { count: 3 - liveChatUsageCount })}
+            </span>
+          )}
+        </p>
+      )}
 
       {isConnecting ? (
         <LoadingSpinner text={t('chat.liveLoading')} />
       ) : (
-        <button
-          onClick={handleToggleConnection}
-          className={`font-bold py-3 px-6 rounded-lg text-white transition-all ${
-            isSessionActive
-              ? 'bg-red-600 hover:bg-red-700'
-              : 'bg-green-600 hover:bg-green-700'
-          }`}
-        >
-          {isSessionActive ? t('chat.liveStop') : t('chat.liveStart')}
-        </button>
-      )}
+      <button
+        onClick={handleToggleConnection}
+        disabled={isUsageLoading || (liveChatUsageCount !== null && liveChatUsageCount >= 3 && !isSessionActive)}
+        className={`font-bold py-3 px-6 rounded-lg text-white transition-all ${
+          isSessionActive
+            ? 'bg-red-600 hover:bg-red-700'
+            : 'bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed'
+        }`}
+      >
+        {isSessionActive ? t('chat.liveStop') : t('chat.liveStart')}
+      </button>
+    )}
       {errorMessage && (
         <p className="text-sm text-red-600 mt-2">{errorMessage}</p>
       )}

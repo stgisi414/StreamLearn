@@ -24,6 +24,11 @@ service cloud.firestore {
       match /usage/{monthId} {
         allow read: if request.auth.uid == uid;
       }
+
+      // Allow user to read/write their own daily live chat usage
+      match /liveChatUsage/{dateId} {
+        allow read, write: if request.auth.uid == uid;
+      }
     } // <--- FIX: Added the missing closing brace for /users/{uid}
 
     //

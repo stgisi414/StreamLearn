@@ -153,7 +153,9 @@
       "liveStop": "停止收听",
       "liveLoading": "正在连接实时助手...",
       "liveMicError": "无法访问麦克风。",
-      "liveTokenError": "无法连接到实时聊天服务。"
+      "liveTokenError": "无法连接到实时聊天服务。",
+      "liveLimitReached": "您今天 3 次的实时聊天会话已全部用完。",
+      "liveSessionsRemaining": "您今天还剩 {{count}} 次实时会话。"
     },
     "pricing": {
       "title": "定价",

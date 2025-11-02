@@ -155,7 +155,9 @@
       "liveStop": "聞き取り停止",
       "liveLoading": "ライブアシスタントに接続中...",
       "liveMicError": "マイクにアクセスできませんでした。",
-      "liveTokenError": "ライブチャットサービスに接続できませんでした。"
+      "liveTokenError": "ライブチャットサービスに接続できませんでした。",
+      "liveLimitReached": "本日のライブチャットセッション3回をすべて使用しました。",
+      "liveSessionsRemaining": "本日は残り{{count}}回のライブセッションが利用可能です。"
     },
     "pricing": {
       "title": "料金",

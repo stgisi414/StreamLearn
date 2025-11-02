@@ -155,7 +155,9 @@
       "liveStop": "Dejar de escuchar",
       "liveLoading": "Conectando al asistente en vivo...",
       "liveMicError": "No se pudo acceder al micrófono.",
-      "liveTokenError": "No se pudo conectar al servicio de chat en vivo."
+      "liveTokenError": "No se pudo conectar al servicio de chat en vivo.",
+      "liveLimitReached": "Has utilizado tus 3 sesiones de chat en vivo de hoy.",
+      "liveSessionsRemaining": "Te quedan {{count}} sesiones en vivo hoy."
     },
     "pricing": {
       "title": "Precios",

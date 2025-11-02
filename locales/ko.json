@@ -156,7 +156,9 @@
       "liveStop": "듣기 중지",
       "liveLoading": "실시간 도우미에 연결 중...",
       "liveMicError": "마이크에 액세스할 수 없습니다.",
-      "liveTokenError": "실시간 채팅 서비스에 연결할 수 없습니다."
+      "liveTokenError": "실시간 채팅 서비스에 연결할 수 없습니다.",
+      "liveLimitReached": "오늘의 실시간 채팅 세션 3회를 모두 사용했습니다.",
+      "liveSessionsRemaining": "오늘 {{count}}회의 실시간 세션이 남았습니다."
     },
     "pricing": {
       "title": "가격",

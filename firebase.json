@@ -34,8 +34,12 @@
         "function": "chatWithAssistant"
       },
       {
-        "source": "/api/createPortalLink",
-        "function": "createPortalLink"
+        "source": "/api/saveArticleForLater",
+        "function": "saveArticleForLater"
+      },
+      {
+        "source": "/api/removeLesson",
+        "function": "removeLesson"
       },
       {
         "source": "**",

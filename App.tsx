@@ -13,7 +13,7 @@ import {
   getFirestore, doc, setDoc, Timestamp,
   collection, query, orderBy, getDocs, limit,
   deleteDoc, where, addDoc,
-  connectFirestoreEmulator, onSnapshot
+  connectFirestoreEmulator, onSnapshot, increment
 } from 'firebase/firestore';
 import { useTranslation, Trans } from 'react-i18next';
 import { 
@@ -35,6 +35,8 @@ import { ArrowLeftIcon } from './components/icons/ArrowLeftIcon';
 import { ChatBubbleIcon } from './components/icons/ChatBubbleIcon';
 import { ChatAssistant } from './components/ChatAssistant';
 import { VolumeUpIcon } from './components/icons/VolumeUpIcon';
+import { ThumbUpIcon } from './components/icons/ThumbUpIcon';
+import { ThumbDownIcon } from './components/icons/ThumbDownIcon';
 import { PlayIcon } from './components/icons/PlayIcon';
 import { PauseIcon } from './components/icons/PauseIcon';
 import { CheckCircleIcon } from './components/icons/CheckCircleIcon';
@@ -86,9 +88,13 @@ const BASE_FUNCTION_URL = getFunctionBaseUrl();
  * Custom hook to manage state in localStorage.
  * NOW reads from URL param on initial load.
  */
-function useLocalStorageState<T>(key: string, defaultValue: T, urlParam: string | null = null): [T, React.Dispatch<React.SetStateAction<T>>] {
-  const [value, setValue] = useState<T>(() => {
-    // 1. Check for URL parameter
+function useLanguageLocalStorageState(
+    key: string, 
+    defaultValue: LanguageCode, 
+    urlParam: string | null = null
+): [LanguageCode, React.Dispatch<React.SetStateAction<LanguageCode>>] {
+  
+  const [value, setValue] = useState<LanguageCode>(() => {
     if (urlParam) {
       try {
         const params = new URLSearchParams(window.location.search);
@@ -104,6 +110,41 @@ function useLocalStorageState<T>(key: string, defaultValue: T, urlParam: string 
     }
 
     // 2. Fallback to localStorage
+    try {
+      const storedValue = localStorage.getItem(key);
+      // Check for null, 'undefined', or the literal string "null"
+      if (storedValue === null) {
+         return defaultValue;
+      }
+      // Parse the stored value
+      const parsed = JSON.parse(storedValue);
+      if (!parsed || !languageCodes.includes(parsed)) {
+          console.warn(`Invalid language code "${parsed}" in localStorage for key "${key}". Reverting to default.`);
+          return defaultValue;
+      }
+      // It's a valid, stored value
+      return parsed;
+    } catch (error) {
+      console.warn(`Error reading localStorage key “${key}”:`, error, `. Reverting to default.`);
+       return defaultValue;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      // The state `value` is typed as LanguageCode, so it should always be valid.
+      // Just stringify and set it.
+      localStorage.setItem(key, JSON.stringify(value));
+     } catch (error) {
+      console.warn(`Error setting localStorage key “${key}”:`, error);
+    }
+  }, [key, value]);
+
+  return [value, setValue];
+}
+
+function useLocalStorageState<T>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const [value, setValue] = useState<T>(() => {
     try {
       const storedValue = localStorage.getItem(key);
       // Check for null, 'undefined', or the literal string "null"
@@ -135,10 +176,9 @@ function useLocalStorageState<T>(key: string, defaultValue: T, urlParam: string 
   return [value, setValue];
 }
 
-
 // --- Main App Component ---
 type AppView = 'LOADING' | 'LANDING' | 'DASHBOARD' | 'INPUT' | 'NEWS_LIST' | 'LESSON_VIEW' | 'ACTIVITY' | 'WORD_BANK'
-             | 'PRICING' | 'TERMS' | 'PRIVACY';
+              | 'PRICING' | 'TERMS' | 'PRIVACY';
 
 // Interface for lessons fetched from Firestore
 interface SavedLesson {
@@ -216,14 +256,17 @@ const App: React.FC = () => {
   // --- NEW: Language State ---
   // Default to English UI, learning English
   // ADD urlParam 'lang' to uiLanguage
-  const [uiLanguage, setUiLanguage] = useLocalStorageState<LanguageCode>('streamlearn_uiLang', 'en', 'lang');
-  const [targetLanguage, setTargetLanguage] = useLocalStorageState<LanguageCode>('streamlearn_targetLang', 'en'); // FIX: Default target to 'en'
+  const [uiLanguage, setUiLanguage] = useLanguageLocalStorageState('streamlearn_uiLang', 'en', 'lang');
+  const [targetLanguage, setTargetLanguage] = useLanguageLocalStorageState('streamlearn_targetLang', 'en');
 
   // --- NEW: Subscription State ---
   const [subscription, setSubscription] = useState<StripeSubscription | null>(null);
   const [isSubLoading, setIsSubLoading] = useState(true); // Start true on load
   const [isBillingLoading, setIsBillingLoading] = useState(false);
   const isSubscribed = subscription?.status === 'active' || subscription?.status === 'trialing';
+
+  const [liveChatUsageCount, setLiveChatUsageCount] = useState<number | null>(null);
+  const [isUsageLoading, setIsUsageLoading] = useState(true); // Tracks loading for the usage doc
 
   // --- Global Error ---
   const [error, setError] = useState<string | null>(null);
@@ -254,15 +297,22 @@ const App: React.FC = () => {
   // --- Persistent State ---
   const [inputTopic, setInputTopic] = useLocalStorageState<string>('streamlearn_topic', '');
   const [inputLevel, setInputLevel] = useLocalStorageState<EnglishLevel>('streamlearn_level', 'Intermediate');
-  const [newsResults, setNewsResults] = useLocalStorageState<NewsResult[]>('streamlearn_results', []);
+  // This is the *full* list of articles from the last search
+  const [allFetchedArticles, setAllFetchedArticles] = useLocalStorageState<NewsResult[]>('streamlearn_allResults', []);
+  // This is the *visible* list of articles (e.g., the top 10)
+  const [visibleNewsResults, setVisibleNewsResults] = useLocalStorageState<NewsResult[]>('streamlearn_visibleResults', []);
   const [currentArticle, setCurrentArticle] = useLocalStorageState<Article | null>('streamlearn_article', null);
   const [currentLesson, setCurrentLesson] = useLocalStorageState<Lesson | null>('streamlearn_lesson', null);
+  const [articleFeedbackMessage, setArticleFeedbackMessage] = useState<string | null>(null);
   const initialUrlHandled = useRef(false);
 
   const [chatHistory, setChatHistory] = useLocalStorageState<ChatMessage[]>('streamlearn_chatHistory', []);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const CHAT_HISTORY_LIMIT = 50;
+
+  const [isLikingArticle, setIsLikingArticle] = useState<string | null>(null);
+  const [isDislikingArticle, setIsDislikingArticle] = useState<string | null>(null);
 
   // --- Static Data ---
   const newsTopics: string[] = [
@@ -407,7 +457,8 @@ const App: React.FC = () => {
     setIsApiLoading(true);
     setError(null);
     if (!skipNavigation) {
-        setNewsResults([]); // Clear results only on user-initiated search
+        setAllFetchedArticles([]);
+        setVisibleNewsResults([]);
     }
 
     // Navigate or set view
@@ -424,9 +475,12 @@ const App: React.FC = () => {
       }) as NewsResult[];
       if (!results || results.length === 0) {
         setError(`No current news articles found for "${topicToSearch}".`);
-        setNewsResults([]); // Ensure results are empty on no results
+        setAllFetchedArticles([]);
+        setVisibleNewsResults([]);
       } else {
-        setNewsResults(results.filter(r => r.title && r.link));
+        const validResults = results.filter(r => r.title && r.link);
+        setAllFetchedArticles(validResults); // Save all results
+        setVisibleNewsResults(validResults.slice(0, 10)); // Show first 10
       }
     } catch (e) {
        // Error is already set by authenticatedFetch, view might reset via handleUrlChange if needed
@@ -436,7 +490,7 @@ const App: React.FC = () => {
       setIsApiLoading(false);
     }
   }, [
-      authState, user, authenticatedFetch, inputTopic, inputLevel, setNewsResults, 
+      authState, user, authenticatedFetch, inputTopic, inputLevel, setAllFetchedArticles, setVisibleNewsResults, 
       setError, goToSearch, goToInput, setCurrentView, 
       isSubscribed, monthlyLessonCount, t,
       targetLanguage
@@ -912,7 +966,7 @@ const App: React.FC = () => {
       if (query && level) {
         nextView = 'NEWS_LIST';
         // Only trigger search if state doesn't match URL and not already loading
-        if ((!newsResults.length || inputTopic !== query || inputLevel !== level) && !isApiLoading) {
+        if ((!visibleNewsResults.length || inputTopic !== query || inputLevel !== level) && !isApiLoading) {
           setInputTopic(query);
           setInputLevel(level);
           handleFindArticles(query, true); // skip nav=true
@@ -969,10 +1023,11 @@ const App: React.FC = () => {
 
   }, [
     // Keep all dependencies here
-    authState, currentLesson, currentArticle, newsResults, inputTopic, inputLevel, isApiLoading,
-    setCurrentView, setInputTopic, setInputLevel, setError, setNewsResults, setCurrentArticle, setCurrentLesson, // Added missing setters
-    handleSelectArticle, handleFindArticles, goToInput, // Ensure these are stable (defined with useCallback)
-    fetchSummaryAudio, summaryAudioSrc, isSummaryAudioLoading,
+    authState, currentLesson, currentArticle, visibleNewsResults, inputTopic, inputLevel, isApiLoading,
+    setCurrentView, setInputTopic, setInputLevel, setError, setAllFetchedArticles, setVisibleNewsResults, setCurrentArticle, setCurrentLesson, // Added missing setters
+     handleSelectArticle, handleFindArticles, goToInput, // Ensure these are stable (defined with useCallback)
+     fetchSummaryAudio, summaryAudioSrc, isSummaryAudioLoading,
+     targetLanguage, uiLanguage
   ]);
 
   // --- NEW: Effect for SEO and Title Localization ---
@@ -1053,7 +1108,9 @@ const App: React.FC = () => {
         setUser(null);
         setAuthState('SIGNED_OUT');
         // setCurrentView('SIGN_OUT'); // This will be handled by URL/popstate handler
-        setLessonHistory([]); //
+        setLessonHistory([]);
+        setLiveChatUsageCount(null); // Clear usage on sign out
+        setIsUsageLoading(true); // Reset usage loading
         setWordBank([]);
         setDashboardSearchTerm('');
         initialUrlHandled.current = false;
@@ -1108,13 +1165,128 @@ const App: React.FC = () => {
         }
       );
 
-      // --- Return cleanup function ---
-      return () => {
-        historyUnsubscribe();
-        wordBankUnsubscribe();
-      };
+      // --- Set up Live Chat Usage listener ---
+      setIsUsageLoading(true);
+      const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+      const usageDocRef = doc(db, `users/${user.uid}/liveChatUsage`, today);
+      
+      const usageUnsubscribe = onSnapshot(usageDocRef, 
+        (docSnap) => {
+          if (docSnap.exists()) {
+            setLiveChatUsageCount(docSnap.data().count || 0);
+          } else {
+            // No doc for today means 0 uses
+            setLiveChatUsageCount(0);
+          }
+          setIsUsageLoading(false);
+        },
+        (err) => {
+          console.error("Error fetching live chat usage:", err);
+          setError(`Failed to load usage data: ${(err as Error).message}`);
+          setLiveChatUsageCount(null); // Set to null on error
+          setIsUsageLoading(false);
+        }
+      );
+
+       // --- Return cleanup function ---
+       return () => {
+         historyUnsubscribe();
+         wordBankUnsubscribe();
+        usageUnsubscribe(); // Detach usage listener
+       };
+     }
+   }, [user, db]); // This effect re-runs when the user logs in or out
+
+  // --- NEW: Callback to increment live chat usage ---
+  const handleIncrementLiveChatUsage = useCallback(async () => {
+    if (!user) throw new Error("User not signed in.");
+
+    const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+    const usageDocRef = doc(db, `users/${user.uid}/liveChatUsage`, today);
+
+    try {
+      // Atomically increment the count. Creates the doc if it doesn't exist.
+      await setDoc(usageDocRef, { count: increment(1) }, { merge: true });
+    } catch (err) {
+      logger.error("Failed to increment live chat usage:", err);
+      throw new Error("Failed to update usage count.");
     }
-  }, [user, db]); // This effect re-runs when the user logs in or out
+  }, [user, db]); // Add 'db' as 
+
+  const handleSaveArticle = useCallback(async (article: Article) => {
+    if (!user || isLikingArticle) return;
+
+    setIsLikingArticle(article.link);
+    setArticleFeedbackMessage(null);
+    setError(null);
+
+    try {
+      await authenticatedFetch('saveArticleForLater', {
+        article,
+        level: inputLevel,
+        topic: inputTopic,
+        uiLanguage: uiLanguage,
+      });
+      // The Firestore listener will automatically update the lessonHistory
+      // which will make the "like" button appear solid.
+      setArticleFeedbackMessage(`Saved "${article.title}" to your dashboard.`);
+    } catch (e) {
+      setError(`Could not save article: ${(e as Error).message}`);
+    } finally {
+      setIsLikingArticle(null);
+      // Clear message after a few seconds
+      setTimeout(() => setArticleFeedbackMessage(null), 3000);
+    }
+  }, [user, isLikingArticle, inputLevel, inputTopic, uiLanguage, authenticatedFetch, setError]);
+
+  // --- NEW: Handler for "Disliking" an article ---
+  const handleDislikeArticle = useCallback(async (articleToDislike: Article) => {
+    if (!user || isDislikingArticle) return;
+
+    setIsDislikingArticle(articleToDislike.link);
+    setArticleFeedbackMessage(null);
+    setError(null);
+
+    try {
+      // --- 1. Remove from Firestore (if it exists) ---
+      // We call this function even if it's not in the local `lessonHistory`
+      // in case of state mismatch. The function will just do nothing if doc doesn't exist.
+      await authenticatedFetch('removeLesson', {
+        articleUrl: articleToDislike.link
+      });
+
+      // --- 2. Find replacement article ---
+      let replacementArticle: NewsResult | null = null;
+      // Get a set of currently visible article links for fast lookup
+      const visibleLinks = new Set(visibleNewsResults.map(a => a.link));
+      // Find the first article in the full list that is not currently visible
+      for (const article of allFetchedArticles) {
+        if (!visibleLinks.has(article.link)) {
+          replacementArticle = article;
+          break; // Found one
+        }
+      }
+
+      // --- 3. Update local visible state ---
+      setVisibleNewsResults(prevVisible => {
+        // Filter out the disliked article
+        const filteredList = prevVisible.filter(a => a.link !== articleToDislike.link);
+        
+        // Add the replacement if one was found
+        if (replacementArticle) {
+          return [...filteredList, replacementArticle];
+        }
+        
+        // Otherwise, just return the filtered list
+        return filteredList;
+      });
+
+    } catch (e) {
+      setError(`Error disliking article: ${(e as Error).message}`);
+    } finally {
+      setIsDislikingArticle(null);
+    }
+  }, [user, isDislikingArticle, allFetchedArticles, visibleNewsResults, authenticatedFetch, setError, setVisibleNewsResults]);
 
   // --- Google Sign-In Handler ---
   const signInWithGoogle = async () => {
@@ -1138,6 +1310,8 @@ const App: React.FC = () => {
       // onAuthStateChanged will handle setting user to null and SIGNED_OUT state
       // Clear potentially sensitive state on sign out
       setCurrentArticle(null);
+      setAllFetchedArticles([]);
+      setVisibleNewsResults([]);
       setCurrentLesson(null);
       setNewsResults([]);
       setInputTopic(''); // Optionally clear topic
@@ -2628,20 +2802,35 @@ const LandingPage: React.FC<{
             </div>
         </div>
       </div>
+      {/* --- NEW: Feedback message for Like/Dislike --- */}
+      {articleFeedbackMessage && (
+        <div className="text-sm text-green-700 bg-green-100 p-2 rounded text-center">
+          {articleFeedbackMessage}
+        </div>
+      )}
       <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
-        {isApiLoading && !newsResults.length ? ( // Show loading only if results aren't already displayed
+        {isApiLoading && !visibleNewsResults.length ? ( // Show loading only if results aren't already displayed
           <LoadingSpinner text={t('news.loading')} />
-        ) : newsResults.length === 0 && !isApiLoading ? ( // Show no results message
+        ) : visibleNewsResults.length === 0 && !isApiLoading ? ( // Show no results message
            <p className="text-center text-gray-500 py-4">{t('news.empty')}</p>
         ) : (
-          newsResults.map((article, index) => (
-            <div
-              key={index}
-              className="flex gap-4 p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-blue-50 transition duration-150"
-              onClick={() => handleSelectArticle(article, false)}
-            >
-              {article.image && (
-                <img
+          visibleNewsResults.map((article) => {
+            // Check if this lesson is already saved
+            const lessonId = btoa(article.link).replace(/\//g, '_').replace(/\+/g, '-');
+            const isSaved = lessonHistory.some(l => l.id === lessonId);
+            
+            // Check if this specific card is loading
+            const isLiking = isLikingArticle === article.link;
+            const isDisliking = isDislikingArticle === article.link;
+            const isCardLoading = isLiking || isDisliking;
+
+            return (
+              <div
+                key={article.link}
+                className={`flex gap-4 p-4 border border-gray-200 rounded-lg transition duration-150 ${isCardLoading ? 'opacity-50 bg-gray-100' : 'hover:bg-blue-50'}`}
+              >
+                {article.image && (
+                  <img
                   src={article.image}
                   alt=""
                   className="w-20 h-20 object-cover rounded flex-shrink-0"
@@ -2649,26 +2838,58 @@ const LandingPage: React.FC<{
                 />
               )}
               <div className="flex-grow min-w-0">
-                <p className="text-lg font-semibold text-gray-900 line-clamp-2">
-                  {article.title}
-                </p>
-                <p className="text-sm text-gray-600 line-clamp-2 mt-1">
-                  {article.snippet}
-                </p>
+                {/* Make the title clickable to open the lesson */}
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (isCardLoading) return;
+                    handleSelectArticle(article, false);
+                  }}
+                  className={`text-lg font-semibold text-gray-900 line-clamp-2 ${!isCardLoading && 'hover:text-blue-700'}`}
+                >
+                 {article.title}
+                </a>
+                <p className="text-sm text-gray-600 line-clamp-2 mt-1"
+                   onClick={() => !isCardLoading && handleSelectArticle(article, false)} // Allow clicking text to open
+                   style={{ cursor: isCardLoading ? 'default' : 'pointer' }}
+                >
+                   {article.snippet}
+                 </p>
                 <p className="text-xs text-gray-400 mt-1">
                   {t('common.source')}: {article.source} ({article.date})
                 </p>
               </div>
+            {/* --- NEW: Like/Dislike Buttons --- */}
+              <div className="flex flex-col justify-center items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={() => handleSaveArticle(article)}
+                  disabled={isCardLoading || isSaved}
+                  title={isSaved ? t('common.alreadySaved') : t('news.saveForLater')}
+                  className="p-2 rounded-full transition duration-150 disabled:opacity-50 disabled:cursor-not-allowed text-green-600 disabled:text-gray-400 hover:bg-green-100"
+                >
+                  {isLiking ? <LoadingSpinner className="w-5 h-5"/> : <ThumbUpIcon className="w-5 h-5" isSolid={isSaved} />}
+                </button>
+                <button
+                  onClick={() => handleDislikeArticle(article)}
+                  disabled={isCardLoading}
+                  title={t('news.dislikeArticle')}
+                  className="p-2 rounded-full text-red-500 hover:bg-red-100 transition duration-150 disabled:opacity-50"
+                >
+                  {isDisliking ? <LoadingSpinner className="w-5 h-5"/> : <ThumbDownIcon className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
+            );
+          })
+         )}
+       </div>
+     </div>
+   );
 
   const renderLessonView = () => {
     // Show loading spinner if lesson is being generated or hasn't loaded from state yet
-    if (isLessonGenerating || (!currentLesson && currentView === 'LESSON_VIEW')) {
+    if (isLessonGenerating || (!currentLesson && currentView === 'LESSON_VIEW' && isApiLoading)) {
         return (
              <div className="p-4 sm:p-6 max-w-4xl mx-auto bg-white rounded-xl shadow-2xl space-y-6">
                 {/* Header for Loading State */}
@@ -2682,8 +2903,8 @@ const LandingPage: React.FC<{
                      {user && ( <button onClick={handleSignOut} className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1"> {t('common.signOut')} </button> )}
                  </div>
                  <button
-                    // Go back to search results if possible, otherwise input
-                    onClick={() => newsResults.length > 0 ? goToSearch(inputTopic, inputLevel) : goToInput()}
+                    // Go back to search results
+                    onClick={() => goToSearch(inputTopic, inputLevel)}
                     className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
                 >
                     <ArrowLeftIcon className="w-4 h-4 mr-1" /> {t('common.back')}
@@ -2911,6 +3132,10 @@ const LandingPage: React.FC<{
           onClearChat={handleClearChat}
           // --- CHANGE IS HERE ---
           // handleFetchAuthToken={handleFetchAuthToken} // <-- REMOVE THIS
+          isSubscribed={isSubscribed} // <-- ADD THIS
+          liveChatUsageCount={liveChatUsageCount} // <-- ADD THIS
+          isUsageLoading={isUsageLoading} // <-- ADD THIS
+          onIncrementLiveChatUsage={handleIncrementLiveChatUsage}
           geminiApiKey={import.meta.env.VITE_GEMINI_API_KEY} // <-- ADD THIS PROP
           // --- END CHANGE ---
         />

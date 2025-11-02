@@ -14,8 +14,10 @@ interface ChatAssistantProps {
   error: string | null;
   onSubmit: (input: string) => Promise<void>;
   onClearChat: () => void;
-  fetchAuthToken: () => Promise<string>;
   geminiApiKey: string; // <-- ADD THIS
+  isSubscribed: boolean; // <-- ADD THIS
+  liveChatUsageCount: number | null; // <-- ADD THIS
+  isUsageLoading: boolean; // <-- ADD THIS
 }
 
 const TextChatTab: React.FC<Omit<ChatAssistantProps, 'fetchAuthToken' | 'lesson' | 'geminiApiKey'>> = React.memo(({
@@ -126,10 +128,17 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = React.memo((props) =>
   // DEBUG: Log prop changes
   useEffect(() => {
     console.log("DEBUG_CHAT_ASSISTANT: Props changed (or component mounted)");
-  }, [props.lesson, props.history, props.isLoading, props.error, props.onSubmit, props.onClearChat, props.fetchAuthToken]);
+  }, [props.lesson, props.history, props.isLoading, props.error, props.onSubmit, props.onClearChat, props.geminiApiKey, props.isSubscribed, props.liveChatUsageCount, props.isUsageLoading]);
 
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'text' | 'live'>('text');
+
+  // Effect to reset tab if subscription status changes
+  useEffect(() => {
+    if (!props.isSubscribed) {
+      setActiveTab('text');
+    }
+  }, [props.isSubscribed]);
 
   const getTabClass = (tabName: 'text' | 'live') => {
     const isActive = activeTab === tabName;
@@ -166,12 +175,15 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = React.memo((props) =>
         >
           {t('chat.tabText')}
         </button>
-        <button 
-          onClick={() => setActiveTab('live')} 
-          className={getTabClass('live')}
-        >
-          {t('chat.tabLive')}
-        </button>
+        {/* --- ADD: Show live tab only for subscribed users --- */}
+        {props.isSubscribed && (
+          <button 
+            onClick={() => setActiveTab('live')} 
+            className={getTabClass('live')}
+          >
+            {t('chat.tabLive')}
+          </button>
+        )}
       </div>
 
       {/* Tab Content */}
@@ -194,8 +206,11 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = React.memo((props) =>
             targetLanguage={props.targetLanguage}
             // --- CHANGE IS HERE ---
             // fetchAuthToken={props.fetchAuthToken} // <-- REMOVE THIS
-            geminiApiKey={props.geminiApiKey}     // <-- ADD THIS
+            geminiApiKey={props.geminiApiKey} // <-- This was added
             // --- END CHANGE ---
+            liveChatUsageCount={props.liveChatUsageCount} // <-- ADD THIS
+            isUsageLoading={props.isUsageLoading} // <-- ADD THIS
+            onIncrementLiveChatUsage={props.onIncrementLiveChatUsage} // <-- ADD THIS
           />
         )}
       </div>

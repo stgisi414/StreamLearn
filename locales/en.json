@@ -102,7 +102,9 @@
       "back": "Back to Articles",
       "loading": "Fetching articles...",
       "empty": "No articles found for this topic.",
-      "changeTopicTitle": "Change Topic"
+      "changeTopicTitle": "Change Topic",
+      "saveForLater": "Save to dashboard without opening",
+      "dislikeArticle": "Dislike and replace this article"
     },
     "lesson": {
       "generating": "Generating your lesson, this may take a moment...",
@@ -156,7 +158,9 @@
       "liveStop": "Stop Listening",
       "liveLoading": "Connecting to live assistant...",
       "liveMicError": "Could not access microphone.",
-      "liveTokenError": "Could not connect to live chat service."
+      "liveTokenError": "Could not connect to live chat service.",
+      "liveLimitReached": "You have used all 3 of your daily live chat sessions.",
+      "liveSessionsRemaining": "You have {{count}} live sessions remaining today."
     },
     "pricing": {
       "title": "Pricing",

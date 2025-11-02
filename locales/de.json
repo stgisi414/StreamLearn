@@ -155,7 +155,9 @@
       "liveStop": "Zuhören beenden",
       "liveLoading": "Verbinde mit Live-Assistent...",
       "liveMicError": "Zugriff auf Mikrofon nicht möglich.",
-      "liveTokenError": "Verbindung zum Live-Chat-Dienst fehlgeschlagen."
+      "liveTokenError": "Verbindung zum Live-Chat-Dienst fehlgeschlagen.",
+      "liveLimitReached": "Sie haben alle 3 Live-Chat-Sitzungen für heute verbraucht.",
+      "liveSessionsRemaining": "Sie haben heute noch {{count}} Live-Sitzungen übrig."
     },
     "pricing": {
       "title": "Preise",

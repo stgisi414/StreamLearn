@@ -155,7 +155,9 @@
       "liveStop": "Arrêter d'écouter",
       "liveLoading": "Connexion à l'assistant en direct...",
       "liveMicError": "Impossible d'accéder au microphone.",
-      "liveTokenError": "Impossible de se connecter au service de chat en direct."
+      "liveTokenError": "Impossible de se connecter au service de chat en direct.",
+      "liveLimitReached": "Vous avez utilisé vos 3 sessions de chat en direct pour aujourd'hui.",
+      "liveSessionsRemaining": "Il vous reste {{count}} sessions en direct aujourd'hui."
     },
     "pricing": {
       "title": "Tarifs",
