@@ -35,11 +35,12 @@ import { ArrowLeftIcon } from './components/icons/ArrowLeftIcon';
 import { ChatBubbleIcon } from './components/icons/ChatBubbleIcon';
 import { ChatAssistant } from './components/ChatAssistant';
 import { VolumeUpIcon } from './components/icons/VolumeUpIcon';
-import { ThumbUpIcon } from './components/icons/ThumbUpIcon';
-import { ThumbDownIcon } from './components/icons/ThumbDownIcon';
+import { ThumbsUpIcon } from './components/icons/ThumbsUpIcon';
+import { ThumbsDownIcon } from './components/icons/ThumbsDownIcon';
 import { PlayIcon } from './components/icons/PlayIcon';
 import { PauseIcon } from './components/icons/PauseIcon';
 import { CheckCircleIcon } from './components/icons/CheckCircleIcon';
+import { LightBulbIcon } from './components/icons/LightBulbIcon';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
 import { Lesson, Article, NewsResult, EnglishLevel, LessonResponse, SavedWord, VocabularyItem, StripeSubscription, LanguageCode } from './types';
 
@@ -311,6 +312,10 @@ const App: React.FC = () => {
   const [chatError, setChatError] = useState<string | null>(null);
   const CHAT_HISTORY_LIMIT = 50;
 
+  // --- NEW: State for comprehension answers ---
+  const [comprehensionAnswers, setComprehensionAnswers] = useState<Record<number, string>>({});
+  const [isAnswerLoading, setIsAnswerLoading] = useState<number | null>(null); // Stores the index of the loading question
+
   const [isLikingArticle, setIsLikingArticle] = useState<string | null>(null);
   const [isDislikingArticle, setIsDislikingArticle] = useState<string | null>(null);
 
@@ -572,6 +577,7 @@ const App: React.FC = () => {
         setSummaryAudioError(null);
         if (summaryAudioRef.current) {
             summaryAudioRef.current.pause();
+            summaryAudioRef.current.src = ''; // Eagerly release resources
             summaryAudioRef.current = null;
         }
         setChatHistory([]);
@@ -746,16 +752,24 @@ const App: React.FC = () => {
       image: lesson.image // Keep image if it's somehow already in state, otherwise undefined
     };
 
-    // Set all the state required to open the lesson
-    setCurrentArticle(article);
-    setCurrentLesson(lesson.lessonData);
+    // Set topic/level state regardless
     setInputTopic(lesson.topic);
     setInputLevel(lesson.level);
+    setCurrentArticle(article);
 
-    // Navigate to the lesson view
+    // FIX: Check lesson.summarySource, NOT lesson.lessonData.summarySource
+    if ((lesson as any).summarySource === "saved_stub") { 
+      console.log("This is a saved stub. Clearing currentLesson to trigger generation on nav.");
+      setCurrentLesson(null); // <-- THIS IS THE KEY.
+    } else if (lesson.lessonData) { // Check that lessonData exists
+       console.log("This is a full lesson. Loading from history...");
+       setCurrentLesson(lesson.lessonData); // Load the full lesson data
+     }
+
+    // Navigate *after* setting state. handleUrlChange will do the rest.
     navigate('/lesson', `?url=${encodeURIComponent(lesson.articleUrl)}`, { article });
-
-  }, [navigate, setCurrentArticle, setCurrentLesson, setInputTopic, setInputLevel, currentArticle?.image]);
+ 
+  }, [navigate, setCurrentArticle, setCurrentLesson, setInputTopic, setInputLevel, handleSelectArticle]);
 
   // --- NEW: Subscription Functions ---
   const fetchSubscriptionStatus = useCallback(async (user: User) => {
@@ -927,72 +941,88 @@ const App: React.FC = () => {
 
   // --- URL Handling Logic ---
   const handleUrlChange = useCallback((path: string, params: URLSearchParams, newState?: { article?: Article | null }) => {
-    console.log(`DEBUG: handleUrlChange - CALLED with path: ${path}. auth: ${authState}, subLoading: ${isSubLoading}`); // <-- ADD THIS
+    console.log(`DEBUG: handleUrlChange - CALLED with path: ${path}. auth: ${authState}, subLoading: ${isSubLoading}`);
     
+    let nextView: AppView | null = null; // Use null to detect if a branch was hit
+
+    // Handle authentication and loading states first
     if (authState !== 'SIGNED_IN') {
       if (authState === 'SIGNED_OUT') {
         console.log("Setting view to LANDING");
-        setCurrentView('LANDING');
+        nextView = 'LANDING';
       } else {
         console.log("Auth not ready, setting view to LOADING");
-        setCurrentView('LOADING'); // Set loading until auth is ready
+        nextView = 'LOADING'; // Set loading until auth is ready
       }
-      return;
-    }
+    } else { // User is SIGNED_IN
+        // --- Signed-In Routing Logic ---
+        
+        if (path.startsWith('/lesson')) {
+          const urlParam = params.get('url');
+          const articleForCheck = newState?.article !== undefined ? newState.article : currentArticle;
 
-    let nextView: AppView | null = null; // Use null to detect if a branch was hit
+          if (urlParam && currentLesson && articleForCheck && articleForCheck.link === urlParam) {
+            nextView = 'LESSON_VIEW';
+          } else if (urlParam && articleForCheck && articleForCheck.link === urlParam) {
+            nextView = 'LESSON_VIEW';
+            if (!currentLesson && !isApiLoading) {
+              handleSelectArticle(articleForCheck!, true);
+            }
+          } else {
+            // If articleForCheck exists but doesn't match, or no urlParam, go to input
+            console.warn("Lesson URL/State mismatch or invalid URL, navigating to input.");
+            goToInput(); // Triggers navigation, handleUrlChange will run again for '/'
+            return; // Stop processing this path
+          }
+        } else if (path.startsWith('/search')) {
+          const query = params.get('q');
+          const level = params.get('level') as EnglishLevel;
 
-    if (path.startsWith('/lesson')) {
-      const urlParam = params.get('url');
-      const articleForCheck = newState?.article !== undefined ? newState.article : currentArticle;
-
-      if (urlParam && currentLesson && articleForCheck && articleForCheck.link === urlParam) {
-        nextView = 'LESSON_VIEW';
-      } else if (urlParam && articleForCheck && articleForCheck.link === urlParam) {
-        nextView = 'LESSON_VIEW';
-        if (!currentLesson && !isApiLoading) {
-          handleSelectArticle(articleForCheck!, true);
+          if (query && level) {
+            nextView = 'NEWS_LIST';
+            // Only trigger search if state doesn't match URL and not already loading
+            if ((!visibleNewsResults.length || inputTopic !== query || inputLevel !== level) && !isApiLoading) {
+              setInputTopic(query);
+              setInputLevel(level);
+              handleFindArticles(query, true); // skip nav=true
+            } else if (inputTopic !== query || inputLevel !== level) {
+               // Sync state even if results are present (e.g., level changed in URL)
+               setInputTopic(query);
+               setInputLevel(level);
+            }
+          } else {
+            console.warn("Invalid search URL, navigating to input.");
+            goToInput(); // Triggers navigation
+            return; // Stop processing this path
+          }
+        } else if (path.startsWith('/new')) { // <-- ADD THIS ELSE IF BLOCK
+          nextView = 'INPUT';
+        } else if (path.startsWith('/wordbank')) { // <-- ADD THIS BLOCK
+          nextView = 'WORD_BANK';
+        } else if (path.startsWith('/pricing')) { // <-- ADD THIS
+          nextView = 'PRICING';
+        } else if (path.startsWith('/terms')) { // <-- ADD THIS
+          nextView = 'TERMS';
+        } else if (path.startsWith('/privacy')) { // <-- ADD THIS
+          nextView = 'PRIVACY';
+        } else { // Default path '/'
+          nextView = 'DASHBOARD'; // <-- CHANGE HERE
         }
-      } else {
-        // If articleForCheck exists but doesn't match, or no urlParam, go to input
-        console.warn("Lesson URL/State mismatch or invalid URL, navigating to input.");
-        goToInput(); // Triggers navigation, handleUrlChange will run again for '/'
-        return; // Stop processing this path
-      }
-    } else if (path.startsWith('/search')) {
-      const query = params.get('q');
-      const level = params.get('level') as EnglishLevel;
 
-      if (query && level) {
-        nextView = 'NEWS_LIST';
-        // Only trigger search if state doesn't match URL and not already loading
-        if ((!visibleNewsResults.length || inputTopic !== query || inputLevel !== level) && !isApiLoading) {
-          setInputTopic(query);
-          setInputLevel(level);
-          handleFindArticles(query, true); // skip nav=true
-        } else if (inputTopic !== query || inputLevel !== level) {
-           // Sync state even if results are present (e.g., level changed in URL)
-           setInputTopic(query);
-           setInputLevel(level);
-        }
-      } else {
-        console.warn("Invalid search URL, navigating to input.");
-        goToInput(); // Triggers navigation
-        return; // Stop processing this path
-      }
-    } else if (path.startsWith('/new')) { // <-- ADD THIS ELSE IF BLOCK
-      nextView = 'INPUT';
-    } else if (path.startsWith('/wordbank')) { // <-- ADD THIS BLOCK
-      nextView = 'WORD_BANK';
-    } else if (path.startsWith('/pricing')) { // <-- ADD THIS
-      nextView = 'PRICING';
-    } else if (path.startsWith('/terms')) { // <-- ADD THIS
-      nextView = 'TERMS';
-    } else if (path.startsWith('/privacy')) { // <-- ADD THIS
-      nextView = 'PRIVACY';
-    } else { // Default path '/'
-      nextView = 'DASHBOARD'; // <-- CHANGE HERE
-    }
+        // Check if lesson summary audio needs fetching (inside signed in block)
+        if (path.startsWith('/lesson') && authState === 'SIGNED_IN') {
+            const urlParam = params.get('url');
+            const articleForCheck = newState?.article !== undefined ? newState.article : currentArticle;
+
+            if (urlParam && currentLesson && articleForCheck && articleForCheck.link === urlParam) {
+                // Lesson and article match URL, check if audio needs fetching
+                if (currentLesson.summary && !summaryAudioSrc && !isSummaryAudioLoading) {
+                   console.log("handleUrlChange: Fetching summary audio for existing lesson on nav/refresh.");
+                   fetchSummaryAudio(currentLesson.summary, targetLanguage);
+                }
+            }
+         }
+    } // End of SIGNED_IN else block
 
     // Always call setCurrentView if a nextView was determined.
     if (nextView) {
@@ -1006,28 +1036,12 @@ const App: React.FC = () => {
       }
     }
 
-    if (path.startsWith('/lesson') && authState === 'SIGNED_IN') {
-        const urlParam = params.get('url');
-        const articleForCheck = newState?.article !== undefined ? newState.article : currentArticle;
-
-        if (urlParam && currentLesson && articleForCheck && articleForCheck.link === urlParam) {
-            // Lesson and article match URL, check if audio needs fetching
-            if (currentLesson.summary && !summaryAudioSrc && !isSummaryAudioLoading) {
-               console.log("handleUrlChange: Fetching summary audio for existing lesson on nav/refresh.");
-               // --- START FIX: Add missing targetLanguage ---
-               fetchSummaryAudio(currentLesson.summary, targetLanguage);
-               // --- END FIX ---
-            }
-        }
-     }
-
   }, [
-    // Keep all dependencies here
     authState, currentLesson, currentArticle, visibleNewsResults, inputTopic, inputLevel, isApiLoading,
-    setCurrentView, setInputTopic, setInputLevel, setError, setAllFetchedArticles, setVisibleNewsResults, setCurrentArticle, setCurrentLesson, // Added missing setters
-     handleSelectArticle, handleFindArticles, goToInput, // Ensure these are stable (defined with useCallback)
-     fetchSummaryAudio, summaryAudioSrc, isSummaryAudioLoading,
-     targetLanguage, uiLanguage
+    setCurrentView, setInputTopic, setInputLevel, setError, setAllFetchedArticles, setVisibleNewsResults, setCurrentArticle, setCurrentLesson,
+    handleSelectArticle, handleFindArticles, goToInput,
+    fetchSummaryAudio, summaryAudioSrc, isSummaryAudioLoading,
+    targetLanguage, uiLanguage
   ]);
 
   // --- NEW: Effect for SEO and Title Localization ---
@@ -1062,11 +1076,15 @@ const App: React.FC = () => {
     };
     window.addEventListener('popstate', handlePopState);
 
-    console.log(`DEBUG: Initial Load useEffect - auth: ${authState}, subLoading: ${isSubLoading}, initialHandled: ${initialUrlHandled.current}`); // <-- ADD THIS
+    console.log(`DEBUG: Initial Load useEffect - auth: ${authState}, subLoading: ${isSubLoading}, initialHandled: ${initialUrlHandled.current}`);
+
+    // New condition: Auth must be ready, AND either the user is SIGNED_OUT OR subscription has finished loading.
+    const authReadyAndSubCheckPassed = authState !== 'LOADING' && 
+                                       (authState === 'SIGNED_OUT' || !isSubLoading);
 
     // Handle initial load once auth is ready AND subscription status is known
-    if (authState !== 'LOADING' && !isSubLoading && !initialUrlHandled.current) { 
-        console.log("DEBUG: Initial Load useEffect - CONDITION MET. Running handler."); // <-- ADD THIS
+    if (authReadyAndSubCheckPassed && !initialUrlHandled.current) { 
+        console.log("DEBUG: Initial Load useEffect - CONDITION MET. Running handler.");
         initialUrlHandled.current = true;
         const { pathname, search } = window.location;
         handleUrlChangeRef.current(pathname, new URLSearchParams(search));
@@ -1239,6 +1257,28 @@ const App: React.FC = () => {
     }
   }, [user, isLikingArticle, inputLevel, inputTopic, uiLanguage, authenticatedFetch, setError]);
 
+  const handleFetchComprehensionAnswer = useCallback(async (question: string, index: number) => {
+    if (isAnswerLoading === index || comprehensionAnswers[index]) return; // Already loading or already have it
+    
+    setIsAnswerLoading(index);
+    setError(null);
+
+    try {
+      const result = await authenticatedFetch('generateComprehensionAnswer', {
+        question: question,
+        summary: currentLesson?.summary,
+        uiLanguage: uiLanguage
+      });
+      if (result.answer) {
+        setComprehensionAnswers(prev => ({ ...prev, [index]: result.answer }));
+      }
+    } catch (e) {
+      setError(`Failed to get answer: ${(e as Error).message}`);
+    } finally {
+      setIsAnswerLoading(null);
+    }
+  }, [isAnswerLoading, comprehensionAnswers, currentLesson?.summary, uiLanguage, authenticatedFetch, setError]);
+
   // --- NEW: Handler for "Disliking" an article ---
   const handleDislikeArticle = useCallback(async (articleToDislike: Article) => {
     if (!user || isDislikingArticle) return;
@@ -1310,10 +1350,10 @@ const App: React.FC = () => {
       // onAuthStateChanged will handle setting user to null and SIGNED_OUT state
       // Clear potentially sensitive state on sign out
       setCurrentArticle(null);
+      setComprehensionAnswers({});
       setAllFetchedArticles([]);
       setVisibleNewsResults([]);
       setCurrentLesson(null);
-      setNewsResults([]);
       setInputTopic(''); // Optionally clear topic
     } catch (e) {
       console.error("Sign Out Error:", e);
@@ -2868,7 +2908,7 @@ const LandingPage: React.FC<{
                   title={isSaved ? t('common.alreadySaved') : t('news.saveForLater')}
                   className="p-2 rounded-full transition duration-150 disabled:opacity-50 disabled:cursor-not-allowed text-green-600 disabled:text-gray-400 hover:bg-green-100"
                 >
-                  {isLiking ? <LoadingSpinner className="w-5 h-5"/> : <ThumbUpIcon className="w-5 h-5" isSolid={isSaved} />}
+                  {isLiking ? <LoadingSpinner className="w-5 h-5"/> : <ThumbsUpIcon className="w-5 h-5" isSolid={isSaved} />}
                 </button>
                 <button
                   onClick={() => handleDislikeArticle(article)}
@@ -2876,7 +2916,7 @@ const LandingPage: React.FC<{
                   title={t('news.dislikeArticle')}
                   className="p-2 rounded-full text-red-500 hover:bg-red-100 transition duration-150 disabled:opacity-50"
                 >
-                  {isDisliking ? <LoadingSpinner className="w-5 h-5"/> : <ThumbDownIcon className="w-5 h-5" />}
+                  {isDisliking ? <LoadingSpinner className="w-5 h-5"/> : <ThumbsDownIcon className="w-5 h-5" />}
                 </button>
               </div>
             </div>
@@ -2889,7 +2929,7 @@ const LandingPage: React.FC<{
 
   const renderLessonView = () => {
     // Show loading spinner if lesson is being generated or hasn't loaded from state yet
-    if (isLessonGenerating || (!currentLesson && currentView === 'LESSON_VIEW' && isApiLoading)) {
+    if (isLessonGenerating || (!currentLesson && currentView === 'LESSON_VIEW')) {
         return (
              <div className="p-4 sm:p-6 max-w-4xl mx-auto bg-white rounded-xl shadow-2xl space-y-6">
                 {/* Header for Loading State */}
@@ -3111,10 +3151,28 @@ const LandingPage: React.FC<{
 {/* Comprehension Section */}
         <div className="space-y-3 border-l-4 border-green-500 pl-4 bg-green-50 p-3 rounded-lg">
           <h3 className="text-xl font-bold text-green-700">{t('lesson.comprehensionQuestions')}</h3>
-          <ol className="list-decimal list-inside space-y-2">
+          <ol className="list-decimal list-inside space-y-4">
             {currentLesson?.comprehensionQuestions?.map((q, index) => (
               <li key={index} className="text-gray-800">
-                {q}
+                <span>{q}</span>
+                {/* --- NEW: Show Answer Button --- */}
+                <button
+                  onClick={() => handleFetchComprehensionAnswer(q, index)}
+                  disabled={isAnswerLoading === index || !!comprehensionAnswers[index]}
+                  className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={comprehensionAnswers[index] ? t('lesson.answerShown') : t('lesson.showAnswer')}
+                >
+                  {isAnswerLoading === index ? (
+                    <LoadingSpinner className="w-4 h-4" />
+                  ) : (
+                    <LightBulbIcon className="w-4 h-4" />
+                  )}
+                </button>
+                {comprehensionAnswers[index] && (
+                  <p className="mt-2 p-2 bg-gray-100 border-l-2 border-gray-400 text-sm text-gray-700 whitespace-pre-wrap">
+                    {comprehensionAnswers[index]}
+                  </p>
+                )}
               </li>
             ))}
           </ol>

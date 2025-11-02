@@ -101,7 +101,10 @@
       "back": "Volver a Artículos",
       "loading": "Buscando artículos...",
       "empty": "No se encontraron artículos para este tema.",
-      "changeTopicTitle": "Cambiar Tema"
+      "changeTopicTitle": "Cambiar Tema",
+      "changeTopicTitle": "Cambiar Tema",
+      "saveForLater": "Guardar en el panel sin abrir",
+      "dislikeArticle": "Descartar y reemplazar este artículo"
     },
     "lesson": {
       "generating": "Generando tu lección, esto puede tardar un momento...",
@@ -117,7 +120,9 @@
       "writingPractice": "Práctica de escritura (1 preg.)",
       "vocabBuilder": "Constructor de vocabulario",
       "grammarFocus": "Enfoque gramatical:",
-      "comprehensionQuestions": "Preguntas de comprensión"
+      "comprehensionQuestions": "Preguntas de comprensión",
+      "showAnswer": "Mostrar Respuesta",
+      "answerShown": "Respuesta mostrada"
     },
     "activity": {
       "title": "Actividad de {{type}}",

@@ -34,8 +34,16 @@
         "function": "chatWithAssistant"
       },
       {
-        "source": "/api/getEphemeralToken",
-        "function": "getEphemeralToken"
+        "source": "/api/saveArticleForLater",
+        "function": "saveArticleForLater"
+      },
+      {
+        "source": "/api/removeLesson",
+        "function": "removeLesson"
+      },
+      {
+        "source": "/api/generateComprehensionAnswer",
+        "function": "generateComprehensionAnswer"
       },
       {
         "source": "**",
@@ -50,11 +58,17 @@
     "functions": {
       "port": 5001
     },
+    "firestore": {
+      "port": 8080
+    },
     "hosting": {
       "port": 5000
     },
     "ui": {
       "enabled": true
     }
+  },
+  "extensions": {
+    "firestore-stripe-payments": "invertase/firestore-stripe-payments@0.3.12"
   }
 }

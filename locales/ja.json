@@ -101,7 +101,10 @@
       "back": "記事一覧に戻る",
       "loading": "記事を検索中...",
       "empty": "このトピックの記事は見つかりませんでした。",
-      "changeTopicTitle": "トピックを変更"
+      "changeTopicTitle": "トピックを変更",
+      "changeTopicTitle": "トピックを変更",
+      "saveForLater": "開かずにダッシュボードに保存",
+      "dislikeArticle": "気に入らないとしてこの記事を置き換える"
     },
     "lesson": {
       "generating": "レッスンを生成中です。しばらくお待ちください...",
@@ -117,7 +120,9 @@
       "writingPractice": "ライティング練習 (1問)",
       "vocabBuilder": "語彙ビルダー",
       "grammarFocus": "文法フォーカス:",
-      "comprehensionQuestions": "読解問題"
+      "comprehensionQuestions": "読解問題",
+      "showAnswer": "答えを表示",
+      "answerShown": "答えが表示されました"
     },
     "activity": {
       "title": "{{type}} アクティビティ",

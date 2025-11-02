@@ -101,7 +101,10 @@
       "back": "Zurück zu den Artikeln",
       "loading": "Suche Artikel...",
       "empty": "Keine Artikel zu diesem Thema gefunden.",
-      "changeTopicTitle": "Thema ändern"
+      "changeTopicTitle": "Thema ändern",
+      "changeTopicTitle": "Thema ändern",
+      "saveForLater": "Im Dashboard speichern ohne zu öffnen",
+      "dislikeArticle": "Ablehnen und diesen Artikel ersetzen"
     },
     "lesson": {
       "generating": "Deine Lektion wird generiert, dies kann einen Moment dauern...",
@@ -117,7 +120,9 @@
       "writingPractice": "Schreibübung (1 F.)",
       "vocabBuilder": "Vokabeltrainer",
       "grammarFocus": "Grammatikfokus:",
-      "comprehensionQuestions": "Verständnisfragen"
+      "comprehensionQuestions": "Verständnisfragen",
+      "showAnswer": "Antwort anzeigen",
+      "answerShown": "Antwort wird angezeigt"
     },
     "activity": {
       "title": "{{type}}-Aktivität",

@@ -259,7 +259,7 @@ function getGoogleTTSLangCode(code: LanguageCode | string): string {
     case "it": return "it-IT";
     case "ko": return "ko-KR";
     case "ja": return "ja-JP";
-    case "zh": return "cmn-CN"; // Mandarin
+    case "zh": return "zh-CN"; // Mandarin
     default: return "en-US";
   }
 }
@@ -1061,3 +1061,196 @@ YOUR ROLE AND RULES:
     }
   }
 );
+
+export const saveArticleForLater = onRequest(
+  {cors: true, region: "us-central1"},
+  async (req, res) => {
+    // Set CORS headers
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+
+    try {
+      const userId = await getAuthenticatedUid(req);
+      const {article, level, topic} = req.body.data;
+
+      if (!article || !article.link || !article.title || !level || !topic) {
+        logger.error("saveArticleForLater: Bad request, missing data.");
+        res.status(400).json({error: "Missing article data, level, or topic."});
+        return;
+      }
+
+      const lessonId = Buffer.from(article.link).toString("base64")
+        .replace(/\//g, "_")
+        .replace(/\+/g, "-");
+
+      // Create a "stub" lesson object
+      const stubLesson = {
+        articleTitle: article.title,
+        // Add a placeholder summary indicating the lesson needs to be generated
+        summary: `(This article is saved. Click the card again to generate the full AI lesson.)`,
+        vocabularyList: [],
+        comprehensionQuestions: [],
+        grammarFocus: {
+          topic: "Not yet generated",
+          // FIX 2: Removed unused uiLangName variable. This string is fine.
+           explanation: `(Lesson not yet generated. Open this article to create the lesson material.)`,
+        },
+      };
+
+      const lessonDoc = {
+        userId: userId,
+        topic: topic,
+        level: level,
+        articleUrl: article.link,
+        source: article.source || "Unknown",
+        date: article.date || "Unknown",
+        image: article.image || null,
+        lessonData: stubLesson,
+        summarySource: "saved_stub", // Mark this as a stub
+        createdAt: admin.firestore.Timestamp.now(),
+      };
+
+      const db = admin.firestore();
+      await db.collection(`users/${userId}/lessons`).doc(lessonId).set(lessonDoc, {merge: true}); // Use set with merge to create or overwrite
+
+      logger.info(`Article saved for user ${userId}, lessonId: ${lessonId}`);
+      res.status(200).json({data: {success: true, lessonId: lessonId}});
+    } catch (e) {
+      const message = (e as Error).message;
+      const status = message.includes("Unauthenticated") ? 401 : 500;
+      logger.error("Function Error (saveArticleForLater):", e);
+      res.status(status).json({error: `Failed to save article: ${message}`});
+    }
+  });
+
+// --- NEW: removeLesson Function ---
+export const removeLesson = onRequest(
+  {cors: true, region: "us-central1"},
+  async (req, res) => {
+    // Set CORS headers
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+
+    let userId: string | null = null;
+    try {
+      const {articleUrl} = req.body.data;
+      userId = await getAuthenticatedUid(req);
+
+      if (!articleUrl) {
+        logger.error("removeLesson: Bad request, missing articleUrl.");
+        res.status(400).json({error: "Missing articleUrl."});
+        return;
+      }
+
+      const lessonId = Buffer.from(articleUrl).toString("base64")
+        .replace(/\//g, "_")
+        .replace(/\+/g, "-");
+
+      const db = admin.firestore();
+      await db.doc(`users/${userId}/lessons/${lessonId}`).delete();
+
+      logger.info(`Article removed for user ${userId}, lessonId: ${lessonId}`);
+      res.status(200).json({data: {success: true, lessonId: lessonId}});
+    } catch (e) {
+      const message = (e as Error).message;
+      // Don't error if doc doesn't exist, just log
+      if (message.includes("No document to delete")) {
+        logger.warn(`removeLesson: User ${userId} tried to delete non-existent lessonId: ${req.body.data.articleUrl}`);
+        res.status(200).json({data: {success: true, message: "Document not found."}});
+        return;
+      }
+      
+      const status = message.includes("Unauthenticated") ? 401 : 500;
+      logger.warn(`removeLesson: User ${userId || 'unknown'} tried to delete non-existent lessonId: ${req.body.data.articleUrl}`);
+      res.status(status).json({error: `Failed to remove article: ${message}`});
+    }
+  });
+
+// --- NEW: generateComprehensionAnswer Function ---
+export const generateComprehensionAnswer = onRequest(
+  {secrets: ["GEMINI_API_KEY"], cors: true, region: "us-central1"},
+  async (req, res) => {
+    // Set CORS headers
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+
+    let userId;
+    try {
+      userId = await getAuthenticatedUid(req);
+      const { question, summary, uiLanguage } = req.body.data;
+
+      if (!question || !summary || !uiLanguage) {
+        logger.error("generateComprehensionAnswer: Bad request, missing params.");
+        res.status(400).json({ error: "Missing question, summary, or uiLanguage." });
+        return;
+      }
+
+      const geminiApiKey = process.env.GEMINI_API_KEY;
+      if (!geminiApiKey) {
+        logger.error("Secret Configuration Error: GEMINI_API_KEY missing.");
+        res.status(500).json({ error: "Server configuration error." });
+        return;
+      }
+
+      const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+      const uiLangName = getLanguageName(uiLanguage);
+
+      const prompt = `You are a helpful assistant. Based ONLY on the provided SUMMARY, provide a concise and direct answer to the QUESTION.
+The answer MUST be in ${uiLangName.toUpperCase()}.
+
+SUMMARY:
+"""
+${summary}
+"""
+
+QUESTION:
+"${question}"
+
+ANSWER (in ${uiLangName.toUpperCase()}):`;
+      
+      const safetySettings = [
+        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+      ];
+      
+      const result = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          config: { safetySettings: safetySettings },
+      });
+
+      const responseText = result.text;
+      if (!responseText) {
+        logger.error("Gemini response (gen answer) was empty.", JSON.stringify(result, null, 2));
+        throw new Error("AI did not provide an answer.");
+      }
+
+      res.status(200).json({ data: { answer: responseText.trim() } });
+      
+    } catch (e) {
+      const message = (e as Error).message;
+      const status = message.includes("Unauthenticated") || message.includes("Invalid") ? 401 : 500;
+      logger.error(`Function Error (generateComprehensionAnswer) for user ${userId || 'unknown'}:`, e);
+      res.status(status).json({error: `Failed to generate answer: ${message}`});
+    }
+  });

@@ -133,12 +133,12 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = React.memo((props) =>
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'text' | 'live'>('text');
 
-  // Effect to reset tab if subscription status changes
+  // Effect to reset tab if subscription status or language (UI or Target) changes
   useEffect(() => {
-    if (!props.isSubscribed) {
-      setActiveTab('text');
-    }
-  }, [props.isSubscribed]);
+    if (!props.isSubscribed || props.targetLanguage === 'zh' || props.uiLanguage === 'zh') {
+       setActiveTab('text');
+     }
+  }, [props.isSubscribed, props.targetLanguage, props.uiLanguage]);
 
   const getTabClass = (tabName: 'text' | 'live') => {
     const isActive = activeTab === tabName;
@@ -175,8 +175,8 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = React.memo((props) =>
         >
           {t('chat.tabText')}
         </button>
-        {/* --- ADD: Show live tab only for subscribed users --- */}
-        {props.isSubscribed && (
+        {/* FIX: Also hide for Chinese (zh) as target or UI language */}
+        {props.isSubscribed && props.targetLanguage !== 'zh' && props.uiLanguage !== 'zh' && (
           <button 
             onClick={() => setActiveTab('live')} 
             className={getTabClass('live')}

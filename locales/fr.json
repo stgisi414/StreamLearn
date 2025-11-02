@@ -101,7 +101,10 @@
       "back": "Retour aux Articles",
       "loading": "Recherche d'articles...",
       "empty": "Aucun article trouvé pour ce sujet.",
-      "changeTopicTitle": "Changer de Sujet"
+      "changeTopicTitle": "Changer de Sujet",
+      "changeTopicTitle": "Changer de Sujet",
+      "saveForLater": "Enregistrer sur le tableau de bord sans ouvrir",
+      "dislikeArticle": "Ne pas aimer et remplacer cet article"
     },
     "lesson": {
       "generating": "Génération de votre leçon, cela peut prendre un moment...",
@@ -117,7 +120,9 @@
       "writingPractice": "Pratique de l'écriture (1 q.)",
       "vocabBuilder": "Constructeur de vocabulaire",
       "grammarFocus": "Point de grammaire :",
-      "comprehensionQuestions": "Questions de compréhension"
+      "comprehensionQuestions": "Questions de compréhension",
+      "showAnswer": "Afficher la Réponse",
+      "answerShown": "Réponse affichée"
     },
     "activity": {
       "title": "Activité de {{type}}",

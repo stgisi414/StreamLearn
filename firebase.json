@@ -42,6 +42,10 @@
         "function": "removeLesson"
       },
       {
+        "source": "/api/generateComprehensionAnswer",
+        "function": "generateComprehensionAnswer"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

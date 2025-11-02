@@ -99,7 +99,10 @@
       "back": "返回文章列表",
       "loading": "正在获取文章...",
       "empty": "未找到此主题的相关文章。",
-      "changeTopicTitle": "更改主题"
+      "changeTopicTitle": "更改主题",
+      "changeTopicTitle": "更改主题",
+      "saveForLater": "不打开而保存到仪表板",
+      "dislikeArticle": "嫌いとしてこの記事を置き換える"
     },
     "lesson": {
       "generating": "正在生成你的课程，请稍候...",
@@ -115,7 +118,9 @@
       "writingPractice": "写作练习 (1 题)",
       "vocabBuilder": "词汇生成器",
       "grammarFocus": "语法重点：",
-      "comprehensionQuestions": "理解问题"
+      "comprehensionQuestions": "理解问题",
+      "showAnswer": "显示答案",
+      "answerShown": "答案已显示"
     },
     "activity": {
       "title": "{{type}} 活动",

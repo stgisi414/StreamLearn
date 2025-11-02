@@ -120,7 +120,9 @@
       "writingPractice": "Writing Practice (1 Q)",
       "vocabBuilder": "Vocabulary Builder",
       "grammarFocus": "Grammar Focus:",
-      "comprehensionQuestions": "Comprehension Questions"
+      "comprehensionQuestions": "Comprehension Questions",
+      "showAnswer": "Show Answer",
+      "answerShown": "Answer is shown"
     },
     "activity": {
       "title": "{{type}} Activity",
