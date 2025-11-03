@@ -2380,8 +2380,8 @@ const LandingPage: React.FC<{
                   <strong className="text-lg text-purple-800">{item.word}</strong>
                   <p className="text-gray-700">{item.definition}</p>
                   <p className="text-sm italic text-gray-500 mt-1">
-                    {t('common.example')}: "{item.articleExample}"
-                    <SpeakButton text={item.articleExample} />
+                    {t('common.example')} "{item.articleExample}"
+                    <SpeakButton text={item.articleExample} langCode={targetLanguage} />
                   </p>
                 </div>
                 <button
