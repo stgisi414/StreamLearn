@@ -165,7 +165,8 @@ export const fetchNews = onRequest(
             return;
         }
 
-        const targetUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&hl=${languageCode}&tbm=nws&brd_json=1`;
+        // --- FIX: Add '&num=30' to the Google URL ---
+        const targetUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&hl=${languageCode}&tbm=nws&num=30&brd_json=1`;
         logger.info(`fetchNews: Target URL: ${targetUrl}`);
 
         const payload = {

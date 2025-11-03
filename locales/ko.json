@@ -80,7 +80,11 @@
     "wordBank": {
       "title": "내 단어장",
       "loading": "저장된 단어를 불러오는 중...",
-      "empty": "아직 저장한 단어가 없습니다. 수업의 어휘 목록에서 단어를 저장해 보세요!"
+      "empty": "아직 저장한 단어가 없습니다. 수업의 어휘 목록에서 단어를 저장해 보세요!",
+      "studyFlashcards": "학습 (정의 → 단어)",
+      "reviewFlashcards": "복습 (단어 → 정의)",
+      "practiceTitle": "저장된 단어 연습",
+      "practiceEmpty": "연습 세션을 시작하려면 최소 2개의 단어를 저장해야 합니다."
     },
     "input": {
       "levelLabel": "내 {{language}} 레벨",
@@ -146,7 +150,9 @@
       "typeAnswer": "여기에 답을 입력하세요...",
       "writeResponse": "여기에 답을 작성하세요...",
       "correct": "정답입니다!",
-      "incorrectWord": "틀렸습니다. 정답은 \"{{word}}\"입니다."
+      "incorrectWord": "틀렸습니다. 정답은 \"{{word}}\"입니다.",
+      "typeDefinition": "정의를 입력하세요:",
+      "showDefinition": "정의 보기"
     },
     "chat": {
       "title": "AI 도우미 \"Max\"",

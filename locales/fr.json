@@ -80,7 +80,11 @@
     "wordBank": {
       "title": "Ma banque de mots",
       "loading": "Chargement de vos mots enregistrés...",
-      "empty": "Vous n'avez encore enregistré aucun mot. Enregistrez des mots depuis la liste de vocabulaire de vos leçons !"
+      "empty": "Vous n'avez encore enregistré aucun mot. Enregistrez des mots depuis la liste de vocabulaire de vos leçons !",
+      "studyFlashcards": "Étudier (Déf → Mot)",
+      "reviewFlashcards": "Réviser (Mot → Déf)",
+      "practiceTitle": "Pratiquez vos Mots Enregistrés",
+      "practiceEmpty": "Vous devez enregistrer au moins 2 mots pour démarrer une session de pratique."
     },
     "input": {
       "levelLabel": "Votre Niveau d'{{language}}",
@@ -145,7 +149,9 @@
       "typeAnswer": "Écrivez votre réponse ici...",
       "writeResponse": "Écrivez votre réponse ici...",
       "correct": "Correct !",
-      "incorrectWord": "Incorrect. Le mot était \"{{word}}\"."
+      "incorrectWord": "Incorrect. Le mot était \"{{word}}\".",
+      "typeDefinition": "Écrivez la définition :",
+      "showDefinition": "Afficher la Définition"
     },
     "chat": {
       "title": "Assistant IA \"Max\"",

@@ -68,6 +68,7 @@ export interface SavedWord extends VocabularyItem {
   id: string; // Will be the same as 'word' for easy lookup/deletion
   createdAt: Timestamp;
   userId: string;
+  targetLanguage: LanguageCode;
 }
 
 /**

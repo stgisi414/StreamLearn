@@ -80,7 +80,11 @@
     "wordBank": {
       "title": "Mi banco de palabras",
       "loading": "Cargando tus palabras guardadas...",
-      "empty": "Aún no has guardado ninguna palabra. ¡Guarda palabras de la lista de vocabulario en tus lecciones!"
+      "empty": "Aún no has guardado ninguna palabra. ¡Guarda palabras de la lista de vocabulario en tus lecciones!",
+      "studyFlashcards": "Estudiar (Def → Palabra)",
+      "reviewFlashcards": "Repasar (Palabra → Def)",
+      "practiceTitle": "Practica tus Palabras Guardadas",
+      "practiceEmpty": "Necesitas guardar al menos 2 palabras para iniciar una sesión de práctica."
     },
     "input": {
       "levelLabel": "Tu Nivel de {{language}}",
@@ -145,7 +149,9 @@
       "typeAnswer": "Escribe tu respuesta aquí...",
       "writeResponse": "Escribe tu respuesta aquí...",
       "correct": "¡Correcto!",
-      "incorrectWord": "Incorrecto. La palabra era \"{{word}}\"."
+      "incorrectWord": "Incorrecto. La palabra era \"{{word}}\".",
+      "typeDefinition": "Escribe la definición:",
+      "showDefinition": "Mostrar Definición"
     },
     "chat": {
       "title": "Asistente de IA \"Max\"",

@@ -41,6 +41,7 @@ import { PlayIcon } from './components/icons/PlayIcon';
 import { PauseIcon } from './components/icons/PauseIcon';
 import { CheckCircleIcon } from './components/icons/CheckCircleIcon';
 import { LightBulbIcon } from './components/icons/LightBulbIcon';
+import { BrainIcon } from './components/icons/BrainIcon';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
 import { Lesson, Article, NewsResult, EnglishLevel, LessonResponse, SavedWord, VocabularyItem, StripeSubscription, LanguageCode } from './types';
 
@@ -201,7 +202,7 @@ interface ChatMessage {
 }
 
 // Type for activity state
-type ActivityType = 'vocab' | 'grammar' | 'comprehension' | 'writing';
+type ActivityType = 'vocab' | 'grammar' | 'comprehension' | 'writing' | 'wordbank_study' | 'wordbank_review';
 interface ActivityState {
   type: ActivityType;
   index: number; // Current question/word index
@@ -414,16 +415,43 @@ const App: React.FC = () => {
     // Get the ID token
     const token = await user.getIdToken();
     
-    const callable = httpsCallable(functions, functionName);
+    const url = `${BASE_FUNCTION_URL}/${functionName}`;
     
     try {
-      const result = await callable({ ...data, __token: token });
-      return result.data as any; // Cast to 'any' to handle various response types
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` // This is what the backend expects
+        },
+        // The backend functions expect the data to be in a 'data' property
+        body: JSON.stringify({ data: data }) 
+      });
+
+      if (!response.ok) {
+        // Try to parse error from Firebase Functions
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          // Not a JSON error
+          throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+        }
+        
+        // Throw the error message from the function, which is in errorData.error
+        throw new Error(errorData.error || `HTTP error ${response.status}`);
+      }
+
+      // My functions return { data: ... }, so I'll parse the JSON
+      // and return the 'data' property from the response body.
+      const responseData = await response.json();
+      return responseData.data; // Return the nested data object
+
     } catch (e) {
       console.error(`Error calling function ${functionName}:`, e);
-      throw e; // Re-throw the original error
+      throw e; // Re-throw the error
     }
-  }, [functions]); // Add stable dependency 'functions'
+  }, [auth]); // <-- FIX: remove 'functions', keep 'auth'
 
   const monthlyLessonCount = useMemo(() => {
     if (!lessonHistory) return 0;
@@ -700,7 +728,8 @@ const App: React.FC = () => {
       ...vocabItem,
       id: docId,
       userId: user.uid,
-      createdAt: Timestamp.now()
+      createdAt: Timestamp.now(),
+     targetLanguage: targetLanguage, 
     };
 
     try {
@@ -1456,8 +1485,12 @@ const App: React.FC = () => {
     setCurrentView('ACTIVITY');
   };
 
-  const quitActivity = useCallback(() => {
+  const quitActivity = () => {
       activityCancellationRef.current = true; // Signal cancellation
+
+      const lastActivityType = activityState?.type;
+      console.log("last activity type: " + lastActivityType); // Your debug log
+
       setActivityState(null);
 
       // Stop and clear any active activity audio
@@ -1468,8 +1501,18 @@ const App: React.FC = () => {
       setIsActivityAudioLoading(false); // Reset loading state
       setActivityAudioError(null);    // Reset error state
 
-      goToLesson(currentArticle!); // Go back to the lesson URL
-  }, [goToLesson, currentArticle]);
+      // Navigate based on the last activity type
+      if (lastActivityType === 'wordbank_study' || lastActivityType === 'wordbank_review') {
+          navigate('/wordbank'); // Go to Word Bank
+      } else {
+          // Default to lesson view for all other types
+          if (currentArticle) {
+            goToLesson(currentArticle); // Go back to the lesson URL
+          } else {
+            navigate('/'); // Fallback to dashboard
+          }
+      }
+  };
 
   // --- Wrap shuffleArray in useCallback ---
   const shuffleArray = useCallback(<T,>(array: T[]): T[] => {
@@ -1594,6 +1637,40 @@ const App: React.FC = () => {
           else { throw new Error("Invalid grammar data received."); }
       });
     } // <-- Close the new else block
+  // --- ADDITION: Logic for wordbank_study ---
+  } else if (type === 'wordbank_study' && shuffledIndices) {
+      dataPromise = Promise.resolve().then(() => {
+        const actualItemIndex = shuffledIndices[index];
+        if (actualItemIndex >= wordBank.length) throw new Error(`Invalid shuffled word bank index ${actualItemIndex}`);
+        const currentVocabItem = wordBank[actualItemIndex];
+        if (!currentVocabItem) throw new Error(`Invalid word bank item at index ${actualItemIndex}`);
+        
+        // Always fill-in-the-blank for word bank study
+        return { 
+          word: currentVocabItem.word, 
+          definition: currentVocabItem.definition,
+          uiLanguage: uiLanguage // Pass UI lang for speak button
+        };
+      });
+    // --- END ADDITION ---
+
+    // --- ADDITION: Logic for wordbank_review ---
+  } else if (type === 'wordbank_review' && shuffledIndices) {
+      dataPromise = Promise.resolve().then(() => {
+        const actualItemIndex = shuffledIndices[index];
+        if (actualItemIndex >= wordBank.length) throw new Error(`Invalid shuffled word bank index ${actualItemIndex}`);
+        const currentVocabItem = wordBank[actualItemIndex];
+        if (!currentVocabItem) throw new Error(`Invalid word bank item at index ${actualItemIndex}`);
+        
+        // Pass word, definition (for answer), and targetLanguage (for speak)
+        return { 
+          word: currentVocabItem.word, 
+          definition: currentVocabItem.definition,
+          targetLanguage: currentVocabItem.targetLanguage
+        };
+      });
+    // --- END ADDITION ---
+
   } else if (type === 'writing') {
       console.log(`Setting loading ref and starting writing fetch for ${currentStepKey}...`);
       loadingStepRef.current = currentStepKey;
@@ -1705,118 +1782,153 @@ const App: React.FC = () => {
       currentView, activityState?.type, activityState?.index, // Step definition
       activityState?.shuffledIndices, // Needed for vocab order
       inputLevel, currentLesson, // Data sources
+      wordBank, // <-- ADDED: wordBank is now a data source
       authenticatedFetch, quitActivity, setError, shuffleArray, // Stable functions
       uiLanguage, targetLanguage
   ]);
 
-  const handleSubmitAnswer = async () => {
-    if (!activityState || !activityState.currentData || activityState.userAnswer === null || activityState.feedback.isCorrect !== null) return;
+    const handleSubmitAnswer = async () => {
+      if (!activityState || !activityState.currentData || activityState.userAnswer === null || activityState.feedback.isCorrect !== null) return;
 
-    setActivityState(prev => prev ? ({ ...prev, isSubmitting: true }) : null);
-    setError(null);
+      setActivityState(prev => prev ? ({ ...prev, isSubmitting: true }) : null);
+      setError(null);
 
-    const { type, currentData, userAnswer, score } = activityState;
-    let isCorrect: boolean = false;
-    let feedbackMsg: string = '';
+      const { type, currentData, userAnswer, score } = activityState;
+      let isCorrect: boolean = false;
+      let feedbackMsg: string = '';
 
-    try {
-        if (type === 'vocab') {
-            // --- MODIFIED: Direct check for both MC and Fill-in-the-blank ---
-            isCorrect = String(userAnswer).trim().toLowerCase() === String(currentData.word).trim().toLowerCase();
-            feedbackMsg = isCorrect ? t('activity.correct') : t('activity.incorrectWord', { word: currentData.word });
+      try {
+          if (type === 'vocab') {
+              // --- MODIFIED: Direct check for both MC and Fill-in-the-blank ---
+              isCorrect = String(userAnswer).trim().toLowerCase() === String(currentData.word).trim().toLowerCase();
+              feedbackMsg = isCorrect ? t('activity.correct') : t('activity.incorrectWord', { word: currentData.word });
 
-            // Optional: Add AI check for 'Advanced' level typos here if desired
-            // if (inputLevel === 'Advanced' && !isCorrect) { ... call handleActivity ... }
+              // Optional: Add AI check for 'Advanced' level typos here if desired
+              // if (inputLevel === 'Advanced' && !isCorrect) { ... call handleActivity ... }
 
-            // Update state directly for vocab
-            setActivityState(prev => {
-                if (!prev) return null;
-                const newScore = isCorrect ? prev.score + 1 : prev.score;
-                return {
+              // Update state directly for vocab
+              setActivityState(prev => {
+                  if (!prev) return null;
+                  const newScore = isCorrect ? prev.score + 1 : prev.score;
+                  return {
+                      ...prev,
+                      feedback: { isCorrect: isCorrect, message: feedbackMsg },
+                      score: newScore,
+                      isSubmitting: false
+                  };
+              });
+              // --- END MODIFICATION ---
+
+          } else if (type === 'grammar') {
+              // Grammar grading remains the same (uses backend)
+              const result = await authenticatedFetch('handleActivity', {
+                  activityType: 'grammar_grade',
+                  payload: {
+                      question: currentData.question,
+                      options: currentData.options,
+                      correctAnswer: currentData.correctAnswer,
+                      userAnswer: String(userAnswer),
+                      uiLanguage: uiLanguage
+                  }
+              });
+              setActivityState(prev => {
+                  if (!prev) return null;
+                  const newScore = result.isCorrect ? prev.score + 1 : prev.score;
+                  return {
                     ...prev,
-                    feedback: { isCorrect: isCorrect, message: feedbackMsg },
+                    feedback: { isCorrect: result.isCorrect, message: result.feedback || (result.isCorrect ? t('activity.correct') : 'Incorrect.') },
                     score: newScore,
                     isSubmitting: false
-                };
-            });
-            // --- END MODIFICATION ---
+                  };
+              });
 
-        } else if (type === 'grammar') {
-            // Grammar grading remains the same (uses backend)
-            const result = await authenticatedFetch('handleActivity', {
-                activityType: 'grammar_grade',
-                payload: {
-                    question: currentData.question,
-                    options: currentData.options,
-                    correctAnswer: currentData.correctAnswer,
-                    userAnswer: String(userAnswer),
-                    uiLanguage: uiLanguage
-                }
-            });
-            setActivityState(prev => {
-                if (!prev) return null;
-                const newScore = result.isCorrect ? prev.score + 1 : prev.score;
-                return {
+          } else if (type === 'comprehension') {
+              // Comprehension grading remains the same (uses backend)
+               const result = await authenticatedFetch('handleActivity', {
+                  activityType: 'comprehension',
+                  payload: {
+                      question: currentData.question,
+                      summary: currentData.summary,
+                      userAnswer: String(userAnswer),
+                      uiLanguage: uiLanguage,
+                      targetLanguage: targetLanguage,
+                      level: inputLevel
+                  }
+               });
+               setActivityState(prev => {
+                   if (!prev) return null;
+                   const newScore = result.isCorrect ? prev.score + 1 : prev.score;
+                   return {
+                     ...prev,
+                     feedback: { isCorrect: result.isCorrect, message: result.feedback || (result.isCorrect ? t('activity.correct') : 'Incorrect.') },
+                     score: newScore,
+                     isSubmitting: false
+                   };
+               });
+          } else if (type === 'writing') {
+               const result = await authenticatedFetch('handleActivity', {
+                  activityType: 'writing_grade',
+                  payload: {
+                      prompt: currentData.prompt,
+                      summary: currentLesson.summary,
+                      userAnswer: String(userAnswer),
+                      level: inputLevel,
+                      uiLanguage: uiLanguage,
+                      targetLanguage: targetLanguage
+                  }
+               });
+               setActivityState(prev => {
+                   if (!prev) return null;
+                   // For writing, "isCorrect" is more of a "pass/fail". The feedback is what matters.
+                   const newScore = result.isCorrect ? prev.score + 1 : prev.score;
+                   return {
+                     ...prev,
+                     feedback: { isCorrect: result.isCorrect, message: result.feedback || (result.isCorrect ? 'Great job!' : 'Good try, see feedback.') },
+                     score: newScore,
+                     isSubmitting: false
+                   };
+               });
+
+          } else if (type === 'wordbank_study') {
+          isCorrect = String(userAnswer).trim().toLowerCase() === String(currentData.word).trim().toLowerCase();
+          feedbackMsg = isCorrect ? t('activity.correct') : t('activity.incorrectWord', { word: currentData.word });
+
+          setActivityState(prev => {
+              if (!prev) return null;
+              const newScore = isCorrect ? prev.score + 1 : prev.score;
+              return {
                   ...prev,
-                  feedback: { isCorrect: result.isCorrect, message: result.feedback || (result.isCorrect ? t('activity.correct') : 'Incorrect.') },
+                  feedback: { isCorrect: isCorrect, message: feedbackMsg },
                   score: newScore,
                   isSubmitting: false
-                };
-            });
+              };
+          });
+      // --- END ADDITION ---
 
-        } else if (type === 'comprehension') {
-            // Comprehension grading remains the same (uses backend)
-             const result = await authenticatedFetch('handleActivity', {
-                activityType: 'comprehension',
-                payload: {
-                    question: currentData.question,
-                    summary: currentData.summary,
-                    userAnswer: String(userAnswer),
-                    uiLanguage: uiLanguage,
-                    targetLanguage: targetLanguage,
-                    level: inputLevel
-                }
-             });
-             setActivityState(prev => {
-                 if (!prev) return null;
-                 const newScore = result.isCorrect ? prev.score + 1 : prev.score;
-                 return {
-                   ...prev,
-                   feedback: { isCorrect: result.isCorrect, message: result.feedback || (result.isCorrect ? t('activity.correct') : 'Incorrect.') },
-                   score: newScore,
-                   isSubmitting: false
-                 };
-             });
-        } else if (type === 'writing') {
-             const result = await authenticatedFetch('handleActivity', {
-                activityType: 'writing_grade',
-                payload: {
-                    prompt: currentData.prompt,
-                    summary: currentLesson.summary,
-                    userAnswer: String(userAnswer),
-                    level: inputLevel,
-                    uiLanguage: uiLanguage,
-                    targetLanguage: targetLanguage
-                }
-             });
-             setActivityState(prev => {
-                 if (!prev) return null;
-                 // For writing, "isCorrect" is more of a "pass/fail". The feedback is what matters.
-                 const newScore = result.isCorrect ? prev.score + 1 : prev.score;
-                 return {
-                   ...prev,
-                   feedback: { isCorrect: result.isCorrect, message: result.feedback || (result.isCorrect ? 'Great job!' : 'Good try, see feedback.') },
-                   score: newScore,
-                   isSubmitting: false
-                 };
-             });
-        }
+      // --- ADDITION: Handle wordbank_review submission (just show answer) ---
+      } else if (type === 'wordbank_review') {
+          feedbackMsg = currentData.definition;
+          isCorrect = true; // Use 'true' to show green/neutral feedback box
 
-    } catch (err) {
-      setError(`Error submitting answer: ${(err as Error).message}`);
-      setActivityState(prev => prev ? ({ ...prev, isSubmitting: false }) : null);
-    }
-  };
+          setActivityState(prev => {
+              if (!prev) return null;
+              // No score change for review mode
+              return {
+                  ...prev,
+                  feedback: { isCorrect: isCorrect, message: feedbackMsg },
+                  isSubmitting: false
+              };
+          });
+      // --- END ADDITION ---
+          }
+
+      
+
+      } catch (err) {
+        setError(`Error submitting answer: ${(err as Error).message}`);
+        setActivityState(prev => prev ? ({ ...prev, isSubmitting: false }) : null);
+      }
+    };
 
    const handleNextQuestion = () => {
       setActivityState(prev => {
@@ -2151,6 +2263,37 @@ const LandingPage: React.FC<{
   );
 };
 
+// --- ADDITION: New function to start word bank practice ---
+  // --- FIX: Moved this function BEFORE renderDashboard ---
+  const startWordBankActivity = (mode: 'wordbank_study' | 'wordbank_review') => {
+    if (!wordBank || wordBank.length < 1) { // Min 1 word, though 2 is better for options
+      setError(t('wordBank.practiceEmpty'));
+      return;
+    }
+    
+    activityCancellationRef.current = false;
+    setError(null);
+    const totalItems = wordBank.length;
+    
+    // Create and shuffle indices
+    const indices = Array.from(Array(totalItems).keys()); // [0, 1, 2, ..., total-1]
+    const shuffledIndices = shuffleArray(indices); // Shuffle the indices
+    console.log("Shuffled Word Bank indices:", shuffledIndices);
+
+    setActivityState({
+      type: mode,
+      index: 0,
+      score: 0, // Score is 0 for review mode
+      total: totalItems,
+      shuffledIndices: shuffledIndices,
+      currentData: null, // Will be loaded by useEffect
+      userAnswer: null,
+      feedback: { isCorrect: null, message: '' },
+      isSubmitting: false,
+    });
+    setCurrentView('ACTIVITY');
+  };
+
   const renderDashboard = () => (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto bg-white rounded-xl shadow-2xl space-y-5">
       {/* Header */}
@@ -2363,6 +2506,33 @@ const LandingPage: React.FC<{
         </div>
       )}
 
+      {/* --- ADDITION: Practice Flashcards Section --- */}
+      <div className="space-y-3 border-t pt-4">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <BrainIcon className="w-6 h-6" /> {t('wordBank.practiceTitle')}
+        </h2>
+        {wordBank.length < 2 ? (
+          <p className="text-sm text-center text-gray-500 p-2 bg-gray-50 rounded-lg">
+            {t('wordBank.practiceEmpty')}
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <button
+              onClick={() => startWordBankActivity('wordbank_study')}
+              className="flex items-center justify-center gap-2 bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-150 shadow-lg"
+            >
+              <PencilSquareIcon className="w-5 h-5" /> {t('wordBank.studyFlashcards')}
+            </button>
+            <button
+              onClick={() => startWordBankActivity('wordbank_review')}
+              className="flex items-center justify-center gap-2 bg-purple-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-purple-600 transition duration-150 shadow-lg"
+            >
+              <BookOpenIcon className="w-5 h-5" /> {t('wordBank.reviewFlashcards')}
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Word List */}
       <div className="space-y-3">
         {isWordBankLoading ? (
@@ -2381,7 +2551,7 @@ const LandingPage: React.FC<{
                   <p className="text-gray-700">{item.definition}</p>
                   <p className="text-sm italic text-gray-500 mt-1">
                     {t('common.example')} "{item.articleExample}"
-                    <SpeakButton text={item.articleExample} langCode={targetLanguage} />
+                    <SpeakButton text={item.articleExample} langCode={item.targetLanguage} />
                   </p>
                 </div>
                 <button
@@ -2807,7 +2977,9 @@ const LandingPage: React.FC<{
     <div className="p-4 sm:p-6 max-w-3xl mx-auto bg-white rounded-xl shadow-2xl space-y-4">
       <div className="flex flex-wrap justify-between items-center gap-2 border-b pb-3 mb-3">
         {/* Banner on the left */}
-        <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" />
+        <button onClick={() => navigate('/')} title={t('dashboard.title')}>
+          <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" />
+        </button>
         {isSubscribed && (
           <span className="text-xs font-bold bg-yellow-400 text-yellow-900 px-2 py-0.5 rounded-full shadow-md -ml-2">
             {t('common.proBadge')}
@@ -2934,7 +3106,9 @@ const LandingPage: React.FC<{
              <div className="p-4 sm:p-6 max-w-4xl mx-auto bg-white rounded-xl shadow-2xl space-y-6">
                 {/* Header for Loading State */}
                 <div className="flex flex-wrap justify-between items-center gap-2 border-b pb-3 mb-3">
-                     <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" />
+                     <button onClick={() => navigate('/')} title={t('dashboard.title')}>
+                        <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" />
+                     </button>
                      {isSubscribed && (
                         <span className="text-sm font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full border border-yellow-500 shadow-sm">
                           {t('common.proBadge')}
@@ -2969,7 +3143,9 @@ const LandingPage: React.FC<{
         {/* --- MODIFIED HEADER --- */}
         <div className="flex flex-wrap justify-between items-center gap-2 border-b pb-3 mb-3">
             {/* Banner on the left */}
-            <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" />
+            <button onClick={() => navigate('/')} title={t('dashboard.title')}>
+              <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" />
+            </button>
             {isSubscribed && (
                 <span className="text-sm font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full border border-yellow-500 shadow-sm">
                   {t('common.proBadge')}
@@ -3143,9 +3319,8 @@ const LandingPage: React.FC<{
         {/* Grammar Section */}
         <div className="space-y-3 border-l-4 border-purple-500 pl-4 bg-purple-50 p-3 rounded-lg">
           <h3 className="text-xl font-bold text-purple-700">{t('lesson.grammarFocus')} {currentLesson?.grammarFocus?.topic}</h3>
-          <p className="text-gray-800 whitespace-pre-wrap"> {/* Added pre-wrap here too */}
-             <MarkdownRenderer content={currentLesson?.grammarFocus?.explanation || ''} className="text-gray-800 mt-2"/>
-          </p>
+          {/* FIX: Removed the <p> wrapper and whitespace-pre-wrap. The renderer handles its own tags. */}
+          <MarkdownRenderer content={currentLesson?.grammarFocus?.explanation || ''} className="text-gray-800 mt-2"/>
         </div>
 
 {/* Comprehension Section */}
@@ -3338,6 +3513,54 @@ const LandingPage: React.FC<{
              </div>
            )}
 
+          {/* --- ADDITION: Word Bank Study Mode (Def -> Word) --- */}
+          {type === 'wordbank_study' && currentData && (
+             <div>
+               <p className="text-lg font-semibold text-gray-700 mb-2">
+                 {t('activity.definition')}
+                 {/* Use the uiLanguage for the definition */}
+                 {currentData.definition && <SpeakButton text={currentData.definition} langCode={currentData.uiLanguage} />}
+               </p>
+               <p className="p-3 bg-gray-100 text-gray-900 rounded mb-4">{currentData.definition}</p>
+
+               <label htmlFor="vocab-guess" className="block text-sm font-medium text-gray-700 mb-1">{t('activity.typeWord')}</label>
+               <input
+                 id="vocab-guess"
+                 type="text"
+                 value={String(userAnswer ?? '')}
+                 onChange={(e) => setActivityState(prev => prev ? { ...prev, userAnswer: e.target.value } : null)}
+                 disabled={feedback.isCorrect !== null || isSubmitting}
+                 className="w-full p-2 border border-gray-300 text-gray-900 rounded disabled:bg-gray-100"
+                 onKeyDown={(e) => { if (e.key === 'Enter' && feedback.isCorrect === null) handleSubmitAnswer() }}
+               />
+             </div>
+           )}
+          {/* --- END ADDITION --- */}
+
+          {/* --- ADDITION: Word Bank Review Mode (Word -> Def) --- */}
+          {type === 'wordbank_review' && currentData && (
+             <div>
+               <p className="text-lg font-semibold text-gray-700 mb-2">
+                 {t('common.word')}
+                 {/* Use the word's targetLanguage for the speak button */}
+                 {currentData.word && <SpeakButton text={currentData.word} langCode={currentData.targetLanguage} />}
+               </p>
+               <p className="p-3 bg-gray-100 text-gray-900 rounded mb-4 text-xl font-bold">{currentData.word}</p>
+
+               <label htmlFor="vocab-def-guess" className="block text-sm font-medium text-gray-700 mb-1">{t('activity.typeDefinition')}</label>
+               <textarea
+                 id="vocab-def-guess"
+                 value={String(userAnswer ?? '')}
+                 onChange={(e) => setActivityState(prev => prev ? { ...prev, userAnswer: e.target.value } : null)}
+                 disabled={feedback.isCorrect !== null || isSubmitting}
+                 rows={4}
+                 className="w-full p-2 border border-gray-300 text-gray-900 rounded disabled:bg-gray-100"
+                 placeholder={t('activity.typeDefinition')}
+               />
+             </div>
+           )}
+          {/* --- END ADDITION --- */}
+
           {/* Grammar Quiz */}
           {type === 'grammar' && (
             <div>
@@ -3440,7 +3663,14 @@ const LandingPage: React.FC<{
               disabled={userAnswer === null || userAnswer === '' || isSubmitting}
               className="bg-blue-600 text-white font-bold py-2 px-5 rounded-lg hover:bg-blue-700 transition duration-150 disabled:opacity-50"
             >
-              {isSubmitting ? <LoadingSpinner className="w-5 h-5 inline-block"/> : t('common.submit')}
+              {/* FIX: Change button text for review mode */}
+              {isSubmitting ? (
+                <LoadingSpinner className="w-5 h-5 inline-block"/>
+              ) : type === 'wordbank_review' ? (
+                t('activity.showDefinition')
+              ) : (
+                t('common.submit')
+              )}
             </button>
           ) : ( // Show Next/Finish after grading
             <button

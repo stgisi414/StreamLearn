@@ -81,7 +81,11 @@
     "wordBank": {
       "title": "My Word Bank",
       "loading": "Loading your saved words...",
-      "empty": "You haven't saved any words yet. Save words from the vocabulary list in your lessons!"
+      "empty": "You haven't saved any words yet. Save words from the vocabulary list in your lessons!",
+      "studyFlashcards": "Study (Def → Word)",
+      "reviewFlashcards": "Review (Word → Def)",
+      "practiceTitle": "Practice Your Saved Words",
+      "practiceEmpty": "You need to save at least 2 words to start a practice session."
     },
     "input": {
       "levelLabel": "Your {{language}} Level",
@@ -145,7 +149,9 @@
       "typeAnswer": "Type your answer here...",
       "writeResponse": "Write your response here...",
       "correct": "Correct!",
-      "incorrectWord": "Incorrect. The word was \"{{word}}\"."
+      "incorrectWord": "Incorrect. The word was \"{{word}}\".",
+      "typeDefinition": "Type the definition:",
+      "showDefinition": "Show Definition"
     },
     "chat": {
       "title": "AI Assistant \"Max\"",

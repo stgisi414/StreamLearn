@@ -80,7 +80,11 @@
     "wordBank": {
       "title": "Meine Wortbank",
       "loading": "Lade deine gespeicherten Wörter...",
-      "empty": "Du hast noch keine Wörter gespeichert. Speichere Wörter aus der Vokabelliste in deinen Lektionen!"
+      "empty": "Du hast noch keine Wörter gespeichert. Speichere Wörter aus der Vokabelliste in deinen Lektionen!",
+      "studyFlashcards": "Lernen (Def → Wort)",
+      "reviewFlashcards": "Wiederholen (Wort → Def)",
+      "practiceTitle": "Gespeicherte Wörter üben",
+      "practiceEmpty": "Sie müssen mindestens 2 Wörter speichern, um eine Übungssitzung zu starten."
     },
     "input": {
       "levelLabel": "Dein {{language}}-Niveau",
@@ -145,7 +149,9 @@
       "typeAnswer": "Tippe deine Antwort hier ein...",
       "writeResponse": "Schreibe deine Antwort hier...",
       "correct": "Richtig!",
-      "incorrectWord": "Falsch. Das Wort war \"{{word}}\"."
+      "incorrectWord": "Falsch. Das Wort war \"{{word}}\".",
+      "typeDefinition": "Tippe die Definition ein:",
+      "showDefinition": "Definition anzeigen"
     },
     "chat": {
       "title": "KI-Assistent „Max“",

@@ -80,7 +80,11 @@
     "wordBank": {
       "title": "La mia banca delle parole",
       "loading": "Caricamento delle tue parole salvate...",
-      "empty": "Non hai ancora salvato nessuna parola. Salva le parole dall'elenco dei vocaboli nelle tue lezioni!"
+      "empty": "Non hai ancora salvato nessuna parola. Salva le parole dall'elenco dei vocaboli nelle tue lezioni!",
+      "studyFlashcards": "Studia (Def → Parola)",
+      "reviewFlashcards": "Rivedi (Parola → Def)",
+      "practiceTitle": "Esercita le Tue Parole Salvate",
+      "practiceEmpty": "Devi salvare almeno 2 parole per iniziare una sessione di pratica."
     },
     "input": {
       "levelLabel": "Il tuo Livello di {{language}}",
@@ -145,7 +149,9 @@
       "typeAnswer": "Scrivi qui la tua risposta...",
       "writeResponse": "Scrivi qui la tua risposta...",
       "correct": "Corretto!",
-      "incorrectWord": "Sbagliato. La parola era \"{{word}}\"."
+      "incorrectWord": "Sbagliato. La parola era \"{{word}}\".",
+      "typeDefinition": "Scrivi la definizione:",
+      "showDefinition": "Mostra Definizione"
     },
     "chat": {
       "title": "Assistente IA \"Max\"",

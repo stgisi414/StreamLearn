@@ -80,7 +80,11 @@
     "wordBank": {
       "title": "単語バンク",
       "loading": "保存した単語を読み込んでいます...",
-      "empty": "まだ単語を保存していません。レッスンの語彙リストから単語を保存しましょう！"
+      "empty": "まだ単語を保存していません。レッスンの語彙リストから単語を保存しましょう！",
+      "studyFlashcards": "学習 (定義 → 単語)",
+      "reviewFlashcards": "復習 (単語 → 定義)",
+      "practiceTitle": "保存した単語を練習",
+      "practiceEmpty": "練習セッションを開始するには、少なくとも2つの単語を保存する必要があります。"
     },
     "input": {
       "levelLabel": "あなたの{{language}}レベル",
@@ -145,7 +149,9 @@
       "typeAnswer": "ここに回答を入力してください...",
       "writeResponse": "ここに回答を書いてください...",
       "correct": "正解です！",
-      "incorrectWord": "不正解です。正解は「{{word}}」でした。"
+      "incorrectWord": "不正解です。正解は「{{word}}」でした。",
+      "typeDefinition": "定義を入力してください:",
+      "showDefinition": "定義を表示"
     },
     "chat": {
       "title": "AIアシスタント「Max」",

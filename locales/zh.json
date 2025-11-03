@@ -78,7 +78,11 @@
     "wordBank": {
       "title": "我的单词库",
       "loading": "正在加载你保存的单词...",
-      "empty": "你还没有保存任何单词。从课程的词汇列表中保存单词吧！"
+      "empty": "你还没有保存任何单词。从课程的词汇列表中保存单词吧！",
+      "studyFlashcards": "学习 (定义 → 单词)",
+      "reviewFlashcards": "复习 (单词 → 定义)",
+      "practiceTitle": "练习你保存的单词",
+      "practiceEmpty": "你需要保存至少2个单词才能开始练习。"
     },
     "input": {
       "levelLabel": "你的{{language}}水平",
@@ -143,7 +147,9 @@
       "typeAnswer": "在此输入你的答案...",
       "writeResponse": "在此写下你的回答...",
       "correct": "正确！",
-      "incorrectWord": "不正确。正确的单词是 “{{word}}”。"
+      "incorrectWord": "不正确。正确的单词是 “{{word}}”。",
+      "typeDefinition": "输入定义：",
+      "showDefinition": "显示定义"
     },
     "chat": {
       "title": "AI 助手 “Max”",

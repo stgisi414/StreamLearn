@@ -69,6 +69,9 @@ const renderMarkdown = (markdown: string): React.ReactNode => {
         } else if (line.startsWith('- ')) {
             listItemText = line.substring(2).trim();
             newType = 'ul';
+        } else if (line.startsWith('* ')) { // <-- ADD THIS BLOCK
+            listItemText = line.substring(2).trim();
+            newType = 'ul';
         }
 
         if (listItemText !== null) {
