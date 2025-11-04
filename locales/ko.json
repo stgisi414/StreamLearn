@@ -256,14 +256,22 @@
       "p8": "본 개인정보 처리방침에 대해 질문이 있는 경우 support@streamlearn.xyz로 문의하십시오."
     },
     "languages": {
-      "en": "영어 (English)",
-      "es": "스페인어 (Español)",
-      "fr": "프랑스어 (Français)",
-      "de": "독일어 (Deutsch)",
-      "it": "이탈리아어 (Italiano)",
+      "en": "English (영어)",
+      "es": "Español (스페인어)",
+      "fr": "Français (프랑스어)",
+      "de": "Deutsch (독일어)",
+      "it": "Italiano (이탈리아어)",
       "ko": "한국어",
-      "ja": "일본어 (日本語)",
-      "zh": "중국어 (中文)"
+      "ja": "日本語 (일본어)",
+      "zh": "中文 (중국어)",
+      "ar": "العربية (아랍어)",
+      "ru": "Русский (러시아어)",
+      "hi": "हिंदी (힌디어)",
+      "pl": "Polski (폴란드어)",
+      "vi": "Tiếng Việt (베트남어)",
+      "pt": "Português (포르투갈어)",
+      "id": "Indonesia (인도네시아어)",
+      "th": "ไทย (태국어)"
     },
     "topics": {
       "technology": "기술",

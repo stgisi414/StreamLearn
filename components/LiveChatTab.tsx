@@ -33,6 +33,14 @@ const getSimpleLanguageName = (code: LanguageCode | string): string => {
     case "ko": return "Korean";
     case "ja": return "Japanese";
     case "zh": return "Chinese";
+    case "ar": return "Arabic";
+    case "ru": return "Russian";
+    case "hi": return "Hindi";
+    case "pl": return "Polish";
+    case "vi": return "Vietnamese";
+    case "pt": return "Portuguese";
+    case "id": return "Indonesian";
+    case "th": return "Thai";
     default: return "English"; // Fallback
   }
 };
@@ -51,6 +59,14 @@ const getBcp47LanguageCode = (code: LanguageCode | string): string => {
     case "ko": return "ko-KR";
     case "ja": return "ja-JP";
     case "zh": return "cmn-CN"; // Mandarin
+    case "ar": return "ar-XA"; // Standard Arabic
+    case "ru": return "ru-RU";
+    case "hi": return "hi-IN";
+    case "pl": return "pl-PL";
+    case "vi": return "vi-VN";
+    case "pt": return "pt-BR";
+    case "id": return "id-ID";
+    case "th": return "th-TH";
     default: return "en-US"; // Fallback
   }
 };
@@ -84,6 +100,10 @@ export const LiveChatTab: React.FC<LiveChatTabProps> = React.memo(({
 
   // This ref holds the response queue from the Google example
   const responseQueueRef = useRef<LiveServerMessage[]>([]);
+
+  // --- NEW: Ref for session timer ---
+  const sessionTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const SESSION_DURATION_MS = 300000; // 5 minutes
 
   // Auto-scroll for transcript
   useEffect(() => {
@@ -207,6 +227,13 @@ YOUR ROLE AND RULES:
   // --- Main Cleanup Function ---
   const cleanupConnection = useCallback(() => {
     console.log(`${LOG_PREFIX} cleanupConnection called.`);
+
+    // --- NEW: Clear session timer ---
+    if (sessionTimerRef.current) {
+      console.log(`${LOG_PREFIX} cleanupConnection: Clearing session timer.`);
+      clearTimeout(sessionTimerRef.current);
+      sessionTimerRef.current = null;
+    }
     
     if (sessionRef.current) {
       console.log(`${LOG_PREFIX} cleanupConnection: Disconnecting client...`);
@@ -320,6 +347,18 @@ YOUR ROLE AND RULES:
             console.log(`${LOG_PREFIX} client.on('open'): FIRED.`);
             setIsConnecting(false);
             setIsSessionActive(true);
+
+            // --- NEW: Start 5-minute session timer ---
+            console.log(`${LOG_PREFIX} Starting ${SESSION_DURATION_MS}ms session timer.`);
+            if (sessionTimerRef.current) {
+              clearTimeout(sessionTimerRef.current); // Clear just in case
+            }
+            sessionTimerRef.current = setTimeout(() => {
+              console.warn(`${LOG_PREFIX} Session timer FIRED. Forcing disconnect.`);
+              // NOTE: We can't use t() here as it might be stale. Hardcode or pass t() into useCallback.
+              setErrorMessage("Session limit reached (5 minutes). Please start a new session.");
+              cleanupConnection();
+            }, SESSION_DURATION_MS);
           },
           onmessage: (message: LiveServerMessage) => {
             // console.log(`${LOG_PREFIX} client.on('message'): Received message, pushing to queue.`); // Too noisy

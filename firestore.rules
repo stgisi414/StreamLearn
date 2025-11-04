@@ -7,8 +7,11 @@ service cloud.firestore {
     // USER-SPECIFIC DATA
     //
     match /users/{uid} {
-      // Allow a user to read their own top-level document
-      allow read: if request.auth.uid == uid;
+      // Allow a user to read and write to their *own* user document.
+      // This is secure because it's gated by auth.uid.
+      // This allows your app to save preferences and the Stripe extension
+      // to save fields like stripeId.
+      allow read, write: if request.auth.uid == uid;
       
       // Allow user to read/write their own lessons
       match /lessons/{lessonId} {
@@ -24,7 +27,7 @@ service cloud.firestore {
       match /usage/{monthId} {
         allow read: if request.auth.uid == uid;
       }
-
+      
       // Allow user to read/write their own daily live chat usage
       match /liveChatUsage/{dateId} {
         allow read, write: if request.auth.uid == uid;

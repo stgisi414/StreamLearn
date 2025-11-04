@@ -11,7 +11,7 @@ import { GoogleGenAI, HarmCategory, HarmBlockThreshold, Type } from "@google/gen
 import * as logger from "firebase-functions/logger";
 import * as TextToSpeech from '@google-cloud/text-to-speech';
 
-type LanguageCode = "en" | "es" | "fr" | "de" | "it" | "ko" | "ja" | "zh";
+type LanguageCode = "en" | "es" | "fr" | "de" | "it" | "ko" | "ja" | "zh" | "ar" | "ru" | "hi" | "pl" | "vi" | "pt" | "id" | "th";
 
 interface NewsResult {
     title: string;
@@ -256,6 +256,14 @@ function getLanguageName(code: LanguageCode | string): string {
     case "ko": return "Korean";
     case "ja": return "Japanese";
     case "zh": return "Chinese";
+    case "ar": return "Arabic";
+    case "ru": return "Russian";
+    case "hi": return "Hindi";
+    case "pl": return "Polish";
+    case "vi": return "Vietnamese";
+    case "pt": return "Portuguese";
+    case "id": return "Indonesian";
+    case "th": return "Thai";
     default: return "English"; // Fallback
   }
 }
@@ -273,6 +281,14 @@ function getGoogleTTSLangCode(code: LanguageCode | string): string {
     case "ko": return "ko-KR";
     case "ja": return "ja-JP";
     case "zh": return "zh-CN"; // Mandarin
+    case "ar": return "ar-XA"; // Standard Arabic
+    case "ru": return "ru-RU";
+    case "hi": return "hi-IN";
+    case "pl": return "pl-PL";
+    case "vi": return "vi-VN";
+    case "pt": return "pt-BR";
+    case "id": return "id-ID";
+    case "th": return "th-TH";
     default: return "en-US";
   }
 }

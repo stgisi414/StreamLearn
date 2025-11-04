@@ -8,6 +8,14 @@ import itJSON from './locales/it.json';
 import koJSON from './locales/ko.json';
 import jaJSON from './locales/ja.json';
 import zhJSON from './locales/zh.json';
+import arJSON from './locales/ar.json';
+import ruJSON from './locales/ru.json';
+import hiJSON from './locales/hi.json';
+import plJSON from './locales/pl.json';
+import viJSON from './locales/vi.json';
+import ptJSON from './locales/pt.json';
+import idJSON from './locales/id.json';
+import thJSON from './locales/th.json';
 
 const resources = {
   en: { ...enJSON },
@@ -18,6 +26,14 @@ const resources = {
   ko: { ...koJSON },
   ja: { ...jaJSON },
   zh: { ...zhJSON },
+  ar: { ...arJSON },
+  ru: { ...ruJSON },
+  hi: { ...hiJSON },
+  pl: { ...plJSON },
+  vi: { ...viJSON },
+  pt: { ...ptJSON },
+  id: { ...idJSON },
+  th: { ...thJSON },
 };
 
 i18n

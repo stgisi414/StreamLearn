@@ -2,7 +2,7 @@ import { Timestamp } from 'firebase/firestore';
 
 // Supported language codes for UI and Learning
 export const languageCodes = [
-  'en', 'es', 'fr', 'de', 'it', 'ko', 'ja', 'zh'
+    'en', 'es', 'fr', 'de', 'it', 'ko', 'ja', 'zh', 'ar', 'ru', 'hi', 'pl', 'vi', 'pt', 'id', 'th'
 ] as const; // Use 'as const' to create a readonly tuple
 
 export type LanguageCode = typeof languageCodes[number];

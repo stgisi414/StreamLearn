@@ -255,14 +255,22 @@
       "p8": "Si vous avez des questions sur cette Politique de Confidentialité, veuillez nous contacter à support@streamlearn.xyz."
     },
     "languages": {
-      "en": "Anglais (English)",
-      "es": "Espagnol (Español)",
+      "en": "English (Anglais)",
+      "es": "Español (Espagnol)",
       "fr": "Français",
-      "de": "Allemand (Deutsch)",
-      "it": "Italien (Italiano)",
-      "ko": "Coréen (한국어)",
-      "ja": "Japonais (日本語)",
-      "zh": "Chinois (中文)"
+      "de": "Deutsch (Allemand)",
+      "it": "Italiano (Italien)",
+      "ko": "한국어 (Coréen)",
+      "ja": "日本語 (Japonais)",
+      "zh": "中文 (Chinois)",
+      "ar": "العربية (Arabe)",
+      "ru": "Русский (Russe)",
+      "hi": "हिंदी (Hindi)",
+      "pl": "Polski (Polonais)",
+      "vi": "Tiếng Việt (Vietnamien)",
+      "pt": "Português (Portugais)",
+      "id": "Indonesia (Indonésien)",
+      "th": "ไทย (Thaï)"
     },
     "topics": {
       "technology": "Technologie",

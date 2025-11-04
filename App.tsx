@@ -12,7 +12,7 @@ import {
 import { 
   getFirestore, doc, setDoc, Timestamp,
   collection, query, orderBy, getDocs, limit,
-  deleteDoc, where, addDoc,
+  deleteDoc, where, addDoc, getDoc,
   connectFirestoreEmulator, onSnapshot, increment
 } from 'firebase/firestore';
 import { useTranslation, Trans } from 'react-i18next';
@@ -47,7 +47,7 @@ import { Lesson, Article, NewsResult, EnglishLevel, LessonResponse, SavedWord, V
 
 // --- NEW: Language Configuration ---
 const languageCodes: LanguageCode[] = [
-  'en', 'es', 'fr', 'de', 'it', 'ko', 'ja', 'zh'
+  'en', 'es', 'fr', 'de', 'it', 'ko', 'ja', 'zh', 'ar', 'ru', 'hi', 'pl', 'vi', 'pt', 'id', 'th'
 ];
 
 type LanguageCode = typeof languageCodes[number];
@@ -298,7 +298,27 @@ const App: React.FC = () => {
 
   // --- Persistent State ---
   const [inputTopic, setInputTopic] = useLocalStorageState<string>('streamlearn_topic', '');
-  const [inputLevel, setInputLevel] = useLocalStorageState<EnglishLevel>('streamlearn_level', 'Intermediate');
+  // --- NEW: Per-language level state ---
+  // Default levels for all languages
+  const defaultLevels: Record<LanguageCode, EnglishLevel> = {
+    'en': 'Intermediate', 'es': 'Beginner', 'fr': 'Beginner', 'de': 'Beginner',
+    'it': 'Beginner', 'ko': 'Beginner', 'ja': 'Beginner', 'zh': 'Beginner', 
+    'ar': 'Beginner', 'ru': 'Beginner', 'hi': 'Beginner', 'pl': 'Beginner',
+    'vi': 'Beginner', 'pt': 'Beginner', 'id': 'Beginner', 'th': 'Beginner'
+  };
+
+  const [languageLevels, setLanguageLevels] = useLocalStorageState<Record<LanguageCode, EnglishLevel>>('streamlearn_languageLevels', defaultLevels);
+ 
+  // Derived state: Get the level for the *current* target language
+  const inputLevel = languageLevels[targetLanguage] || 'Intermediate';
+ 
+  // Setter: Update the level for the *current* target language
+  const setInputLevel = (newLevel: EnglishLevel) => {
+    setLanguageLevels(prev => ({
+      ...prev,
+      [targetLanguage]: newLevel
+    }));
+  };
   // This is the *full* list of articles from the last search
   const [allFetchedArticles, setAllFetchedArticles] = useLocalStorageState<NewsResult[]>('streamlearn_allResults', []);
   // This is the *visible* list of articles (e.g., the top 10)
@@ -328,6 +348,9 @@ const App: React.FC = () => {
 
   const [isLikingArticle, setIsLikingArticle] = useState<string | null>(null);
   const [isDislikingArticle, setIsDislikingArticle] = useState<string | null>(null);
+
+  // --- NEW: State for Word Bank language filter ---
+  const [wordBankLanguageFilter, setWordBankLanguageFilter] = useState<LanguageCode | 'all'>('all');
 
   // --- Static Data ---
   const newsTopics: string[] = [
@@ -1179,6 +1202,30 @@ const App: React.FC = () => {
     );
   }, [lessonHistory, dashboardSearchTerm]);
 
+  // --- NEW: Memoized filter for grouping word bank ---
+ const groupedWordBank = useMemo(() => {
+   console.log("Grouping word bank...");
+   // Group words by their targetLanguage
+   return wordBank.reduce((acc, word) => {
+     // Fallback for any old words that might not have the property
+     const lang = word.targetLanguage || 'en'; 
+     if (!acc[lang]) {
+       acc[lang] = [];
+     }
+     acc[lang].push(word);
+     return acc;
+   }, {} as Record<LanguageCode, SavedWord[]>);
+ }, [wordBank]);
+
+ // --- NEW: Memoized list of words based on the filter ---
+ const wordsForPractice = useMemo(() => {
+   if (wordBankLanguageFilter === 'all') {
+     return wordBank; // Return all words
+   }
+   // Return only words for the selected language
+   return groupedWordBank[wordBankLanguageFilter as LanguageCode] || [];
+ }, [wordBank, wordBankLanguageFilter, groupedWordBank]);
+
   // --- Auth state listener ---
    useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -1186,6 +1233,34 @@ const App: React.FC = () => {
         console.log(`DEBUG: onAuthStateChanged - SIGNED_IN as ${currentUser.uid}`); // <-- ADD THIS
         setUser(currentUser);
         setAuthState('SIGNED_IN');
+        // --- NEW: Load user language preferences ---
+       const userDocRef = doc(db, 'users', currentUser.uid);
+       getDoc(userDocRef).then(docSnap => {
+         if (docSnap.exists()) {
+           const data = docSnap.data();
+           // Only set if they exist, otherwise keep localStorage/default
+           if (data.uiLanguage && languageCodes.includes(data.uiLanguage)) {
+             setUiLanguage(data.uiLanguage);
+           }
+           if (data.targetLanguage && languageCodes.includes(data.targetLanguage)) {
+             setTargetLanguage(data.targetLanguage);
+             // --- NEW: Load language levels ---
+            if (data.languageLevels) {
+                // Merge defaults with loaded data to ensure all languages have a level
+                setLanguageLevels(prev => ({
+                  ...defaultLevels, // Start with all defaults from code
+                  ...data.languageLevels // Override with user's saved data
+                }));
+            } else {
+                // No levels saved, use defaults (which useLocalStorageState should handle, but this is safer)
+                setLanguageLevels(defaultLevels);
+            }
+           }
+         }
+       }).catch(err => {
+         // This isn't critical, so just log a warning
+         console.warn("Could not load user language preferences:", err);
+       });
         fetchSubscriptionStatus(currentUser);
         setError(null);
       } else {
@@ -1281,6 +1356,30 @@ const App: React.FC = () => {
        };
      }
    }, [user, db]); // This effect re-runs when the user logs in or out
+
+  // --- NEW: Effect to save language preferences to Firestore ---
+  useEffect(() => {
+   // Use an async IIFE to allow awaiting the setDoc call
+   (async () => {
+     // Only save if the user is logged in
+     if (user && db) {
+       const userDocRef = doc(db, 'users', user.uid);
+       console.log("Attempting to save user preferences...", { uiLanguage, targetLanguage, languageLevels });
+       try {
+         // Use setDoc with merge: true to create/update the document
+         await setDoc(userDocRef, {
+           uiLanguage: uiLanguage,
+           targetLanguage: targetLanguage,
+           languageLevels: languageLevels
+         }, { merge: true });
+         console.log("User preferences saved successfully.");
+       } catch (err) {
+         // This will now catch security rule violations
+         console.error("!!! FAILED to save user preferences:", err);
+       }
+     }
+   })();
+  }, [user, uiLanguage, targetLanguage, languageLevels, db]);
 
   // --- NEW: Callback to increment live chat usage ---
   const handleIncrementLiveChatUsage = useCallback(async () => {
@@ -1776,8 +1875,8 @@ const App: React.FC = () => {
   } else if (type === 'wordbank_study' && shuffledIndices) {
       dataPromise = Promise.resolve().then(() => {
         const actualItemIndex = shuffledIndices[index];
-        if (actualItemIndex >= wordBank.length) throw new Error(`Invalid shuffled word bank index ${actualItemIndex}`);
-        const currentVocabItem = wordBank[actualItemIndex];
+        if (actualItemIndex >= wordsForPractice.length) throw new Error(`Invalid shuffled word bank index ${actualItemIndex}`);
+        const currentVocabItem = wordsForPractice[actualItemIndex];
         if (!currentVocabItem) throw new Error(`Invalid word bank item at index ${actualItemIndex}`);
         
         // Always fill-in-the-blank for word bank study
@@ -1794,8 +1893,8 @@ const App: React.FC = () => {
   } else if (type === 'wordbank_review' && shuffledIndices) {
       dataPromise = Promise.resolve().then(() => {
         const actualItemIndex = shuffledIndices[index];
-        if (actualItemIndex >= wordBank.length) throw new Error(`Invalid shuffled word bank index ${actualItemIndex}`);
-        const currentVocabItem = wordBank[actualItemIndex];
+        if (actualItemIndex >= wordsForPractice.length) throw new Error(`Invalid shuffled word bank index ${actualItemIndex}`);
+        const currentVocabItem = wordsForPractice[actualItemIndex];
         if (!currentVocabItem) throw new Error(`Invalid word bank item at index ${actualItemIndex}`);
         
         // Pass word, definition (for answer), and targetLanguage (for speak)
@@ -2480,14 +2579,19 @@ const LandingPage: React.FC<{
 // --- ADDITION: New function to start word bank practice ---
   // --- FIX: Moved this function BEFORE renderDashboard ---
   const startWordBankActivity = (mode: 'wordbank_study' | 'wordbank_review') => {
-    if (!wordBank || wordBank.length < 1) { // Min 1 word, though 2 is better for options
-      setError(t('wordBank.practiceEmpty'));
+    // Use the memoized list of words for practice
+    if (!wordsForPractice || wordsForPractice.length < 1) { 
+      const errorMsg = wordBankLanguageFilter === 'all'
+        ? t('wordBank.practiceEmpty')
+        // Provide a more specific error message if a filter is active
+        : `You need to save at least 1 word for ${t(`languages.${wordBankLanguageFilter}`)} to practice.`;
+      setError(errorMsg);
       return;
     }
     
     activityCancellationRef.current = false;
     setError(null);
-    const totalItems = wordBank.length;
+    const totalItems = wordsForPractice.length;
     
     // Create and shuffle indices
     const indices = Array.from(Array(totalItems).keys()); // [0, 1, 2, ..., total-1]
@@ -2722,12 +2826,32 @@ const LandingPage: React.FC<{
 
       {/* --- ADDITION: Practice Flashcards Section --- */}
       <div className="space-y-3 border-t pt-4">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
-          <BrainIcon className="w-6 h-6" /> {t('wordBank.practiceTitle')}
-        </h2>
-        {wordBank.length < 2 ? (
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <BrainIcon className="w-6 h-6" /> {t('wordBank.practiceTitle')}
+          </h2>
+          {/* --- NEW: Language Filter Dropdown --- */}
+          <select
+            value={wordBankLanguageFilter}
+            onChange={(e) => setWordBankLanguageFilter(e.target.value as LanguageCode | 'all')}
+            disabled={wordBank.length === 0}
+            className="w-full sm:w-auto p-2 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+          >
+            <option value="all">All Languages ({wordBank.length})</option>
+            {Object.keys(groupedWordBank).map((lang) => (
+              <option key={lang} value={lang}>
+                {t(`languages.${lang}`)} ({groupedWordBank[lang as LanguageCode].length})
+              </option>
+            ))}
+          </select>
+        </div>
+        {/* --- FIX: Check wordsForPractice list --- */}
+        {wordsForPractice.length < 1 ? ( // You can study with just 1 word
           <p className="text-sm text-center text-gray-500 p-2 bg-gray-50 rounded-lg">
-            {t('wordBank.practiceEmpty')}
+            {wordBankLanguageFilter === 'all'
+              ? t('wordBank.practiceEmpty').replace('2', '1') // Adjust count text if needed
+              : `You need to save at least 1 word for ${t(`languages.${wordBankLanguageFilter}`)} to practice.`
+            }
           </p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -2754,33 +2878,47 @@ const LandingPage: React.FC<{
         ) : wordBank.length === 0 ? (
           <p className="text-center text-gray-500 py-4">{t('wordBank.empty')}</p>
         ) : (
-          <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
-            {wordBank.map((item) => (
-              <div
-                key={item.id}
-                className="flex gap-3 items-start p-4 border border-gray-200 rounded-lg"
-              >
-                <div className="flex-grow min-w-0">
-                  <strong className="text-lg text-purple-800">{item.word}</strong>
-                  <p className="text-gray-700">{item.definition}</p>
-                  <p className="text-sm italic text-gray-500 mt-1">
-                    {t('common.example')} "{item.articleExample}"
-                    <SpeakButton text={item.articleExample} langCode={item.targetLanguage} />
-                  </p>
-                </div>
-                <button
-                  onClick={() => handleDeleteWord(item.word)}
-                  title={t('common.deleteWord')}
-                  className="p-1 text-gray-400 hover:text-red-600 flex-shrink-0"
-                >
-                  {/* Simple 'X' icon for delete */}
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            ))}
-          </div>
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+           {Object.entries(groupedWordBank)
+             // Optional: Sort languages so 'en' is first, then alphabetically
+             .sort(([langA], [langB]) => {
+               if (langA === 'en') return -1;
+               if (langB === 'en') return 1;
+               return langA.localeCompare(langB);
+             })
+             .map(([langCode, words]) => (
+             <div key={langCode} className="space-y-3">
+               <h3 className="text-lg font-semibold text-gray-700 border-b pb-1">
+                 {t(`languages.${langCode}`)}
+               </h3>
+               {words.map((item) => (
+                 <div
+                   key={item.id}
+                   className="flex gap-3 items-start p-4 border border-gray-200 rounded-lg"
+                 >
+                   <div className="flex-grow min-w-0">
+                     <strong className="text-lg text-purple-800">{item.word}</strong>
+                     <p className="text-gray-700">{item.definition}</p>
+                     <p className="text-sm italic text-gray-500 mt-1">
+                       {t('common.example')} "{item.articleExample}"
+                       <SpeakButton text={item.articleExample} langCode={item.targetLanguage} />
+                     </p>
+                   </div>
+                   <button
+                     onClick={() => handleDeleteWord(item.word)}
+                     title={t('common.deleteWord')}
+                     className="p-1 text-gray-400 hover:text-red-600 flex-shrink-0"
+                   >
+                     {/* Simple 'X' icon for delete */}
+                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                     </svg>
+                   </button>
+                 </div>
+               ))}
+             </div>
+           ))}
+         </div>
         )}
       </div>
     </div>

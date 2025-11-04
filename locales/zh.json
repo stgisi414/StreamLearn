@@ -253,14 +253,22 @@
       "p8": "如果您对本隐私政策有任何疑问，请通过 support@streamlearn.xyz 与我们联系。"
     },
     "languages": {
-      "en": "英语 (English)",
-      "es": "西班牙语 (Español)",
-      "fr": "法语 (Français)",
-      "de": "德语 (Deutsch)",
-      "it": "意大利语 (Italiano)",
-      "ko": "韩语 (한국어)",
-      "ja": "日语 (日本語)",
-      "zh": "中文"
+      "en": "English (英语)",
+      "es": "Español (西班牙语)",
+      "fr": "Français (法语)",
+      "de": "Deutsch (德语)",
+      "it": "Italiano (意大利语)",
+      "ko": "한국어 (韩语)",
+      "ja": "日本語 (日语)",
+      "zh": "中文",
+      "ar": "العربية (阿拉伯语)",
+      "ru": "Русский (俄语)",
+      "hi": "हिंदी (印地语)",
+      "pl": "Polski (波兰语)",
+      "vi": "Tiếng Việt (越南语)",
+      "pt": "Português (葡萄牙语)",
+      "id": "Indonesia (印度尼西亚语)",
+      "th": "ไทย (泰语)"
     },
     "topics": {
       "technology": "科技",

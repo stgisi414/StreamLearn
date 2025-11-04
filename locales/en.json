@@ -262,7 +262,15 @@
       "it": "Italiano (Italian)",
       "ko": "한국어 (Korean)",
       "ja": "日本語 (Japanese)",
-      "zh": "中文 (Chinese)"
+      "zh": "中文 (Chinese)",
+      "ar": "العربية (Arabic)",
+      "ru": "Русский (Russian)",
+      "hi": "हिंदी (Hindi)",
+      "pl": "Polski (Polish)",
+      "vi": "Tiếng Việt (Vietnamese)",
+      "pt": "Português (Portuguese)",
+      "id": "Indonesia (Indonesian)",
+      "th": "ไทย (Thai)"
     },
     "topics": {
       "technology": "Technology",

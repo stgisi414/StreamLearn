@@ -255,14 +255,22 @@
       "p8": "In caso di domande sulla presente Informativa sulla Privacy, contattaci all'indirizzo support@streamlearn.xyz."
     },
     "languages": {
-      "en": "Inglese (English)",
-      "es": "Spagnolo (Español)",
-      "fr": "Francese (Français)",
-      "de": "Tedesco (Deutsch)",
+      "en": "English (Inglese)",
+      "es": "Español (Spagnolo)",
+      "fr": "Français (Francese)",
+      "de": "Deutsch (Tedesco)",
       "it": "Italiano",
-      "ko": "Coreano (한국어)",
-      "ja": "Giapponese (日本語)",
-      "zh": "Cinese (中文)"
+      "ko": "한국어 (Coreano)",
+      "ja": "日本語 (Giapponese)",
+      "zh": "中文 (Cinese)",
+      "ar": "العربية (Arabo)",
+      "ru": "Русский (Russo)",
+      "hi": "हिंदी (Hindi)",
+      "pl": "Polski (Polacco)",
+      "vi": "Tiếng Việt (Vietnamita)",
+      "pt": "Português (Portoghese)",
+      "id": "Indonesia (Indonesiano)",
+      "th": "ไทย (Thailandese)"
     },
     "topics": {
       "technology": "Tecnologia",
