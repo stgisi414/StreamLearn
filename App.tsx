@@ -44,6 +44,10 @@ import { LightBulbIcon } from './components/icons/LightBulbIcon';
 import { BrainIcon } from './components/icons/BrainIcon';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
 import { Lesson, Article, NewsResult, EnglishLevel, LessonResponse, SavedWord, VocabularyItem, StripeSubscription, LanguageCode } from './types';
+import { ArrowsRightLeftIcon } from './components/icons/ArrowsRightLeftIcon';
+import { GuidedLessonFlow } from './components/GuidedLessonFlow';
+import { ActivityContent } from './components/ActivityContent';
+import { ActivityControls } from './components/ActivityControls';
 
 // --- NEW: Language Configuration ---
 const languageCodes: LanguageCode[] = [
@@ -275,7 +279,11 @@ const App: React.FC = () => {
 
   // --- Loading State (for API calls) ---
   const [isApiLoading, setIsApiLoading] = useState(false);
-  const [isLessonGenerating, setIsLessonGenerating] = useState(false);
+  const [isLessonGenerating, setIsLessonGenerating] = useState(false
+
+  // --- NEW: Lesson View State ---
+  const [lessonViewMode, setLessonViewMode] = useLocalStorageState<'overview' | 'guided'>('streamlearn_lessonViewMode', 'overview');
+  const [guidedLessonStep, setGuidedLessonStep] = useState(0);
 
   // --- Activity state ---
   const [activityState, setActivityState] = useState<ActivityState | null>(null);
@@ -648,6 +656,7 @@ const App: React.FC = () => {
     console.log("Proceeding to fetch/generate lesson.");
     setIsApiLoading(true);
     setIsLessonGenerating(true);
+    setGuidedLessonStep(0); // <-- NEW: Reset guided step on new lesson
     setError(null);
 
     if (currentArticle?.link !== article.link) {
@@ -1682,6 +1691,13 @@ const App: React.FC = () => {
   const startActivity = (type: ActivityType) => {
     if (!currentLesson) return;
     activityCancellationRef.current = false; // <<< ADD THIS LINE: Reset cancellation flag
+    // --- NEW: If starting from guided mode, set step ---
+    if (lessonViewMode === 'guided') {
+      const stepIndex = steps.findIndex(s => s.activity === type);
+      if (stepIndex !== -1) {
+        setGuidedLessonStep(stepIndex);
+      }
+    }
     setError(null);
     let totalItems = 0;
     let shuffledIndices: number[] | undefined = undefined; // <-- Initialize here
@@ -1725,6 +1741,8 @@ const App: React.FC = () => {
       const lastActivityType = activityState?.type;
       console.log("last activity type: " + lastActivityType); // Your debug log
 
+      setGuidedLessonStep(0); // <-- NEW: Reset step
+      setLessonViewMode('overview'); // <-- NEW: Default back to overview
       setActivityState(null);
 
       // Stop and clear any active activity audio
@@ -1760,6 +1778,51 @@ const App: React.FC = () => {
     return array;
   }, []); // Stable reference needed for dependency array
 
+  // --- NEW: Logic to move to the next GUIDED step ---
+   const handleNextGuidedStep = () => {
+     // This function is for the guided lesson flow
+     const newStep = guidedLessonStep + 1;
+     if (newStep >= steps.length) {
+       quitActivity(); // Finished the last step
+     } else {
+       setGuidedLessonStep(newStep);
+       setActivityState(null); // Clear old activity state
+       setUserAnswer(null);
+       setFeedback({ isCorrect: null, message: '' });
+     }
+   };
+ 
+   // --- NEW: Logic for "Next" button in an activity ---
+   const handleNextActivityQuestion = () => {
+     // This function is for *within* an activity
+     setActivityState(prev => {
+        if (!prev) return null; // Should not happen
+ 
+        // This is the new part: check view mode
+        if (lessonViewMode === 'guided') {
+          // In guided mode, finishing the quiz moves to the next *step*
+          if (prev.index + 1 >= prev.total) {
+            handleNextGuidedStep();
+            return null; // The step change will handle the rest
+          }
+        } else {
+          // In overview (modal) mode, finishing the quiz just quits
+          if (prev.index   1 >= prev.total) {
+            quitActivity();
+            return null;
+          }
+        }
+ 
+        // Not finished, just go to the next question in the quiz
+        return {
+            ...prev,
+            index: prev.index + 1,
+            currentData: null, // Will trigger useEffect to load/generate next
+            userAnswer: null,
+            feedback: { isCorrect: null, message: '' }
+        };
+    });
+   };
 
   // Effect to load data for the current activity step (REVISED AGAIN - Simpler Loading Logic)
   useEffect(() => {
@@ -2022,7 +2085,7 @@ const App: React.FC = () => {
       uiLanguage, targetLanguage
   ]);
 
-    const handleSubmitAnswer = async () => {
+  const handleSubmitAnswer = async () => {
       // --- MODIFY THIS GUARD CLAUSE ---
       if (!activityState || !activityState.currentData || activityState.feedback.isCorrect !== null) {
         console.warn("handleSubmitAnswer: Bailing early (no state/data, or feedback already given)");
@@ -2194,26 +2257,9 @@ const App: React.FC = () => {
         setError(`Error submitting answer: ${(err as Error).message}`);
         setActivityState(prev => prev ? ({ ...prev, isSubmitting: false }) : null);
       }
-    };
+  };
 
-   const handleNextQuestion = () => {
-      setActivityState(prev => {
-         if (!prev || prev.index + 1 >= prev.total) {
-             // Finished! Handle end state later. For now, go back to lesson.
-             quitActivity();
-             return null;
-         }
-         return {
-             ...prev,
-             index: prev.index + 1,
-             currentData: null, // Will trigger useEffect to load/generate next
-             userAnswer: null,
-             feedback: { isCorrect: null, message: '' }
-         };
-     });
-   };
-
-   // --- Activity Text-to-Speech Handler (Renamed) ---
+  // --- Activity Text-to-Speech Handler (Renamed) ---
   const handleActivityTextToSpeech = async (text: string | undefined | null, langCode: LanguageCode) => { // Renamed function
     console.log(`handleActivityTextToSpeech called with lang: ${langCode}, text:`, text);
 
@@ -2262,6 +2308,20 @@ const App: React.FC = () => {
         setIsActivityAudioLoading(false); // Use renamed state variable
     }
   };
+
+  // --- NEW: Define steps for Guided Lesson ---
+  // We define this here so `startActivity` can use it
+  const steps = [
+     { name: t('lesson.summaryTitle'), type: 'content' as const, activity: null },
+     { name: t('lesson.vocabBuilder'), type: 'content' as const, activity: null },
+     { name: t('activity.vocab'), type: 'activity' as const, activity: 'vocab' as ActivityState['type'] },
+     { name: t('lesson.grammarFocus'), type: 'content' as const, activity: null },
+     { name: t('activity.grammar'), type: 'activity' as const, activity: 'grammar' as ActivityState['type'] },
+     { name:t('lesson.comprehensionQuestions'), type: 'content' as const, activity: null },
+     { name: t('activity.comprehension'), type: 'activity' as const, activity: 'comprehension' as ActivityState['type'] },
+     { name: t('activity.writing'), type: 'activity' as const, activity: 'writing' as ActivityState['type'] },
+     { name: t('common.finish'), type: 'content' as const, activity: null }
+  ];
 
   // --- REPLACE the entire useEffect from ~line 1782 to 1823 ---
   // Effect to create Audio object when src changes
@@ -2786,6 +2846,68 @@ const LandingPage: React.FC<{
     </div>
   );
 
+  // --- NEW: Function to render the new Guided Lesson view ---
+   const renderGuidedLesson = () => {
+     if (!currentLesson) return <LoadingSpinner />;
+ 
+     return (
+       <div className="p-4 sm:p-6 max-w-4xl mx-auto bg-white rounded-xl shadow-2xl space-y-6">
+         {/* Header with Toggle Button */}
+         <div className="flex flex-wrap justify-between items-center gap-2 border-b pb-3 mb-3">
+           <button onClick={() => navigate('/')} title={t('dashboard.title')}>
+             <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" />
+           </button>
+           <button
+             onClick={() => setLessonViewMode('overview')}
+             className="flex items-center gap-2 text-sm text-blue-600 font-medium p-2 rounded-lg hover:bg-blue-100"
+             title={t('lesson.switchToOverview')}
+           >
+             <ArrowsRightLeftIcon className="w-5 h-5" />
+             <span>{t('lesson.overviewMode')}</span>
+           </button>
+         </div>
+ 
+         {/* Article Title */}
+         <h2 className="text-2xl sm:text-3xl font-bold text-blue-700 text-center -mt-4">
+           {currentLesson.articleTitle}
+         </h2>
+ 
+         {/* Guided Flow Component */}
+         <GuidedLessonFlow
+           lesson={currentLesson}
+           activityState={activityState}
+           currentStep={guidedLessonStep}
+           setStep={setGuidedLessonStep}
+           startActivity={startActivity}
+           onSpeak={handleActivityTextToSpeech}
+           isAudioLoading={isActivityAudioLoading}
+           onAnswerChange={(answer) => setActivityState(prev => prev ? { ...prev, userAnswer: answer } : null)}
+           onSubmitAnswer={handleSubmitAnswer}
+           onNextQuestion={handleNextActivityQuestion} // Pass the "next question" handler
+           onFinish={quitActivity} // Pass the "quit" handler
+           uiLanguage={uiLanguage}
+         />
+ 
+         {/* Chat Assistant (still available in guided mode) */}
+         <ChatAssistant
+           lesson={currentLesson}
+           uiLanguage={uiLanguage}
+           targetLanguage={targetLanguage}
+           history={chatHistory}
+           isLoading={isChatLoading}
+           error={chatError}
+           onSubmit={handleChatSubmit}
+           onClearChat={handleClearChat}
+           isSubscribed={isSubscribed}
+           liveChatUsageCount={liveChatUsageCount}
+           isUsageLoading={isUsageLoading}
+           onIncrementLiveChatUsage={handleIncrementLiveChatUsage}
+           geminiApiKey={import.meta.env.VITE_GEMINI_API_KEY}
+         />
+       </div>
+     );
+  };
+
   const renderWordBank = () => (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto bg-white rounded-xl shadow-2xl space-y-5">
       {/* Header */}
@@ -3297,25 +3419,28 @@ const LandingPage: React.FC<{
               // 1. Get the translation key
               const topicKey = `topics.${topic.toLowerCase().replace(/ /g, '_')}`;
               
-              // 2. FIX: Get the topic name in the TARGET language (e.g., Japanese)
+              // 2. Get the topic name in the UI language (for display)
+              const uiLanguageTopic = t(topicKey);
+  
+              // 3. Get the topic name in the TARGET language (for the search action)
               const targetLanguageTopic = t(topicKey, { lng: targetLanguage });
 
               return (
                 <button
                   key={topic}
                   onClick={() => {
-                    // 3. FIX: Set the input field to the target language topic
+                    // 4. Set the input field to the target language topic
                     setInputTopic(targetLanguageTopic);
-                    // 4. FIX: Search for the target language topic
-                    handleFindArticles(targetLanguageTopic, false); 
+                   // 5. Search for the target language topic
+                    handleFindArticles(targetLanguageTopic, false);
                   }}
                   disabled={isApiLoading || isFreeTierLimitReached}
                   className="bg-gray-100 text-gray-700 text-sm font-medium py-2 px-1 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition duration-150 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed text-center truncate"
-                  // 5. FIX: The title attribute will correctly use the UI language
+                  // 6. The title attribute describes the action (searching in target language)
                   title={isFreeTierLimitReached ? t('input.limitReachedTitle') : t('input.findTopicTitle', { topic: targetLanguageTopic })}
                 >
-                  {/* 6. FIX: Display the target language topic */}
-                  {targetLanguageTopic}
+                  {/* 7. Display the UI language topic */}
+                  {uiLanguageTopic}
                 </button>
               );
             })}
@@ -3503,6 +3628,11 @@ const LandingPage: React.FC<{
         );
     }
 
+    // --- NEW: Check view mode ---
+    if (lessonViewMode === 'guided') {
+      return renderGuidedLesson();
+    }
+
     // Render the lesson content (ensure currentLesson exists here)
     if (!currentLesson) {
        // Fallback case - should ideally not be reached if loading check is correct
@@ -3562,6 +3692,14 @@ const LandingPage: React.FC<{
                  <h2 className="text-xl sm:text-2xl font-bold text-blue-700 text-center flex-grow min-w-0 break-words px-2"> {/* Added break-words and padding */}
                    {currentLesson?.articleTitle || t('lesson.generating')}
                  </h2>
+                 {/* --- NEW: Toggle Button --- */}
+                 <button
+                    onClick={() => setLessonViewMode('guided')}
+                    className="flex items-center text-sm text-blue-600 font-medium p-2 rounded-lg hover:bg-blue-100"
+                    title={t('lesson.switchToGuided')}
+                 >
+                    <ArrowsRightLeftIcon className="w-5 h-5" />
+                 </button>
                  {/* Invisible placeholder to balance */}
                  <div className="flex items-center text-sm font-medium flex-shrink-0 invisible">
                       <ArrowLeftIcon className="w-4 h-4 mr-1" /> {t('common.back')}
@@ -3782,15 +3920,17 @@ const LandingPage: React.FC<{
   };
 
   // --- NEW: Render Activity View ---
+  // This function is now a modal wrapper for the Activity components
   const renderActivityView = () => {
-    // console.log("Rendering Activity View. State:", activityState); // Keep for debugging if needed
-
-    // --- SIMPLIFIED Loading State check ---
-    // Show loading if activityState is null OR if currentData inside it is null
-    // (This covers initial load for all types and grammar fetch)
-    const isLoadingData = !activityState || !activityState.currentData;
-
-    if (isLoadingData) {
+    // --- FIX: This is now a modal, so it only renders if activityState is not null ---
+     if (!activityState) {
+       return null;
+     }
+ 
+     const { type, index, score, total, currentData, feedback, isSubmitting } = activityState;
+ 
+     // Show loading spinner if data isn't ready
+     if (!currentData) {
        // Determine loading text more accurately based on activityState existence
        const loadingText = activityState?.type === 'grammar'
                            ? t('activity.generatingGrammar')
@@ -3809,8 +3949,8 @@ const LandingPage: React.FC<{
           );
     }
 
-    const { type, index, score, total, currentData, userAnswer, feedback, isSubmitting } = activityState;
-     const isFinished = currentData?.finished === true || index >= total;
+     // This should be handled by handleNextActivityQuestion, but as a fallback:
+     const isFinished = index >= total;
      if (isFinished) {
         return (
              <div className="p-6 max-w-2xl mx-auto bg-white rounded-xl shadow-2xl space-y-4 text-center">
@@ -3832,6 +3972,7 @@ const LandingPage: React.FC<{
     if (feedback.isCorrect === true) feedbackColor = 'border-green-500 bg-green-50';
     if (feedback.isCorrect === false) feedbackColor = 'border-red-500 bg-red-50';
 
+    // This logic is now identical to the one in GuidedLessonFlow
     const translatedType = t(
       type === 'vocab' ? 'activity.vocab' :
       type === 'grammar' ? 'activity.grammar' :
@@ -3843,254 +3984,44 @@ const LandingPage: React.FC<{
     );
 
     return (
-      <div className={`p-6 max-w-2xl mx-auto bg-white rounded-xl shadow-2xl space-y-4 border-2 ${feedbackColor}`}>
-        {/* Header with Progress and Score */}
-        <div className="flex justify-between items-center text-sm text-gray-600">
-          <span>{t('activity.title', { type: translatedType })}</span>
-          <span>{t('common.score')} {score}/{total}</span>
-          <span>{t('common.question')} {index + 1}/{total}</span>
-          <button onClick={quitActivity} className="text-xs text-gray-500 hover:text-gray-700">{t('common.quit')}</button>
-        </div>
-        <hr/>
-
-        {/* --- ADD Audio Error Display --- */}
-        {activityAudioError && <ErrorMessage message={activityAudioError} />}
-
-        {/* Activity Content */}
-        <div className="mt-4 space-y-4">
-          {/* Vocabulary Flashcard */}
-          {type === 'vocab' && currentData && ( // Added currentData check
-             <div>
-               <p className="text-lg font-semibold text-gray-700 mb-2">
-                 {t('activity.definition')}
-                 {currentData.definition && <SpeakButton text={currentData.definition} langCode={uiLanguage} />}
-               </p>
-               <p className="p-3 bg-gray-100 text-gray-900 rounded mb-4">{currentData.definition}</p>
-
-               {/* Conditional Rendering based on Level */}
-               {inputLevel === 'Advanced' ? (
-                 <>
-                   <label htmlFor="vocab-guess" className="block text-sm font-medium text-gray-700 mb-1">{t('activity.typeWord')}</label>
-                   <input
-                     id="vocab-guess"
-                     type="text"
-                     value={String(userAnswer ?? '')}
-                     onChange={(e) => setActivityState(prev => prev ? { ...prev, userAnswer: e.target.value } : null)}
-                     disabled={feedback.isCorrect !== null || isSubmitting}
-                     className="w-full p-2 border border-gray-300 text-gray-900 rounded disabled:bg-gray-100"
-                     onKeyDown={(e) => { if (e.key === 'Enter' && feedback.isCorrect === null) handleSubmitAnswer() }}
-                   />
-                 </>
-               ) : ( // Beginner or Intermediate (Multiple Choice)
-                 <>
-                    <p className="block text-sm font-medium text-gray-700 mb-2">{t('activity.chooseWord')}</p>
-                    <div className="space-y-2">
-                        {currentData.options?.map((option: string) => {
-                            let buttonClass = "w-full text-left text-gray-900 p-3 border rounded transition duration-150 ";
-                            const isSelected = userAnswer === option;
-
-                            if (feedback.isCorrect !== null) { // After grading
-                                if (option === currentData.word) {
-                                    buttonClass += "bg-green-300 border-green-400"; // Correct answer
-                                } else if (isSelected && !feedback.isCorrect) {
-                                    buttonClass += "bg-red-200 border-red-400"; // Incorrect selection
-                                } else {
-                                    buttonClass += "bg-gray-200 border-gray-300 opacity-70"; // Other options
-                                }
-                            } else { // Before grading
-                                 buttonClass += isSelected
-                                                 ? "bg-blue-300 border-blue-400" // Selected
-                                                 : "bg-white border-gray-300 hover:bg-gray-50"; // Not selected
-                            }
-
-                            return (
-                                 <button
-                                    key={option}
-                                    onClick={() => setActivityState(prev => prev ? { ...prev, userAnswer: option } : null)}
-                                    disabled={feedback.isCorrect !== null || isSubmitting}
-                                    className={buttonClass}
-                                  >
-                                    {option}
-                                 </button>
-                            );
-                        })}
-                    </div>
-                 </>
-               )}
-             </div>
-           )}
-
-          {/* --- ADDITION: Word Bank Study Mode (Def -> Word) --- */}
-          {type === 'wordbank_study' && currentData && (
-             <div>
-               <p className="text-lg font-semibold text-gray-700 mb-2">
-                 {t('activity.definition')}
-                 {/* Use the uiLanguage for the definition */}
-                 {currentData.definition && <SpeakButton text={currentData.definition} langCode={currentData.uiLanguage} />}
-               </p>
-               <p className="p-3 bg-gray-100 text-gray-900 rounded mb-4">{currentData.definition}</p>
-
-               <label htmlFor="vocab-guess" className="block text-sm font-medium text-gray-700 mb-1">
-                 {t('activity.typeWordLanguage', { language: t(`languages.${currentData.targetLanguage}`) })}
-               </label>
-               <input
-                 id="vocab-guess"
-                 type="text"
-                 value={String(userAnswer ?? '')}
-                 onChange={(e) => setActivityState(prev => prev ? { ...prev, userAnswer: e.target.value } : null)}
-                 disabled={feedback.isCorrect !== null || isSubmitting}
-                 className="w-full p-2 border border-gray-300 text-gray-900 rounded disabled:bg-gray-100"
-                 onKeyDown={(e) => { if (e.key === 'Enter' && feedback.isCorrect === null) handleSubmitAnswer() }}
-               />
-             </div>
-           )}
-          {/* --- END ADDITION --- */}
-
-          {/* --- ADDITION: Word Bank Review Mode (Word -> Def) --- */}
-          {type === 'wordbank_review' && currentData && (
-             <div>
-               <p className="text-lg font-semibold text-gray-700 mb-2">
-                 {t('common.word')}
-                 {/* Use the word's targetLanguage for the speak button */}
-                 {currentData.word && <SpeakButton text={currentData.word} langCode={currentData.targetLanguage} />}
-               </p>
-               <p className="p-3 bg-gray-100 text-gray-900 rounded mb-4 text-xl font-bold">{currentData.word}</p>
-               
-               {/* --- REMOVE THIS BLOCK ---
-               <label htmlFor="vocab-def-guess" className="block text-sm font-medium text-gray-700 mb-1">{t('activity.typeDefinition')}</label>
-               <textarea
-                 id="vocab-def-guess"
-                 value={String(userAnswer ?? '')}
-                 onChange={(e) => setActivityState(prev => prev ? { ...prev, userAnswer: e.target.value } : null)}
-                 disabled={feedback.isCorrect !== null || isSubmitting}
-                 rows={4}
-                 className="w-full p-2 border border-gray-300 text-gray-900 rounded disabled:bg-gray-100"
-                 placeholder={t('activity.typeDefinition')}
-               />
-               --- END REMOVAL --- */}
-             </div>
-           )}
-          {/* --- END ADDITION --- */}
-
-          {/* Grammar Quiz */}
-          {type === 'grammar' && (
-            <div>
-              <p className="text-lg font-semibold text-gray-700 mb-3">
-                {currentData.question}
-                {currentData.question && <SpeakButton text={currentData.question} langCode={uiLanguage} />}
-              </p>
-              <div className="space-y-2">
-                {currentData.options.map((option: string, i: number) => {
-                  const optionLetter = String.fromCharCode(65 + i); // A, B, C, D
-                   // Determine button style based on selection and feedback
-                   let buttonClass = "text-gray-900 w-full text-left p-3 border rounded transition duration-150 ";
-                   const isSelected = userAnswer === optionLetter;
-
-                   if (feedback.isCorrect !== null) { // After grading
-                       if (optionLetter === currentData.correctAnswer) {
-                           buttonClass += "bg-green-300 border-green-400"; // Correct answer
-                       } else if (isSelected && !feedback.isCorrect) {
-                           buttonClass += "bg-red-200 border-red-400"; // Incorrect selection
-                       } else {
-                           buttonClass += "bg-gray-200 border-gray-300 opacity-70"; // Other options
-                       }
-                   } else { // Before grading
-                        buttonClass += isSelected
-                                        ? "bg-blue-300 border-blue-400" // Selected
-                                        : "bg-white border-gray-300 hover:bg-gray-50"; // Not selected
-                   }
-
-
-                  return (
-                    <button
-                      key={optionLetter}
-                      onClick={() => setActivityState(prev => prev ? { ...prev, userAnswer: optionLetter } : null)}
-                      disabled={feedback.isCorrect !== null || isSubmitting}
-                      className={buttonClass}
-                    >
-                      {option}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Comprehension Test */}
-          {type === 'comprehension' && (
-            <div>
-              <p className="text-lg font-semibold text-gray-700 mb-3">
-                {currentData.question}
-                {currentData.question && <SpeakButton text={currentData.question} langCode={uiLanguage} />}
-              </p>
-              <textarea
-                value={String(userAnswer ?? '')}
-                onChange={(e) => setActivityState(prev => prev ? { ...prev, userAnswer: e.target.value } : null)}
-                disabled={feedback.isCorrect !== null || isSubmitting}
-                rows={4}
-                className="w-full p-2 border border-gray-300 text-gray-900 rounded disabled:bg-gray-100"
-                placeholder={t('activity.typeAnswer')}
-              />
-            </div>
-          )}
-
-          {/* --- NEW: Writing Practice --- */}
-          {type === 'writing' && currentData && (
-            <div>
-              <p className="text-lg font-semibold text-gray-700 mb-2">
-                {t('activity.writingPrompt')}
-                {currentData.prompt && <SpeakButton text={currentData.prompt} langCode={uiLanguage} />}
-              </p>
-              <p className="p-3 bg-gray-100 text-gray-900 rounded mb-2">{currentData.prompt}</p>
-              {currentData.vocabularyHint && (
-                <p className="text-sm text-gray-600 mb-3">
-                  {t('activity.tryWords', { words: currentData.vocabularyHint })}
-                </p>
-              )}
-              <textarea
-                value={String(userAnswer ?? '')}
-                onChange={(e) => setActivityState(prev => prev ? { ...prev, userAnswer: e.target.value } : null)}
-                disabled={feedback.isCorrect !== null || isSubmitting}
-                rows={6}
-                className="w-full p-2 border border-gray-300 text-gray-900 rounded disabled:bg-gray-100"
-                placeholder={t('activity.writeResponse')}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Feedback Area */}
-        {feedback.message && (
-          <div className={`mt-4 p-3 rounded text-sm ${feedback.isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-            {feedback.message}
+      <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+        <div className={`p-6 max-w-2xl mx-auto bg-white rounded-xl shadow-2xl space-y-4 border-2 ${feedbackColor}`}>
+          {/* Header with Progress and Score */}
+          <div className="flex justify-between items-center text-sm text-gray-600">
+            <span>{t('activity.title', { type: translatedType })}</span>
+            <span>{t('common.score')} {score}/{total}</span>
+            <span>{t('common.question')} {index + 1}/{total}</span>
+            <button onClick={quitActivity} className="text-xs text-gray-500 hover:text-gray-700">{t('common.quit')}</button>
           </div>
-        )}
+          <hr/>
 
-        {/* Action Buttons */}
-        <div className="mt-6 flex justify-end gap-3">
-          {feedback.isCorrect === null ? ( // Show Submit before grading
-            <button
-              onClick={handleSubmitAnswer}
-              disabled={(type !== 'wordbank_review' && (userAnswer === null || userAnswer === '')) || isSubmitting}
-              className="bg-blue-600 text-white font-bold py-2 px-5 rounded-lg hover:bg-blue-700 transition duration-150 disabled:opacity-50"
-            >
-              {/* FIX: Change button text for review mode */}
-              {isSubmitting ? (
-                <LoadingSpinner className="w-5 h-5 inline-block"/>
-              ) : type === 'wordbank_review' ? (
-                t('activity.showDefinition')
-              ) : (
-                t('common.submit')
-              )}
-            </button>
-          ) : ( // Show Next/Finish after grading
-            <button
-              onClick={handleNextQuestion}
-              className="bg-gray-600 text-white font-bold py-2 px-5 rounded-lg hover:bg-gray-700 transition duration-150"
-            >
-             {index + 1 >= total ? t('common.finish') : t('common.next')}
-            </button>
+          {/* --- ADD Audio Error Display --- */}
+          {activityAudioError && <ErrorMessage message={activityAudioError} />}
+
+          {/* --- NEW: Render the refactored ActivityContent --- */}
+          <ActivityContent
+           activityState={activityState}
+           inputLevel={inputLevel}
+           uiLanguage={uiLanguage}
+           isAudioLoading={isActivityAudioLoading}
+           onSpeak={handleActivityTextToSpeech}
+           onAnswerChange={(answer) => setActivityState(prev => prev ? { ...prev, userAnswer: answer } : null)}
+          />
+
+          {/* Feedback Area */}
+          {feedback.message && (
+            <div className={`mt-4 p-3 rounded text-sm ${feedback.isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+              {feedback.message}
+            </div>
           )}
+
+          {/* --- NEW: Render the refactored ActivityControls --- */}
+          <ActivityControls
+           activityState={activityState}
+           onSubmit={handleSubmitAnswer}
+           onNext={handleNextActivityQuestion} // Use the new handler
+           isLastStep={index + 1 >= total}
+          />
         </div>
       </div>
     );
