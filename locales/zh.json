@@ -29,7 +29,8 @@
       "beginner": "初级",
       "intermediate": "中级",
       "advanced": "高级",
-      "proBadge": "專業"
+      "proBadge": "專業",
+      "word": "单词"
     },
     "landing": {
       "modalFeaturesTitle": "主要功能",
@@ -106,7 +107,9 @@
       "changeTopicTitle": "更改主题",
       "changeTopicTitle": "更改主题",
       "saveForLater": "不打开而保存到仪表板",
-      "dislikeArticle": "嫌いとしてこの記事を置き換える"
+      "dislikeArticle": "嫌いとしてこの記事を置き換える",
+      "translateArticle": "翻译这篇文章",
+      "showOriginalArticle": "显示原文"
     },
     "lesson": {
       "generating": "正在生成你的课程，请稍候...",
@@ -124,7 +127,8 @@
       "grammarFocus": "语法重点：",
       "comprehensionQuestions": "理解问题",
       "showAnswer": "显示答案",
-      "answerShown": "答案已显示"
+      "answerShown": "答案已显示",
+      "getNewExample": "获取另一个例子"
     },
     "activity": {
       "title": "{{type}} 活动",
@@ -149,7 +153,8 @@
       "correct": "正确！",
       "incorrectWord": "不正确。正确的单词是 “{{word}}”。",
       "typeDefinition": "输入定义：",
-      "showDefinition": "显示定义"
+      "showDefinition": "显示定义",
+      "typeWordLanguage": "输入单词 ({{language}}):"
     },
     "chat": {
       "title": "AI 助手 “Max”",
@@ -178,6 +183,7 @@
       "feature2": "无限制的词汇练习。",
       "feature3": "无限制的写作练习。",
       "feature4": "完全访问你的课程历史。",
+      "feature5": "无限制使用 AI 实时聊天导师。",
       "button": "开始使用 Pro",
       "freeTitle": "免费计划",
       "freeDescription": "非常适合试用本应用。",
@@ -267,7 +273,7 @@
       "sports": "体育",
       "entertainment": "娱乐",
       "finance": "金融",
-      "ai": "AI",
+      "ai": "人工智能",
       "space": "太空",
       "climate_change": "气候变化",
       "cybersecurity": "网络安全",

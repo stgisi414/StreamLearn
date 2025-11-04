@@ -29,7 +29,8 @@
       "beginner": "Beginner",
       "intermediate": "Intermediate",
       "advanced": "Advanced",
-      "proBadge": "PRO"
+      "proBadge": "PRO",
+      "word": "Word"
     },
     "landing": {
       "modalFeaturesTitle": "Key Features",
@@ -108,7 +109,9 @@
       "empty": "No articles found for this topic.",
       "changeTopicTitle": "Change Topic",
       "saveForLater": "Save to dashboard without opening",
-      "dislikeArticle": "Dislike and replace this article"
+      "dislikeArticle": "Dislike and replace this article",
+      "translateArticle": "Translate this article",
+      "showOriginalArticle": "Show original article"
     },
     "lesson": {
       "generating": "Generating your lesson, this may take a moment...",
@@ -126,7 +129,8 @@
       "grammarFocus": "Grammar Focus:",
       "comprehensionQuestions": "Comprehension Questions",
       "showAnswer": "Show Answer",
-      "answerShown": "Answer is shown"
+      "answerShown": "Answer is shown",
+      "getNewExample": "Get another example"
     },
     "activity": {
       "title": "{{type}} Activity",
@@ -151,7 +155,8 @@
       "correct": "Correct!",
       "incorrectWord": "Incorrect. The word was \"{{word}}\".",
       "typeDefinition": "Type the definition:",
-      "showDefinition": "Show Definition"
+      "showDefinition": "Show Definition",
+      "typeWordLanguage": "Type the word (in {{language}}):"
     },
     "chat": {
       "title": "AI Assistant \"Max\"",
@@ -180,6 +185,7 @@
       "feature2": "Unlimited vocabulary practice.",
       "feature3": "Unlimited writing practice.",
       "feature4": "Full access to your lesson history.",
+      "feature5": "Unlimited access to Live Chat AI tutor.",
       "button": "Get Started with Pro",
       "freeTitle": "Free Plan",
       "freeDescription": "Perfect for trying out the app.",

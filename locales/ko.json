@@ -29,7 +29,8 @@
       "beginner": "초급",
       "intermediate": "중급",
       "advanced": "고급",
-      "proBadge": "프로"
+      "proBadge": "프로",
+      "word": "단어"
     },
     "landing": {
       "modalFeaturesTitle": "주요 기능",
@@ -108,7 +109,9 @@
       "changeTopicTitle": "주제 변경",
       "changeTopicTitle": "주제 변경",
       "saveForLater": "열지 않고 대시보드에 저장",
-      "dislikeArticle": "싫어요를 누르고 이 기사를 대체"
+      "dislikeArticle": "싫어요를 누르고 이 기사를 대체",
+      "translateArticle": "이 기사 번역하기",
+      "showOriginalArticle": "원본 기사 보기"
     },
     "lesson": {
       "generating": "수업을 생성 중입니다. 잠시 기다려 주세요...",
@@ -126,7 +129,8 @@
       "grammarFocus": "문법 초점:",
       "comprehensionQuestions": "이해력 질문",
       "showAnswer": "정답 보기",
-      "answerShown": "정답 표시됨"
+      "answerShown": "정답 표시됨",
+      "getNewExample": "다른 예시 보기"
     },
     "activity": {
       "title": "{{type}} 활동",
@@ -152,7 +156,8 @@
       "correct": "정답입니다!",
       "incorrectWord": "틀렸습니다. 정답은 \"{{word}}\"입니다.",
       "typeDefinition": "정의를 입력하세요:",
-      "showDefinition": "정의 보기"
+      "showDefinition": "정의 보기",
+      "typeWordLanguage": "단어를 입력하세요 ({{language}}):"
     },
     "chat": {
       "title": "AI 도우미 \"Max\"",
@@ -181,6 +186,7 @@
       "feature2": "무제한 어휘 연습.",
       "feature3": "무제한 작문 연습.",
       "feature4": "학습 기록 전체 액세스.",
+      "feature5": "실시간 채팅 AI 튜터 무제한 이용.",
       "button": "Pro로 시작하기",
       "freeTitle": "무료 플랜",
       "freeDescription": "앱을 사용해 보기에 완벽합니다.",
@@ -270,7 +276,7 @@
       "sports": "스포츠",
       "entertainment": "연예",
       "finance": "금융",
-      "ai": "AI",
+      "ai": "인공지능",
       "space": "우주",
       "climate_change": "기후 변화",
       "cybersecurity": "사이버 보안",

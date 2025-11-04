@@ -29,7 +29,8 @@
       "beginner": "Anfänger",
       "intermediate": "Mittelstufe",
       "advanced": "Fortgeschritten",
-      "proBadge": "PRO"
+      "proBadge": "PRO",
+      "word": "Wort"
     },
     "landing": {
       "modalFeaturesTitle": "Hauptmerkmale",
@@ -108,7 +109,9 @@
       "changeTopicTitle": "Thema ändern",
       "changeTopicTitle": "Thema ändern",
       "saveForLater": "Im Dashboard speichern ohne zu öffnen",
-      "dislikeArticle": "Ablehnen und diesen Artikel ersetzen"
+      "dislikeArticle": "Ablehnen und diesen Artikel ersetzen",
+      "translateArticle": "Diesen Artikel übersetzen",
+      "showOriginalArticle": "Originalartikel anzeigen"
     },
     "lesson": {
       "generating": "Deine Lektion wird generiert, dies kann einen Moment dauern...",
@@ -126,7 +129,8 @@
       "grammarFocus": "Grammatikfokus:",
       "comprehensionQuestions": "Verständnisfragen",
       "showAnswer": "Antwort anzeigen",
-      "answerShown": "Antwort wird angezeigt"
+      "answerShown": "Antwort wird angezeigt",
+      "getNewExample": "Ein anderes Beispiel erhalten"
     },
     "activity": {
       "title": "{{type}}-Aktivität",
@@ -151,7 +155,8 @@
       "correct": "Richtig!",
       "incorrectWord": "Falsch. Das Wort war \"{{word}}\".",
       "typeDefinition": "Tippe die Definition ein:",
-      "showDefinition": "Definition anzeigen"
+      "showDefinition": "Definition anzeigen",
+      "typeWordLanguage": "Tippe das Wort ein (auf {{language}}):"
     },
     "chat": {
       "title": "KI-Assistent „Max“",
@@ -180,6 +185,7 @@
       "feature2": "Unbegrenztes Vokabeltraining.",
       "feature3": "Unbegrenzte Schreibübungen.",
       "feature4": "Voller Zugriff auf deinen Lektionsverlauf.",
+      "feature5": "Unbegrenzter Zugang zum Live-Chat-KI-Tutor.",
       "button": "Mit Pro starten",
       "freeTitle": "Kostenloser Plan",
       "freeDescription": "Perfekt, um die App auszuprobieren.",

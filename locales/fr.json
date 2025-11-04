@@ -29,7 +29,8 @@
       "beginner": "Débutant",
       "intermediate": "Intermédiaire",
       "advanced": "Avancé",
-      "proBadge": "PRO"
+      "proBadge": "PRO",
+      "word": "Mot"
     },
     "landing": {
       "modalFeaturesTitle": "Fonctionnalités Clés",
@@ -108,7 +109,9 @@
       "changeTopicTitle": "Changer de Sujet",
       "changeTopicTitle": "Changer de Sujet",
       "saveForLater": "Enregistrer sur le tableau de bord sans ouvrir",
-      "dislikeArticle": "Ne pas aimer et remplacer cet article"
+      "dislikeArticle": "Ne pas aimer et remplacer cet article",
+      "translateArticle": "Traduire cet article",
+      "showOriginalArticle": "Afficher l'article original"
     },
     "lesson": {
       "generating": "Génération de votre leçon, cela peut prendre un moment...",
@@ -126,7 +129,8 @@
       "grammarFocus": "Point de grammaire :",
       "comprehensionQuestions": "Questions de compréhension",
       "showAnswer": "Afficher la Réponse",
-      "answerShown": "Réponse affichée"
+      "answerShown": "Réponse affichée",
+      "getNewExample": "Obtenir un autre exemple"
     },
     "activity": {
       "title": "Activité de {{type}}",
@@ -151,7 +155,8 @@
       "correct": "Correct !",
       "incorrectWord": "Incorrect. Le mot était \"{{word}}\".",
       "typeDefinition": "Écrivez la définition :",
-      "showDefinition": "Afficher la Définition"
+      "showDefinition": "Afficher la Définition",
+      "typeWordLanguage": "Écrivez le mot (en {{language}}) :"
     },
     "chat": {
       "title": "Assistant IA \"Max\"",
@@ -180,6 +185,7 @@
       "feature2": "Pratique illimitée du vocabulaire.",
       "feature3": "Pratique illimitée de l'écriture.",
       "feature4": "Accès complet à votre historique de leçons.",
+      "feature5": "Accès illimité au tuteur IA du chat en direct.",
       "button": "Commencer avec Pro",
       "freeTitle": "Plan gratuit",
       "freeDescription": "Parfait pour essayer l'application.",

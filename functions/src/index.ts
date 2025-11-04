@@ -165,61 +165,73 @@ export const fetchNews = onRequest(
             return;
         }
 
-        // --- FIX: Add '&num=30' to the Google URL ---
-        const targetUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&hl=${languageCode}&tbm=nws&num=30&brd_json=1`;
-        logger.info(`fetchNews: Target URL: ${targetUrl}`);
+        // --- FIX: Implement pagination instead of 'num=30' ---
+        // We want ~30 results, so we'll fetch 3 pages (start=0, start=10, start=20)
+        const startOffsets = [0, 10, 20];
+        
+        // Helper function to fetch a single page of results
+        const fetchPage = async (start: number): Promise<NewsResult[]> => {
+            // Use 'start' parameter and remove 'num=30'
+            const targetUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&hl=${languageCode}&tbm=nws&start=${start}&brd_json=1`;
+            logger.info(`fetchNews: Fetching page: ${targetUrl}`);
 
-        const payload = {
-          zone: zoneName,
-          url: targetUrl,
-          format: "json"
+            const payload = {
+              zone: zoneName,
+              url: targetUrl,
+              format: "json"
+            };
+
+            const response = await fetch(SCRAPER_API_ENDPOINT, { // Using imported fetch
+              method: "POST",
+              headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            } as RequestInit); // Using imported RequestInit
+
+            if (!response.ok) {
+              const errorText = await response.text();
+              logger.error(`Bright Data SERP API Error (start=${start}):`, response.status, errorText);
+              // Don't throw; just return an empty array for this failed page
+              return [];
+            }
+
+            const apiResponse: any = await response.json();
+
+            let parsedBody: any;
+            try {
+                if (typeof apiResponse.body !== 'string') {
+                    if(typeof apiResponse.news === 'object') {
+                        parsedBody = apiResponse;
+                    } else {
+                        throw new Error(`API response body is not a string or expected JSON object. Type: ${typeof apiResponse.body}`);
+                    }
+                } else {
+                     parsedBody = JSON.parse(apiResponse.body);
+                }
+            } catch (parseError) {
+                logger.error(`Failed to parse Bright Data response body (start=${start}):`, parseError, "Body:", apiResponse.body);
+                return []; // Return empty on parse error
+            }
+
+            const newsResults = parsedBody.news || [];
+            logger.info(`Received ${newsResults.length} structured articles from page (start=${start}).`);
+
+            return newsResults.map((item: any) => ({
+              title: item.title,
+              snippet: item.description || item.snippet || '',
+              link: item.link,
+              source: item.source || new URL(item.link).hostname.replace(/^www\./, ''),
+              date: item.date,
+              image: item.image || undefined
+            })).filter((item: NewsResult) => item.title && item.link);
         };
 
-        const response = await fetch(SCRAPER_API_ENDPOINT, { // Using imported fetch
-          method: "POST",
-          headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        } as RequestInit); // Using imported RequestInit
+        // Run all page fetches in parallel
+        const allPageResults = await Promise.all(startOffsets.map(fetchPage));
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("Bright Data SERP API Error (fetchNews):", response.status, errorText);
-          res.status(response.status).json({ error: "Bright Data SERP API returned an error.", details: errorText });
-          return;
-        }
+        // Flatten the array of arrays into a single array
+        const formattedResults = allPageResults.flat();
 
-        const apiResponse: any = await response.json();
-        // logger.info("Full Bright Data Response (fetchNews):", JSON.stringify(apiResponse)); // Optional debug log
-
-        let parsedBody: any;
-        try {
-            if (typeof apiResponse.body !== 'string') {
-                if(typeof apiResponse.news === 'object') {
-                    parsedBody = apiResponse;
-                    logger.info("Received direct JSON body from Bright Data.");
-                } else {
-                    throw new Error(`API response body is not a string or expected JSON object. Type: ${typeof apiResponse.body}`);
-                }
-            } else {
-                 parsedBody = JSON.parse(apiResponse.body);
-            }
-        } catch (parseError) {
-            logger.error("Failed to parse Bright Data response body:", parseError, "Body:", apiResponse.body);
-            res.status(500).json({ error: "Failed to parse API response body." });
-            return;
-        }
-
-        const newsResults = parsedBody.news || [];
-        logger.info(`Received ${newsResults.length} structured articles from parsed body.`);
-
-        const formattedResults = newsResults.map((item: any) => ({
-          title: item.title,
-          snippet: item.description || item.snippet || '',
-          link: item.link,
-          source: item.source || new URL(item.link).hostname.replace(/^www\./, ''),
-          date: item.date,
-          image: item.image || undefined
-        })).filter((item: NewsResult) => item.title && item.link);
+        logger.info(`fetchNews: Total articles fetched after pagination: ${formattedResults.length}`);
 
         res.status(200).json({ data: formattedResults });
 
@@ -321,10 +333,56 @@ export const createLesson = onRequest(
         const uiLangName = getLanguageName(uiLanguage);
         const targetLangName = getLanguageName(targetLanguage);
 
+        const levelInstructions: { [key: string]: string } = {
+          "Beginner": `
+            - Summary Length: 3-4 very simple sentences.
+            - Vocabulary: 4-5 common, essential words (N5/A1 level).
+            - Comprehension Questions: 3 simple 'what/where/who' questions.
+            - Grammar Topic: One very basic concept (e.g., basic verb conjugation, particles, nouns).
+            - Language: Use extremely simple sentence structures.
+          `,
+          "Intermediate": `
+            - Summary Length: 5-7 sentences.
+            - Vocabulary: 5-7 useful, common words (N3/B1 level).
+            - Comprehension Questions: 4 questions, including 'why' or 'how'.
+            - Grammar Topic: One intermediate concept (e.g., conditionals, passive voice, formal language).
+            - Language: Use standard sentence structures.
+          `,
+          "Advanced": `
+            - Summary Length: 6-8 detailed sentences, capturing nuance.
+            - Vocabulary: 6-8 complex or nuanced words (N1/C1 level).
+            - Comprehension Questions: 5 questions, including inference or 'what do you think' questions.
+            - Grammar Topic: One complex or subtle concept (e.g., advanced conjunctions, nuanced expressions, idiomatic structures).
+            - Language: Use complex and varied sentence structures.
+          `
+        };
+        const levelGuidance = levelInstructions[level as string] || levelInstructions["Intermediate"];
+
+        // This ensures ONLY summary rules are sent to the summary-generation prompts
+        const summaryLevelInstructions: { [key: string]: { "Summary Length": string, "Language": string } } = {
+          "Beginner": {
+            "Summary Length": "3-4 very simple sentences.",
+            "Language": "Use extremely simple sentence structures (A1/A2 level)."
+          },
+          "Intermediate": {
+            "Summary Length": "5-7 sentences.",
+            "Language": "Use standard sentence structures (B1 level)."
+          },
+          "Advanced": {
+            "Summary Length": "6-8 detailed sentences, capturing nuance.",
+            "Language": "Use complex and varied sentence structures (C1 level)."
+          }
+        };
+        // Convert to a string for injection into the prompt
+        const summaryGuidance = JSON.stringify(summaryLevelInstructions[level as string] || summaryLevelInstructions["Intermediate"], null, 2);
+
         logger.info(`Attempt 1: Fetching summary via urlContext for ${articleUrl}`);
         const urlSummaryPrompt = `Act as a news reporter. Report the key facts, events, and information from the content at this URL: ${articleUrl} IN ${targetLangName.toUpperCase()}. 
-            Your report should be between 5 and 10 sentences long. 
             Do not use words like 'article', 'summary', or 'this text' in ${targetLangName}. Report the information directly.
+            
+            Follow these rules for the ${level} student:
+            ${summaryGuidance} // <-- FIX: Use summaryGuidance, NOT levelGuidance
+
             IMPORTANT: After your news report, on a new line, in ENGLISH, explicitly state "PAYWALL_DETECTED" if the full content seems to be behind a paywall or requires a subscription/login based on the fetched content. If no paywall is obvious, state "PAYWALL_NOT_DETECTED".`;
 
         try {
@@ -377,8 +435,11 @@ export const createLesson = onRequest(
                 groundingSummaryPrompt += ` and snippet`;
             }
             groundingSummaryPrompt += `, write a news report in ${targetLangName.toUpperCase()}.
-                The report must be 5 to 10 sentences long. 
                 Do not add external information. Do not use words like 'article' or 'summary' in ${targetLangName}. Report the information directly.
+
+                Follow these rules for the ${level} student:
+                ${summaryGuidance} // <-- FIX: Use summaryGuidance, NOT levelGuidance
+            
                 Title: "${title}"`;
             if (snippet && snippet.trim() !== "") {
                 groundingSummaryPrompt += `\nSnippet: "${snippet}"`;
@@ -458,7 +519,22 @@ export const createLesson = onRequest(
             - All definitions and explanations (like vocabulary definitions, grammar explanations, and comprehension questions) MUST be in ${uiLangName.toUpperCase()}.
             - All content from the article (like the summary, vocabulary words, and example sentences) MUST be in ${targetLangName.toUpperCase()}.
             
-            The "grammarFocus.explanation" must be rich text using Markdown, including headings, ordered lists, and bold text for clarity and structure.`;
+            **CRITICAL: Adhere to these ${level}-specific guidelines for the lesson:**
+            ${levelGuidance}
+
+            For the "grammarFocus.explanation" (which must be in ${uiLangName.toUpperCase()}):
+            - Use rich text Markdown (headings, lists, bold).
+            - **CRITICAL FORMATTING RULES:**
+            - 1. ALWAYS use a double newline (\\n\\n) to separate paragraphs.
+            - 2. ALWAYS use a double newline (\\n\\n) *before* any heading (e.g., ## or ###).
+            - 3. ALWAYS use a double newline (\\n\\n) *after* a heading's text, before the next paragraph begins.
+            - 4. ALWAYS use a single newline (\\n) *before* the first list item (e.g., * or 1.).
+            - 5. NEVER run sentences or headings and paragraphs together.
+            - 6. **ABSOLUTELY NEVER** output a line that *only* contains markdown characters like "#", "##", or "*". This is bad formatting.
+            
+            - **GOOD EXAMPLE:** "This is a sentence.\\n\\n## New Heading\\n\\nThis is a new paragraph."
+            - **BAD EXAMPLE:** "This is a sentence.## New Heading"
+            - **BAD EXAMPLE:** "This is a sentence.\\n#\\n## New Heading"`;
 
         const lessonPrompt =
             `Generate the lesson for my ${level} ${uiLangName}-speaking student who is learning ${targetLangName}.
@@ -472,6 +548,9 @@ export const createLesson = onRequest(
             3. "vocabularyList": Key ${targetLangName} words, with definitions in ${uiLangName.toUpperCase()} and example sentences from the report (in ${targetLangName}).
             4. "comprehensionQuestions": Questions about the report, written in ${uiLangName.toUpperCase()}.
             5. "grammarFocus": A ${targetLangName} grammar topic found in the report, with an explanation in ${uiLangName.toUpperCase()}.
+
+            **IMPORTANT: Ensure the generated content strictly follows these ${level}-specific rules:**
+            ${levelGuidance}
 
             Ensure vocabulary examples come directly from the report text.`;
 
@@ -553,6 +632,27 @@ export const handleActivity = onRequest(
       const uiLangName = getLanguageName(uiLanguage);
       const targetLangName = getLanguageName(targetLanguage);
 
+      // --- Level-specific guidance object ---
+      const levelInstructions: { [key: string]: string } = {
+        "Beginner": `
+          - Difficulty: Easy (A1/A2 level).
+          - Language: Use very simple words and short sentences.
+          - Grading: Be lenient.
+        `,
+        "Intermediate": `
+          - Difficulty: Medium (B1/B2 level).
+          - Language: Use standard, clear language.
+          - Grading: Be accurate.
+        `,
+        "Advanced": `
+          - Difficulty: Hard (C1/C2 level).
+          - Language: Use nuanced and complex language if appropriate.
+          - Grading: Be strict and nuanced.
+        `
+      };
+      const levelGuidance = levelInstructions[level as string] || levelInstructions["Intermediate"];
+      // --- End Level-specific guidance ---
+
       if (!activityType || !payload) {
         logger.error("handleActivity: Bad request, missing activityType or payload.");
         res.status(400).json({ error: "Missing activityType or payload." });
@@ -602,8 +702,12 @@ export const handleActivity = onRequest(
              res.status(400).json({ error: "Missing topic, explanation, or level for grammar generation." });
              return;
            }
-          prompt = `You are a ${targetLangName} teacher. Generate one multiple-choice question in ${uiLangName.toUpperCase()} to test understanding of the ${targetLangName} grammar topic "${payload.topic}" suitable for a ${level} learner. 
+          prompt = `You are a ${targetLangName} teacher. Generate one multiple-choice question in ${uiLangName.toUpperCase()} to test understanding of the ${targetLangName} grammar topic "${payload.topic}". 
             The explanation (in ${uiLangName}) is: "${payload.explanation}".
+            
+            **IMPORTANT: Follow these ${level}-specific rules:**
+            ${levelGuidance}
+
             Provide 4 distinct options (A, B, C, D) in ${uiLangName}, with only one being correct.
             Respond ONLY with a JSON object following the specified schema.`;
           responseSchema = {
@@ -629,14 +733,73 @@ export const handleActivity = onRequest(
            res.status(200).json({ data: { isCorrect: isGrammarCorrect, feedback: feedbackMsg } });
            return;
 
-        case 'comprehension':
+        // --- NEW/RESTORED CASE ---
+        case 'grammar_example':
+           if (!payload.topic || !payload.level || !payload.targetLanguage) {
+             logger.error("handleActivity: Bad request (grammar_example), missing params.");
+             res.status(400).json({ error: "Missing topic, level, or targetLanguage for grammar example generation." });
+             return;
+           }
+          prompt = `You are a ${targetLangName} language teacher. 
+            A ${level} student is learning about the ${targetLangName} grammar topic "${payload.topic}".
+            
+            **IMPORTANT: Follow these ${level}-specific rules for the example:**
+            ${levelGuidance}
+
+            Generate ONE completely new, simple, and clear example sentence (in ${targetLangName.toUpperCase()}) that demonstrates this grammar topic.
+            Do NOT use any examples already present in this explanation: "${payload.explanation || 'N/A'}".
+            The sentence must be different from any previous examples.
+            Respond ONLY with a JSON object following the specified schema.`;
+          
+          responseSchema = {
+            type: Type.OBJECT,
+            properties: {
+              example: { type: Type.STRING, description: `The new example sentence, in ${targetLangName}.` }
+            },
+            required: ["example"]
+          };
+          break;
+        
+        // --- NEW/RESTORED CASE ---
+        case 'translate_article_content':
+          if (!payload.title || payload.snippet === undefined || !payload.uiLanguage || !payload.targetLanguage) {
+            logger.error("handleActivity: Bad request (translate_article_content), missing params.");
+            res.status(400).json({ error: "Missing title, snippet, uiLanguage, or targetLanguage." });
+            return;
+          }
+
+          prompt = `You are an expert translator. Translate the following JSON object's "title" and "snippet" values from ${targetLangName} into ${uiLangName.toUpperCase()}.
+            Your response MUST be ONLY a valid JSON object matching the response schema.
+            
+            Input:
+            {
+              "title": "${payload.title}",
+              "snippet": "${payload.snippet}"
+            }`;
+          
+          responseSchema = {
+            type: Type.OBJECT,
+            properties: {
+              translatedTitle: { type: Type.STRING, description: `The translated title in ${uiLangName}.` },
+              translatedSnippet: { type: Type.STRING, description: `The translated snippet in ${uiLangName}.` }
+            },
+            required: ["translatedTitle", "translatedSnippet"]
+          };
+          break;
+
+        // --- RENAMED CASE ---
+        case 'comprehension_grade':
           if (!payload.question || !payload.summary || payload.userAnswer === undefined || payload.userAnswer === null || !payload.level) {
-              logger.error("handleActivity: Bad request (comprehension), missing params.");
+              logger.error("handleActivity: Bad request (comprehension_grade), missing params.");
               res.status(400).json({ error: "Missing question, summary, or userAnswer for comprehension activity." });
               return;
           }
           prompt = `You are a ${targetLangName} teacher grading a ${level} ${uiLangName}-speaking student.
             Based *only* on the following ${targetLangName} summary, evaluate if the user's answer (which is in ${uiLangName}) accurately addresses the question (which is also in ${uiLangName}).
+            
+            **IMPORTANT: Grade according to these ${level}-specific rules:**
+            ${levelGuidance}
+
             Summary (in ${targetLangName}): "${payload.summary}"
             Question (in ${uiLangName}): "${payload.question}"
             User Answer (in ${uiLangName}): "${payload.userAnswer}"
@@ -659,6 +822,10 @@ export const handleActivity = onRequest(
             """
             ${payload.summary}
             """
+            
+            **IMPORTANT: Follow these ${level}-specific rules:**
+            ${levelGuidance}
+
             The prompt should encourage them to use one or two of these ${targetLangName} words: ${vocabHint}.
             Respond ONLY with a JSON object following the specified schema.`;
            
@@ -681,6 +848,10 @@ export const handleActivity = onRequest(
           
           prompt = `You are a ${targetLangName} teacher grading a ${level} ${uiLangName}-speaking learner.
             Based *only* on the summary and prompt provided, evaluate the user's writing (which should be in ${targetLangName}).
+
+            **IMPORTANT: Grade according to these ${level}-specific rules:**
+            ${levelGuidance}
+
             Summary (in ${targetLangName}): "${payload.summary}"
             Writing Prompt (in ${uiLangName}): "${payload.prompt}"
             User's Answer (in ${targetLangName}): "${payload.userAnswer}"
@@ -714,18 +885,18 @@ export const handleActivity = onRequest(
         throw new Error(`AI generation failed for ${activityType}.`);
       }
 
-      if (activityType === 'comprehension' || activityType === 'writing_grade') {
+      if (activityType === 'comprehension_grade' || activityType === 'writing_grade') {
           responseText = responseText.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
       }
 
       try {
         const jsonResponse = JSON.parse(responseText);
 
-        if ((activityType === 'comprehension' || activityType === 'writing_grade') && jsonResponse.feedback && typeof jsonResponse.feedback === 'string') {
+        if ((activityType === 'comprehension_grade' || activityType === 'writing_grade') && jsonResponse.feedback && typeof jsonResponse.feedback === 'string') {
             jsonResponse.feedback = jsonResponse.feedback.replace(/`/g, ''); // Remove all backticks
         }
 
-        if (activityType === 'comprehension' && jsonResponse.isCorrect === undefined) {
+        if (activityType === 'comprehension_grade' && jsonResponse.isCorrect === undefined) {
             jsonResponse.isCorrect = jsonResponse.feedback?.toLowerCase().includes("correct") ?? false;
         }
         
@@ -734,7 +905,7 @@ export const handleActivity = onRequest(
         return;
       } catch (parseError) {
         logger.error(`Failed to parse Gemini JSON response for ${activityType}:`, parseError, "Raw text:", responseText);
-        if (activityType === 'comprehension') {
+        if (activityType === 'comprehension_grade') {
             const cleanedFeedback = responseText.replace(/`/g, '');
             res.status(200).json({ data: { 
                 isCorrect: cleanedFeedback.toLowerCase().includes("correct"),

@@ -29,7 +29,8 @@
       "beginner": "初級",
       "intermediate": "中級",
       "advanced": "上級",
-      "proBadge": "プロ"
+      "proBadge": "プロ",
+      "word": "単語"
     },
     "landing": {
       "modalFeaturesTitle": "主な機能",
@@ -108,7 +109,9 @@
       "changeTopicTitle": "トピックを変更",
       "changeTopicTitle": "トピックを変更",
       "saveForLater": "開かずにダッシュボードに保存",
-      "dislikeArticle": "気に入らないとしてこの記事を置き換える"
+      "dislikeArticle": "気に入らないとしてこの記事を置き換える",
+      "translateArticle": "この記事を翻訳",
+      "showOriginalArticle": "原文を表示"
     },
     "lesson": {
       "generating": "レッスンを生成中です。しばらくお待ちください...",
@@ -126,7 +129,8 @@
       "grammarFocus": "文法フォーカス:",
       "comprehensionQuestions": "読解問題",
       "showAnswer": "答えを表示",
-      "answerShown": "答えが表示されました"
+      "answerShown": "答えが表示されました",
+      "getNewExample": "別の例を取得"
     },
     "activity": {
       "title": "{{type}} アクティビティ",
@@ -151,7 +155,8 @@
       "correct": "正解です！",
       "incorrectWord": "不正解です。正解は「{{word}}」でした。",
       "typeDefinition": "定義を入力してください:",
-      "showDefinition": "定義を表示"
+      "showDefinition": "定義を表示",
+      "typeWordLanguage": "単語を入力してください ({{language}}):"
     },
     "chat": {
       "title": "AIアシスタント「Max」",
@@ -180,6 +185,7 @@
       "feature2": "無制限の語彙練習。",
       "feature3": "無制限のライティング練習。",
       "feature4": "レッスン履歴へのフルアクセス。",
+      "feature5": "ライブチャットAI講師への無制限アクセス。",
       "button": "Proを始める",
       "freeTitle": "無料プラン",
       "freeDescription": "アプリを試すのに最適です。",
@@ -269,7 +275,7 @@
       "sports": "スポーツ",
       "entertainment": "エンターテイメント",
       "finance": "金融",
-      "ai": "AI",
+      "ai": "人工知能",
       "space": "宇宙",
       "climate_change": "気候変動",
       "cybersecurity": "サイバーセキュリティ",

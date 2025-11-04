@@ -3,10 +3,25 @@ interface MarkdownRendererProps {
   className?: string;
 }
 
-// A simple utility to convert basic Markdown (headings, lists, bold) to React elements
 const renderMarkdown = (markdown: string): React.ReactNode => {
+    // --- FIX: Pre-process the markdown to make it more robust ---
+    
+    // 1. Add newlines before markdown elements (headings, lists) that are run-on
+    // Example: "...some text.## Heading" -> "...some text.\n\n## Heading"
+    let processedMarkdown = markdown.replace(/([.!?a-záéíóúñ])(#{1,4} )/g, '$1\n\n$2');
+    
+    // 2. Add newlines after colons followed by lists
+    processedMarkdown = processedMarkdown.replace(/(:)(\* )/g, '$1\n$2');
+    processedMarkdown = processedMarkdown.replace(/(:)(\d+\. )/g, '$1\n$2');
+    
+    // 3. Add a space between a lowercase letter and an uppercase letter (fixes "JaponésLa" -> "Japonés La")
+    processedMarkdown = processedMarkdown.replace(/([a-záéíóúñ])([A-ZÁÉÍÓÚÑ])/g, '$1 $2');
+    
+    // 4. Add a space between a bold-end and a new word (fixes "**Example:**He")
+    processedMarkdown = processedMarkdown.replace(/\*\*([A-Za-z])/g, '** $1');
+    
     // Split the content by new lines
-    const lines = markdown.split('\n');
+    const lines = processedMarkdown.split('\n');
     const elements: React.ReactNode[] = [];
     let listItems: React.ReactNode[] = [];
     let isList = false;
@@ -25,6 +40,13 @@ const renderMarkdown = (markdown: string): React.ReactNode => {
 
     const processLine = (line: string): React.ReactNode | null => {
         line = line.trim();
+        
+        // --- NEW FIX: Explicitly ignore stray markdown lines ---
+        if (line === "#" || line === "##" || line === "###" || line === "*") {
+            return null; // This is a stray markdown character, ignore it
+        }
+        // --- END NEW FIX ---
+
         if (!line) return null;
 
         // Simple replacements for inline styles

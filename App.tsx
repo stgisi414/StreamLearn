@@ -308,6 +308,15 @@ const App: React.FC = () => {
   const [articleFeedbackMessage, setArticleFeedbackMessage] = useState<string | null>(null);
   const initialUrlHandled = useRef(false);
 
+  const [replacementIndex, setReplacementIndex] = useLocalStorageState<number>('streamlearn_replacementIndex', 10);
+
+  const [generatedGrammarExamples, setGeneratedGrammarExamples] = useState<string[]>([]);
+  const [isGeneratingExample, setIsGeneratingExample] = useState(false);
+
+  const [translatedArticles, setTranslatedArticles] = useLocalStorageState<Record<string, { translatedTitle: string, translatedSnippet: string }>>("streamlearn_translatedArticles", {}); // <-- MODIFY THIS (useLocalStorageState, new key)
+  const [isTranslating, setIsTranslating] = useState<string | null>(null); // <-- MODIFY THIS (string | null)
+  const [toggledTranslations, setToggledTranslations] = useState<Record<string, boolean>>({});
+
   const [chatHistory, setChatHistory] = useLocalStorageState<ChatMessage[]>('streamlearn_chatHistory', []);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
@@ -487,6 +496,12 @@ const App: React.FC = () => {
       return; // Stop the search
     }
 
+    setTranslatedArticles({});
+    setIsTranslating(null);
+    setToggledTranslations({});
+
+    setReplacementIndex(10);
+
     setIsApiLoading(true);
     setError(null);
     if (!skipNavigation) {
@@ -532,7 +547,16 @@ const App: React.FC = () => {
   // --- NEW: Helper to fetch summary audio ---
   // --- NEW: Helper to fetch summary audio ---
   const fetchSummaryAudio = useCallback(async (summaryText: string, langCode: LanguageCode) => {
-    if (!summaryText || isSummaryAudioLoading || summaryAudioSrc) return; // Don't fetch if loading, already have src, or no text
+    // --- DEBUG LOG ---
+    console.log(`[AUDIO_DEBUG] 1. fetchSummaryAudio: CALLED. isSummaryAudioLoading: ${isSummaryAudioLoading}, summaryAudioSrc exists: ${!!summaryAudioSrc}`);
+    // ---
+
+    if (!summaryText || isSummaryAudioLoading || summaryAudioSrc) {
+      // --- DEBUG LOG ---
+      console.log(`[AUDIO_DEBUG] 1a. fetchSummaryAudio: Bailing early.`);
+      // ---
+      return; // Don't fetch if loading, already have src, or no text
+    }
 
     // --- START FIX: Add length check and truncation ---
     if (summaryText.length > 1500) {
@@ -541,7 +565,7 @@ const App: React.FC = () => {
     }
     // --- END FIX ---
 
-    console.log("Fetching summary audio...");
+    console.log("[AUDIO_DEBUG] 1b. fetchSummaryAudio: Fetching from backend...");
     setIsSummaryAudioLoading(true);
     setSummaryAudioError(null);
     setError(null); // Clear main error too
@@ -553,8 +577,16 @@ const App: React.FC = () => {
       });
       if (response.audioContent) {
         const audioData = `data:audio/mp3;base64,${response.audioContent}`;
+        
+        // --- DEBUG LOG ---
+        console.log(`[AUDIO_DEBUG] 2. fetchSummaryAudio: SUCCESS. Calling setSummaryAudioSrc with data (length: ${audioData.length}). This should trigger the useEffect.`);
+        // ---
+        
         setSummaryAudioSrc(audioData); // Set the source, useEffect will create Audio object
-        console.log("Summary audio source set.");
+        
+        // --- DEBUG LOG ---
+        console.log(`[AUDIO_DEBUG] 3. fetchSummaryAudio: setSummaryAudioSrc has been called.`);
+        // ---
       } else {
         throw new Error("Backend did not return audio content for summary.");
       }
@@ -564,7 +596,7 @@ const App: React.FC = () => {
     } finally {
       setIsSummaryAudioLoading(false);
     }
-  }, [authenticatedFetch, isSummaryAudioLoading, summaryAudioSrc]); // Added dependencies
+  }, [authenticatedFetch]); // <-- REMOVED isSummaryAudioLoading and summaryAudioSrc
 
   const handleSelectArticle = useCallback(async (article: Article, skipNavigation: boolean = false) => {
     console.log("handleSelectArticle called for:", article.link);
@@ -610,6 +642,7 @@ const App: React.FC = () => {
         }
         setChatHistory([]);
         setChatError(null);
+        setGeneratedGrammarExamples([]);
     }
 
     setCurrentArticle(article);
@@ -706,7 +739,6 @@ const App: React.FC = () => {
       setSummaryAudioSrc, setIsSummaryPlaying, setSummaryAudioProgress,
       setSummaryAudioDuration, setSummaryAudioError, setCurrentArticle,
       goToLesson, goToInput, authenticatedFetch, fetchSummaryAudio,
-      summaryAudioSrc, isSummaryAudioLoading,
       t, uiLanguage, targetLanguage
       // --- END REMOVAL ---
   ]);
@@ -974,8 +1006,18 @@ const App: React.FC = () => {
     
     let nextView: AppView | null = null; // Use null to detect if a branch was hit
 
-    // Handle authentication and loading states first
-    if (authState !== 'SIGNED_IN') {
+    // --- FIX: Check for public routes FIRST ---
+    if (path.startsWith('/terms')) {
+      nextView = 'TERMS';
+    } else if (path.startsWith('/privacy')) {
+      nextView = 'PRIVACY';
+    } else if (path.startsWith('/pricing')) {
+      nextView = 'PRICING';
+    }
+    // --- END FIX ---
+
+    // Handle authentication and loading states second
+    else if (authState !== 'SIGNED_IN') { // Note the 'else if'
       if (authState === 'SIGNED_OUT') {
         console.log("Setting view to LANDING");
         nextView = 'LANDING';
@@ -1028,13 +1070,9 @@ const App: React.FC = () => {
           nextView = 'INPUT';
         } else if (path.startsWith('/wordbank')) { // <-- ADD THIS BLOCK
           nextView = 'WORD_BANK';
-        } else if (path.startsWith('/pricing')) { // <-- ADD THIS
-          nextView = 'PRICING';
-        } else if (path.startsWith('/terms')) { // <-- ADD THIS
-          nextView = 'TERMS';
-        } else if (path.startsWith('/privacy')) { // <-- ADD THIS
-          nextView = 'PRIVACY';
-        } else { // Default path '/'
+        }
+        // --- REMOVED /pricing, /terms, /privacy from this 'else' block ---
+        else { // Default path '/'
           nextView = 'DASHBOARD'; // <-- CHANGE HERE
         }
 
@@ -1286,6 +1324,95 @@ const App: React.FC = () => {
     }
   }, [user, isLikingArticle, inputLevel, inputTopic, uiLanguage, authenticatedFetch, setError]);
 
+  const handleGenerateGrammarExample = useCallback(async () => {
+      if (!currentLesson?.grammarFocus?.topic || isGeneratingExample) return;
+
+      setIsGeneratingExample(true);
+      setError(null);
+
+      try {
+        const result = await authenticatedFetch('handleActivity', {
+          activityType: 'grammar_example',
+          payload: {
+            topic: currentLesson.grammarFocus.topic,
+            explanation: currentLesson.grammarFocus.explanation || '', // Send explanation for context
+            level: inputLevel,
+            uiLanguage: uiLanguage,
+            targetLanguage: targetLanguage
+          }
+        });
+        
+        if (result.example) {
+          setGeneratedGrammarExamples(prev => [...prev, result.example]);
+        } else {
+          throw new Error("AI did not return a new example.");
+        }
+
+      } catch (e) {
+        setError(`Failed to generate new example: ${(e as Error).message}`);
+      } finally {
+        setIsGeneratingExample(false);
+      }
+    }, [
+      currentLesson, isGeneratingExample, inputLevel, uiLanguage, 
+      targetLanguage, authenticatedFetch, setError
+    ]);
+
+  const handleTranslateArticle = useCallback(async (article: Article) => {
+      const articleId = article.link;
+
+      // If already translated, just toggle the view
+      if (translatedArticles[articleId]) {
+        setToggledTranslations(prev => ({
+          ...prev,
+          [articleId]: !prev[articleId]
+        }));
+        return;
+      }
+
+      // If not translated, fetch it
+      setIsTranslating(articleId);
+      setError(null);
+
+      try {
+        const result = await authenticatedFetch('handleActivity', {
+          activityType: 'translate_article_content',
+          payload: {
+            title: article.title,
+            snippet: article.snippet || '',
+            uiLanguage: uiLanguage,
+            targetLanguage: targetLanguage
+          }
+        });
+
+        if (result.translatedTitle) {
+          // Add to cache
+          setTranslatedArticles(prev => ({
+            ...prev,
+            [articleId]: {
+              translatedTitle: result.translatedTitle,
+              translatedSnippet: result.translatedSnippet || ''
+            }
+          }));
+          // Toggle it on
+          setToggledTranslations(prev => ({
+            ...prev,
+            [articleId]: true
+          }));
+        } else {
+          throw new Error("AI did not return a translation.");
+        }
+
+      } catch (e) {
+        setError(`Failed to translate article: ${(e as Error).message}`);
+      } finally {
+        setIsTranslating(null);
+      }
+    }, [
+      translatedArticles, authenticatedFetch, uiLanguage, 
+      targetLanguage, setError, setTranslatedArticles, setToggledTranslations
+    ]);
+
   const handleFetchComprehensionAnswer = useCallback(async (question: string, index: number) => {
     if (isAnswerLoading === index || comprehensionAnswers[index]) return; // Already loading or already have it
     
@@ -1310,52 +1437,60 @@ const App: React.FC = () => {
 
   // --- NEW: Handler for "Disliking" an article ---
   const handleDislikeArticle = useCallback(async (articleToDislike: Article) => {
-    if (!user || isDislikingArticle) return;
+  if (!user || isDislikingArticle === articleToDislike.link) return; // Prevent double-clicks
 
-    setIsDislikingArticle(articleToDislike.link);
-    setArticleFeedbackMessage(null);
-    setError(null);
+  setIsDislikingArticle(articleToDislike.link);
+  setArticleFeedbackMessage(null);
+  setError(null);
 
-    try {
-      // --- 1. Remove from Firestore (if it exists) ---
-      // We call this function even if it's not in the local `lessonHistory`
-      // in case of state mismatch. The function will just do nothing if doc doesn't exist.
-      await authenticatedFetch('removeLesson', {
-        articleUrl: articleToDislike.link
-      });
+  try {
+    // --- 1. Remove from Firestore (if it exists) ---
+    await authenticatedFetch('removeLesson', {
+      articleUrl: articleToDislike.link
+    });
 
-      // --- 2. Find replacement article ---
+    // --- 2. & 3. Update local visible state ATOMICALLY ---
+    setVisibleNewsResults(prevVisible => {
+      // Filter out the disliked article
+      const filteredList = prevVisible.filter(a => a.link !== articleToDislike.link);
+
+      let newReplacementIndex = replacementIndex; // Get index from state
       let replacementArticle: NewsResult | null = null;
-      // Get a set of currently visible article links for fast lookup
-      const visibleLinks = new Set(visibleNewsResults.map(a => a.link));
-      // Find the first article in the full list that is not currently visible
-      for (const article of allFetchedArticles) {
-        if (!visibleLinks.has(article.link)) {
-          replacementArticle = article;
-          break; // Found one
-        }
+
+      // Find next valid article from the full list
+      while(newReplacementIndex < allFetchedArticles.length) {
+          const potentialArticle = allFetchedArticles[newReplacementIndex];
+
+          // Check if it's already visible FOR SOME REASON
+          // (e.g. user liked it from a previous session)
+          const isAlreadyVisible = prevVisible.some(a => a.link === potentialArticle.link);
+
+          if (!isAlreadyVisible) {
+              replacementArticle = potentialArticle;
+              newReplacementIndex++; // Increment index for *next* time
+              break; // Found one
+          }
+          newReplacementIndex++; // Skip this one, try next
       }
 
-      // --- 3. Update local visible state ---
-      setVisibleNewsResults(prevVisible => {
-        // Filter out the disliked article
-        const filteredList = prevVisible.filter(a => a.link !== articleToDislike.link);
-        
-        // Add the replacement if one was found
-        if (replacementArticle) {
-          return [...filteredList, replacementArticle];
-        }
-        
-        // Otherwise, just return the filtered list
-        return filteredList;
-      });
+      setReplacementIndex(newReplacementIndex); // Save new index to state/localStorage
 
-    } catch (e) {
-      setError(`Error disliking article: ${(e as Error).message}`);
-    } finally {
-      setIsDislikingArticle(null);
-    }
-  }, [user, isDislikingArticle, allFetchedArticles, visibleNewsResults, authenticatedFetch, setError, setVisibleNewsResults]);
+      if (replacementArticle) {
+          return [...filteredList, replacementArticle];
+      }
+
+      return filteredList; // List will shrink if no replacements left
+    });
+
+  } catch (e) {
+    setError(`Error disliking article: ${(e as Error).message}`);
+  } finally {
+    setIsDislikingArticle(null);
+  }
+}, [
+    user, isDislikingArticle, allFetchedArticles, authenticatedFetch, setError, 
+    setVisibleNewsResults, replacementIndex, setReplacementIndex // <-- Ensure new dependencies are added
+]);
 
   // --- Google Sign-In Handler ---
   const signInWithGoogle = async () => {
@@ -1649,7 +1784,8 @@ const App: React.FC = () => {
         return { 
           word: currentVocabItem.word, 
           definition: currentVocabItem.definition,
-          uiLanguage: uiLanguage // Pass UI lang for speak button
+          uiLanguage: uiLanguage, // Pass UI lang for speak button
+          targetLanguage: currentVocabItem.targetLanguage
         };
       });
     // --- END ADDITION ---
@@ -1788,20 +1924,44 @@ const App: React.FC = () => {
   ]);
 
     const handleSubmitAnswer = async () => {
-      if (!activityState || !activityState.currentData || activityState.userAnswer === null || activityState.feedback.isCorrect !== null) return;
+      // --- MODIFY THIS GUARD CLAUSE ---
+      if (!activityState || !activityState.currentData || activityState.feedback.isCorrect !== null) {
+        console.warn("handleSubmitAnswer: Bailing early (no state/data, or feedback already given)");
+        return; 
+      }
+      // --- END MODIFICATION ---
+
+      // --- MOVE THIS BLOCK UP ---
+      const { type, currentData, userAnswer, score } = activityState;
+      // --- END MOVE ---
+
+      // --- ADD THIS NEW GUARD CLAUSE ---
+      // Now, check for userAnswer *unless* it's review mode
+      if (type !== 'wordbank_review' && (userAnswer === null || userAnswer === '')) {
+        console.warn("handleSubmitAnswer: Bailing (answer is null/empty on a non-review activity)");
+        return;
+      }
+      // --- END ADDITION ---
 
       setActivityState(prev => prev ? ({ ...prev, isSubmitting: true }) : null);
       setError(null);
 
-      const { type, currentData, userAnswer, score } = activityState;
-      let isCorrect: boolean = false;
-      let feedbackMsg: string = '';
-
       try {
+          // --- MOVE THESE DECLARATIONS HERE ---
+          let isCorrect: boolean = false;
+          let feedbackMsg: string = '';
+          // --- END MOVE ---
+
           if (type === 'vocab') {
-              // --- MODIFIED: Direct check for both MC and Fill-in-the-blank ---
+              // --- REMOVE THE OLD DECLARATIONS ---
+              // isCorrect = String(userAnswer).trim().toLowerCase() === String(currentData.word).trim().toLowerCase();
+              // feedbackMsg = isCorrect ? t('activity.correct') : t('activity.incorrectWord', { word: currentData.word });
+              // --- END REMOVAL ---
+
+              // --- REPLACE WITH ASSIGNMENTS ---
               isCorrect = String(userAnswer).trim().toLowerCase() === String(currentData.word).trim().toLowerCase();
               feedbackMsg = isCorrect ? t('activity.correct') : t('activity.incorrectWord', { word: currentData.word });
+              // --- END ASSIGNMENTS ---
 
               // Optional: Add AI check for 'Advanced' level typos here if desired
               // if (inputLevel === 'Advanced' && !isCorrect) { ... call handleActivity ... }
@@ -1845,7 +2005,7 @@ const App: React.FC = () => {
           } else if (type === 'comprehension') {
               // Comprehension grading remains the same (uses backend)
                const result = await authenticatedFetch('handleActivity', {
-                  activityType: 'comprehension',
+                  activityType: 'comprehension_grade',
                   payload: {
                       question: currentData.question,
                       summary: currentData.summary,
@@ -1890,10 +2050,17 @@ const App: React.FC = () => {
                });
 
           } else if (type === 'wordbank_study') {
-          isCorrect = String(userAnswer).trim().toLowerCase() === String(currentData.word).trim().toLowerCase();
-          feedbackMsg = isCorrect ? t('activity.correct') : t('activity.incorrectWord', { word: currentData.word });
+            // --- REMOVE THE OLD DECLARATIONS ---
+            // isCorrect = String(userAnswer).trim().toLowerCase() === String(currentData.word).trim().toLowerCase();
+            // feedbackMsg = isCorrect ? t('activity.correct') : t('activity.incorrectWord', { word: currentData.word });
+            // --- END REMOVAL ---
+            
+            // --- REPLACE WITH ASSIGNMENTS ---
+            isCorrect = String(userAnswer).trim().toLowerCase() === String(currentData.word).trim().toLowerCase();
+            feedbackMsg = isCorrect ? t('activity.correct') : t('activity.incorrectWord', { word: currentData.word });
+            // --- END ASSIGNMENTS ---
 
-          setActivityState(prev => {
+            setActivityState(prev => {
               if (!prev) return null;
               const newScore = isCorrect ? prev.score + 1 : prev.score;
               return {
@@ -1901,9 +2068,9 @@ const App: React.FC = () => {
                   feedback: { isCorrect: isCorrect, message: feedbackMsg },
                   score: newScore,
                   isSubmitting: false
-              };
-          });
-      // --- END ADDITION ---
+                };
+            });
+            // --- END ADDITION ---
 
       // --- ADDITION: Handle wordbank_review submission (just show answer) ---
       } else if (type === 'wordbank_review') {
@@ -1997,48 +2164,95 @@ const App: React.FC = () => {
     }
   };
 
-  // --- NEW: Summary Audio Player Logic ---
+  // --- REPLACE the entire useEffect from ~line 1782 to 1823 ---
   // Effect to create Audio object when src changes
   useEffect(() => {
+    // --- DEBUG LOG ---
+    console.log(`[AUDIO_DEBUG] 4. useEffect[summaryAudioSrc]: RUNNING. summaryAudioSrc exists: ${!!summaryAudioSrc}, summaryAudioRef.current exists: ${!!summaryAudioRef.current}`);
+    // ---
+
     if (summaryAudioSrc && !summaryAudioRef.current) {
-      console.log("Creating new Audio object for summary");
+      console.log("[AUDIO_DEBUG] 5. useEffect: Creating new Audio() object.");
       const audio = new Audio(summaryAudioSrc);
       summaryAudioRef.current = audio;
 
-      const setAudioData = () => {
+      const setAudioData = (eventName: string) => {
         if (summaryAudioRef.current) {
-          setSummaryAudioDuration(summaryAudioRef.current.duration);
-          setSummaryAudioProgress(summaryAudioRef.current.currentTime);
+          const duration = summaryAudioRef.current.duration;
+          const readyState = summaryAudioRef.current.readyState;
+          
+          // --- DEBUG LOG ---
+          console.log(`[AUDIO_DEBUG] 7. setAudioData (from ${eventName}): CALLED. Duration: ${duration}, ReadyState: ${readyState}`);
+          // ---
+          
+          // ONLY set duration if it's a real, finite number
+          if (duration && isFinite(duration) && duration > 0) {
+            console.log(`[AUDIO_DEBUG] 8. setAudioData: Duration is VALID. Calling setSummaryAudioDuration(${duration}).`);
+            setSummaryAudioDuration(duration); // <-- THIS IS THE GOAL
+            setSummaryAudioProgress(summaryAudioRef.current.currentTime);
+          } else {
+            console.log(`[AUDIO_DEBUG] 8a. setAudioData: Duration is NOT valid yet (${duration}).`);
+          }
+        } else {
+          console.log(`[AUDIO_DEBUG] 7a. setAudioData (from ${eventName}): CALLED, but summaryAudioRef.current is NULL.`);
         }
       };
 
       const setAudioTime = () => {
+        // console.log("[AUDIO_DEBUG] setAudioTime: timeupdate fired."); // <-- Too noisy
         if (summaryAudioRef.current) {
           setSummaryAudioProgress(summaryAudioRef.current.currentTime);
         }
       };
 
       const setAudioEnd = () => {
+        console.log("[AUDIO_DEBUG] setAudioEnd: 'ended' event fired.");
         setIsSummaryPlaying(false);
         setSummaryAudioProgress(0); // Reset progress on end
       };
 
-      audio.addEventListener("loadedmetadata", setAudioData);
+      // --- DEBUG LOG for attaching listeners ---
+      console.log("[AUDIO_DEBUG] 6. useEffect: Attaching event listeners...");
+      // ---
+      
+      audio.addEventListener("loadedmetadata", () => setAudioData("loadedmetadata"));
+      audio.addEventListener("durationchange", () => setAudioData("durationchange"));
+      audio.addEventListener("canplay", () => setAudioData("canplay"));
       audio.addEventListener("timeupdate", setAudioTime);
       audio.addEventListener("ended", setAudioEnd);
+      audio.addEventListener("error", (e) => {
+        console.error("[AUDIO_DEBUG] 9. Audio Element Error:", e);
+        setSummaryAudioError("Audio element reported an error.");
+      });
 
+      // --- DEBUG LOG for manual check ---
+      const initialReadyState = audio.readyState;
+      console.log(`[AUDIO_DEBUG] 6a. useEffect: Manual readyState check: ${initialReadyState}`);
+      // ---
+      
+      if (initialReadyState >= 1) { // HAVE_METADATA
+        console.log("[AUDIO_DEBUG] 6b. useEffect: Manually firing setAudioData (readyState >= 1).");
+        setAudioData("manual-check");
+      }
+      
       // Cleanup
       return () => {
-        audio.removeEventListener("loadedmetadata", setAudioData);
+        console.log("[AUDIO_DEBUG] 10. useEffect: CLEANUP running.");
+        audio.removeEventListener("loadedmetadata", () => setAudioData("loadedmetadata"));
+        audio.removeEventListener("durationchange", () => setAudioData("durationchange"));
+        audio.removeEventListener("canplay", () => setAudioData("canplay"));
         audio.removeEventListener("timeupdate", setAudioTime);
         audio.removeEventListener("ended", setAudioEnd);
-        audio.pause(); // Ensure it stops if component unmounts
-        summaryAudioRef.current = null; // Clean up ref
+        audio.removeEventListener("error", (e) => console.error("[AUDIO_DEBUG] 9. Audio Element Error:", e));
+        audio.pause(); 
+        summaryAudioRef.current = null; 
       };
     } else if (!summaryAudioSrc && summaryAudioRef.current) {
-        // If src is cleared, clean up the existing audio object
+        console.log("[AUDIO_DEBUG] 4a. useEffect: summaryAudioSrc is now null. Cleaning up old ref.");
         summaryAudioRef.current.pause();
         summaryAudioRef.current = null;
+    } else {
+        console.log("[AUDIO_DEBUG] 4b. useEffect: Ran but no action taken (e.g., src already exists AND ref exists).");
     }
   }, [summaryAudioSrc]); // Re-run only when src changes
 
@@ -3008,10 +3222,12 @@ const LandingPage: React.FC<{
                 level: t(inputLevel === 'Beginner' ? 'common.beginner' : inputLevel === 'Intermediate' ? 'common.intermediate' : 'common.advanced') 
               })}
             </h2>
-            {/* Invisible placeholder to balance the flex layout, matching back button space */}
+            {/* --- RESTORE INVISIBLE SPACER --- */}
+            {/* This balances the "Back" button and keeps the title centered */}
             <div className="flex items-center text-sm font-medium flex-shrink-0 invisible">
                  <ArrowLeftIcon className="w-4 h-4 mr-1" /> {t('common.back')}
             </div>
+            {/* --- END RESTORE --- */}
         </div>
       </div>
       {/* --- NEW: Feedback message for Like/Dislike --- */}
@@ -3035,6 +3251,10 @@ const LandingPage: React.FC<{
             const isLiking = isLikingArticle === article.link;
             const isDisliking = isDislikingArticle === article.link;
             const isCardLoading = isLiking || isDisliking;
+
+            const translation = translatedArticles[article.link];
+            const showTranslation = toggledTranslations[article.link] && translation; // Check both toggle and cache
+            const isThisArticleTranslating = isTranslating === article.link;
 
             return (
               <div
@@ -3060,13 +3280,13 @@ const LandingPage: React.FC<{
                   }}
                   className={`text-lg font-semibold text-gray-900 line-clamp-2 ${!isCardLoading && 'hover:text-blue-700'}`}
                 >
-                 {article.title}
+                 {showTranslation ? translation.translatedTitle : article.title}
                 </a>
                 <p className="text-sm text-gray-600 line-clamp-2 mt-1"
                    onClick={() => !isCardLoading && handleSelectArticle(article, false)} // Allow clicking text to open
                    style={{ cursor: isCardLoading ? 'default' : 'pointer' }}
                 >
-                   {article.snippet}
+                   {showTranslation ? translation.translatedSnippet : article.snippet || ''}
                  </p>
                 <p className="text-xs text-gray-400 mt-1">
                   {t('common.source')}: {article.source} ({article.date})
@@ -3081,6 +3301,18 @@ const LandingPage: React.FC<{
                   className="p-2 rounded-full transition duration-150 disabled:opacity-50 disabled:cursor-not-allowed text-green-600 disabled:text-gray-400 hover:bg-green-100"
                 >
                   {isLiking ? <LoadingSpinner className="w-5 h-5"/> : <ThumbsUpIcon className="w-5 h-5" isSolid={isSaved} />}
+                </button>
+                <button
+                  onClick={() => handleTranslateArticle(article)}
+                  disabled={isCardLoading || isThisArticleTranslating}
+                  title={showTranslation ? t('news.showOriginalArticle') : t('news.translateArticle')}
+                  className="p-2 rounded-full text-blue-600 hover:bg-blue-100 transition duration-150 disabled:opacity-50 disabled:cursor-wait"
+                >
+                  {isThisArticleTranslating ? (
+                    <LoadingSpinner className="w-5 h-5" />
+                  ) : (
+                    <LanguageIcon className="w-5 h-5" />
+                  )}
                 </button>
                 <button
                   onClick={() => handleDislikeArticle(article)}
@@ -3100,6 +3332,11 @@ const LandingPage: React.FC<{
    );
 
   const renderLessonView = () => {
+    // --- DEBUG LOG ---
+    console.log(`[AUDIO_DEBUG] --- renderLessonView: START RENDER ---`);
+    console.log(`[AUDIO_DEBUG] renderLessonView: isLessonGenerating: ${isLessonGenerating}`);
+    console.log(`[AUDIO_DEBUG] renderLessonView: currentLesson exists: ${!!currentLesson}`);
+    // ---
     // Show loading spinner if lesson is being generated or hasn't loaded from state yet
     if (isLessonGenerating || (!currentLesson && currentView === 'LESSON_VIEW')) {
         return (
@@ -3136,6 +3373,13 @@ const LandingPage: React.FC<{
        goToInput(); // Navigate back safely
        return null; // Don't render anything
     }
+
+    // --- DEBUG LOG (inside the main render return) ---
+    console.log(`[AUDIO_DEBUG] renderLessonView (RENDER): summaryAudioSrc exists: ${!!summaryAudioSrc}`);
+    console.log(`[AUDIO_DEBUG] renderLessonView (RENDER): summaryAudioDuration: ${summaryAudioDuration}`);
+    const shouldShowPlayer = summaryAudioSrc && summaryAudioDuration > 0;
+    console.log(`[AUDIO_DEBUG] renderLessonView (RENDER): Player will show: ${shouldShowPlayer}`);
+    // ---
 
     // Render the lesson content
     return (
@@ -3188,7 +3432,7 @@ const LandingPage: React.FC<{
         </div>
 
         <p className="text-sm text-gray-600">
-          <strong>{t('common.source')}:</strong> <a href={currentArticle?.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{currentArticle?.source}</a> ({currentArticle?.date})
+          <strong>{t('common.source')}</strong> <a href={currentArticle?.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{currentArticle?.source}</a> ({currentArticle?.date})
         </p>
 
         {/* Article Summary Section */}
@@ -3197,37 +3441,33 @@ const LandingPage: React.FC<{
            {isSummaryAudioLoading && <LoadingSpinner className="w-5 h-5 inline-block mr-2"/>}
            {summaryAudioError && <span className="text-red-600 text-xs ml-2">{t('lesson.audioFail')} {summaryAudioError}</span>}
 
-           {/* --- Summary Audio Player MODIFIED --- */}
+           {/* --- Summary Audio Player (using your last known render logic) --- */}
            {summaryAudioSrc && summaryAudioDuration > 0 && (
-             // Reduce gap slightly, keep padding reasonable
              <div className="flex items-center gap-2 bg-gray-100 p-2 rounded border border-gray-300">
                 <button
                    onClick={toggleSummaryPlayPause}
-                   // Add flex-shrink-0 to prevent button from shrinking excessively
                    className="p-1 text-blue-600 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded flex-shrink-0"
                    aria-label={isSummaryPlaying ? t('lesson.pauseAudio') : t('lesson.playAudio')}
                  >
-                   {isSummaryPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />} {/* Slightly smaller icon */}
+                   {isSummaryPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
                  </button>
-                 {/* Remove fixed width (w-10), add flex-shrink-0 */}
                  <span className="text-xs font-mono text-gray-600 text-center flex-shrink-0">
                      {formatTime(summaryAudioProgress)}
                  </span>
                  <input
                      type="range"
+                     className="flex-grow h-1.5 bg-gray-300 rounded-lg appearance-none cursor-pointer range-sm dark:bg-gray-700 accent-blue-600 min-w-0"
                      min="0"
                      max={summaryAudioDuration}
                      value={summaryAudioProgress}
                      onChange={handleSeek}
-                     // flex-grow allows it to take remaining space, min-w-0 prevents it from causing overflow issues with flex siblings
-                     className="flex-grow h-1.5 bg-gray-300 rounded-lg appearance-none cursor-pointer range-sm dark:bg-gray-700 accent-blue-600 min-w-0"
                  />
-                 {/* Remove fixed width (w-10), add flex-shrink-0 */}
                  <span className="text-xs font-mono text-gray-600 text-center flex-shrink-0">
-                     {formatTime(summaryAudioDuration)}
+                     {formatTime(summaryAudioDuration || 0)}
                  </span>
              </div>
            )}
+           {/* --- End Audio Player --- */}
           <div className="mt-2 clearfix"> {/* Added clearfix utility */}
              {currentArticle?.image && (
                <img
@@ -3321,6 +3561,32 @@ const LandingPage: React.FC<{
           <h3 className="text-xl font-bold text-purple-700">{t('lesson.grammarFocus')} {currentLesson?.grammarFocus?.topic}</h3>
           {/* FIX: Removed the <p> wrapper and whitespace-pre-wrap. The renderer handles its own tags. */}
           <MarkdownRenderer content={currentLesson?.grammarFocus?.explanation || ''} className="text-gray-800 mt-2"/>
+          <div className="mt-4">
+            {/* Render generated examples */}
+            {generatedGrammarExamples.length > 0 && (
+              <ul className="space-y-2 mb-3">
+                {generatedGrammarExamples.map((example, index) => (
+                  <li key={index} className="text-gray-700 italic border-t pt-2 flex justify-between items-center">
+                    <span>"{example}"</span>
+                    <SpeakButton text={example} langCode={targetLanguage} />
+                  </li>
+                ))}
+              </ul>
+            )}
+            {/* "Get another example" button */}
+            <button
+              onClick={handleGenerateGrammarExample}
+              disabled={isGeneratingExample}
+              className="w-full flex items-center justify-center gap-2 text-sm text-blue-600 font-medium bg-blue-100 p-2 rounded-lg hover:bg-blue-200 transition disabled:opacity-50"
+            >
+              {isGeneratingExample ? (
+                <LoadingSpinner className="w-5 h-5" />
+              ) : (
+                <RestartIcon className="w-5 h-5" />
+              )}
+              {t('lesson.getNewExample')} 
+            </button>
+          </div>
         </div>
 
 {/* Comprehension Section */}
@@ -3432,6 +3698,9 @@ const LandingPage: React.FC<{
       type === 'vocab' ? 'activity.vocab' :
       type === 'grammar' ? 'activity.grammar' :
       type === 'comprehension' ? 'activity.comprehension' :
+      type === 'writing' ? 'activity.writing' :
+      type === 'wordbank_study' ? 'wordBank.title' :
+      type === 'wordbank_review' ? 'wordBank.title' :
       'activity.writing' // default for 'writing'
     );
 
@@ -3523,7 +3792,9 @@ const LandingPage: React.FC<{
                </p>
                <p className="p-3 bg-gray-100 text-gray-900 rounded mb-4">{currentData.definition}</p>
 
-               <label htmlFor="vocab-guess" className="block text-sm font-medium text-gray-700 mb-1">{t('activity.typeWord')}</label>
+               <label htmlFor="vocab-guess" className="block text-sm font-medium text-gray-700 mb-1">
+                 {t('activity.typeWordLanguage', { language: t(`languages.${currentData.targetLanguage}`) })}
+               </label>
                <input
                  id="vocab-guess"
                  type="text"
@@ -3546,7 +3817,8 @@ const LandingPage: React.FC<{
                  {currentData.word && <SpeakButton text={currentData.word} langCode={currentData.targetLanguage} />}
                </p>
                <p className="p-3 bg-gray-100 text-gray-900 rounded mb-4 text-xl font-bold">{currentData.word}</p>
-
+               
+               {/* --- REMOVE THIS BLOCK ---
                <label htmlFor="vocab-def-guess" className="block text-sm font-medium text-gray-700 mb-1">{t('activity.typeDefinition')}</label>
                <textarea
                  id="vocab-def-guess"
@@ -3557,6 +3829,7 @@ const LandingPage: React.FC<{
                  className="w-full p-2 border border-gray-300 text-gray-900 rounded disabled:bg-gray-100"
                  placeholder={t('activity.typeDefinition')}
                />
+               --- END REMOVAL --- */}
              </div>
            )}
           {/* --- END ADDITION --- */}
@@ -3660,7 +3933,7 @@ const LandingPage: React.FC<{
           {feedback.isCorrect === null ? ( // Show Submit before grading
             <button
               onClick={handleSubmitAnswer}
-              disabled={userAnswer === null || userAnswer === '' || isSubmitting}
+              disabled={(type !== 'wordbank_review' && (userAnswer === null || userAnswer === '')) || isSubmitting}
               className="bg-blue-600 text-white font-bold py-2 px-5 rounded-lg hover:bg-blue-700 transition duration-150 disabled:opacity-50"
             >
               {/* FIX: Change button text for review mode */}
@@ -3701,17 +3974,26 @@ const LandingPage: React.FC<{
 
         {/* Sign in view */}
         {/* FIX: Use LANDING view for SIGNED_OUT state */}
-        {authState === 'SIGNED_OUT' && (currentView === 'LANDING' || currentView === 'TERMS' || currentView === 'PRIVACY') && (
-          <LandingPage
-            signInWithGoogle={signInWithGoogle}
-            isApiLoading={isApiLoading}
-            error={error}
-            uiLanguage={uiLanguage}
-            setUiLanguage={setUiLanguage}
-            navigate={navigate}
-            t={t}
-            languageCodes={languageCodes}
-          />
+        {authState === 'SIGNED_OUT' && (
+          <>
+            {currentView === 'LANDING' && (
+              <LandingPage
+                signInWithGoogle={signInWithGoogle}
+                isApiLoading={isApiLoading}
+                error={error}
+                uiLanguage={uiLanguage}
+                setUiLanguage={setUiLanguage}
+                navigate={navigate}
+                t={t}
+                languageCodes={languageCodes}
+              />
+            )}
+            {/* --- ADD THESE RENDER BLOCKS --- */}
+            {currentView === 'TERMS' && renderTermsPage()}
+            {currentView === 'PRIVACY' && renderPrivacyPage()}
+            {currentView === 'PRICING' && renderPricingPage()}
+            {/* --- END ADDITION --- */}
+          </>
         )}
 
         {/* --- MODIFIED: Main app view --- */}
