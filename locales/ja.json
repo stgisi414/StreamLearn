@@ -130,7 +130,11 @@
       "comprehensionQuestions": "読解問題",
       "showAnswer": "答えを表示",
       "answerShown": "答えが表示されました",
-      "getNewExample": "別の例を取得"
+      "getNewExample": "別の例を取得",
+      "switchToGuided": "ガイド付きレッスンを開始",
+      "switchToOverview": "レッスン概要に切り替え",
+      "guidedMode": "ガイド付きモード",
+      "overviewMode": "概要モード"
     },
     "activity": {
       "title": "{{type}} アクティビティ",

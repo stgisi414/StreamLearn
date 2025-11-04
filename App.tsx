@@ -206,7 +206,7 @@ interface ChatMessage {
 }
 
 // Type for activity state
-type ActivityType = 'vocab' | 'grammar' | 'comprehension' | 'writing' | 'wordbank_study' | 'wordbank_review';
+type ActivityType = 'vocab' | 'grammar' | 'comprehension' | 'writing' | 'wordbank_study' | 'wordbank_review' | 'grammar_standalone' | 'writing_standalone';
 interface ActivityState {
   type: ActivityType;
   index: number; // Current question/word index
@@ -279,16 +279,22 @@ const App: React.FC = () => {
 
   // --- Loading State (for API calls) ---
   const [isApiLoading, setIsApiLoading] = useState(false);
-  const [isLessonGenerating, setIsLessonGenerating] = useState(false
+  const [isLessonGenerating, setIsLessonGenerating] = useState(false);
+
+  // --- NEW: State to prevent save/load race condition ---
+  const [isUserConfigLoading, setIsUserConfigLoading] = useState(true);
 
   // --- NEW: Lesson View State ---
   const [lessonViewMode, setLessonViewMode] = useLocalStorageState<'overview' | 'guided'>('streamlearn_lessonViewMode', 'overview');
-  const [guidedLessonStep, setGuidedLessonStep] = useState(0);
+  // --- NEW: Persisted step state ---
+  const [guidedLessonStep, setGuidedLessonStep] = useLocalStorageState<number>('streamlearn_guidedStep', 0);
+  const [guidedLessonId, setGuidedLessonId] = useLocalStorageState<string | null>('streamlearn_guidedLessonId', null);
 
   // --- Activity state ---
   const [activityState, setActivityState] = useState<ActivityState | null>(null);
   const loadingStepRef = useRef<string | null>(null);
   const activityCancellationRef = useRef(false);
+  const lastActivityTypeRef = useRef<ActivityType | null>(null);
 
   // --- NEW: Audio State ---
   const [isActivityAudioLoading, setIsActivityAudioLoading] = useState(false); // Renamed from isAudioLoading
@@ -653,10 +659,17 @@ const App: React.FC = () => {
         return;
     }
 
+    // --- NEW: Check and reset guided lesson step ---
+    const newLessonId = article.link;
+    if (newLessonId !== guidedLessonId) {
+      console.log("New lesson selected, resetting guided step to 0.");
+      setGuidedLessonStep(0); // This will save "0" to localStorage
+      setGuidedLessonId(newLessonId); // Save the new lesson ID
+    }
+
     console.log("Proceeding to fetch/generate lesson.");
     setIsApiLoading(true);
     setIsLessonGenerating(true);
-    setGuidedLessonStep(0); // <-- NEW: Reset guided step on new lesson
     setError(null);
 
     if (currentArticle?.link !== article.link) {
@@ -775,7 +788,7 @@ const App: React.FC = () => {
       // --- END REMOVAL ---
   ]);
 
-  const handleSaveWord = async (vocabItem: VocabularyItem) => {
+  const handleSaveWord = useCallback(async (vocabItem: VocabularyItem) => {
     if (!user) return;
 
     // Use the word itself as the document ID to prevent duplicates
@@ -808,9 +821,9 @@ const App: React.FC = () => {
     } finally {
       setTimeout(() => setWordBankMessage(null), 2000);
     }
-  };
+  }, [user, wordBank, targetLanguage, db, setWordBankMessage]);
 
-  const handleDeleteWord = async (word: string) => {
+  const handleDeleteWord = useCallback(async (word: string) => {
     if (!user) return;
 
     if (activityAudioRef.current) {
@@ -831,7 +844,7 @@ const App: React.FC = () => {
     } finally {
       setTimeout(() => setWordBankMessage(null), 2000);
     }
-  };
+  }, [user, db, setWordBankMessage]);
 
   const handleSelectPastLesson = useCallback((lesson: SavedLesson) => {
     console.log("Loading past lesson:", lesson.lessonData.articleTitle);
@@ -858,6 +871,14 @@ const App: React.FC = () => {
        console.log("This is a full lesson. Loading from history...");
        setCurrentLesson(lesson.lessonData); // Load the full lesson data
      }
+
+     // --- NEW: Check and set guided lesson step ---
+    const newLessonId = lesson.articleUrl;
+    if (newLessonId !== guidedLessonId) {
+      console.log("New past lesson selected, resetting guided step to 0.");
+      setGuidedLessonStep(0); // Reset for the new lesson
+      setGuidedLessonId(newLessonId);
+    }
 
     // Navigate *after* setting state. handleUrlChange will do the rest.
     navigate('/lesson', `?url=${encodeURIComponent(lesson.articleUrl)}`, { article });
@@ -1064,6 +1085,17 @@ const App: React.FC = () => {
           const urlParam = params.get('url');
           const articleForCheck = newState?.article !== undefined ? newState.article : currentArticle;
 
+          // --- NEW: Check persisted step on lesson load/refresh ---
+          if (articleForCheck && urlParam === articleForCheck.link) {
+            if (articleForCheck.link !== guidedLessonId) {
+              console.log("Lesson on refresh doesn't match persisted step ID. Resetting step to 0.");
+              setGuidedLessonStep(0);
+              setGuidedLessonId(articleForCheck.link);
+            } else {
+              console.log(`Lesson on refresh matches persisted step ID. Step ${guidedLessonStep} is correct.`);
+            }
+          }
+
           if (urlParam && currentLesson && articleForCheck && articleForCheck.link === urlParam) {
             nextView = 'LESSON_VIEW';
           } else if (urlParam && articleForCheck && articleForCheck.link === urlParam) {
@@ -1239,41 +1271,49 @@ const App: React.FC = () => {
    useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
-        console.log(`DEBUG: onAuthStateChanged - SIGNED_IN as ${currentUser.uid}`); // <-- ADD THIS
+        console.log(`DEBUG: onAuthStateChanged - SIGNED_IN as ${currentUser.uid}`);
         setUser(currentUser);
         setAuthState('SIGNED_IN');
-        // --- NEW: Load user language preferences ---
-       const userDocRef = doc(db, 'users', currentUser.uid);
-       getDoc(userDocRef).then(docSnap => {
-         if (docSnap.exists()) {
-           const data = docSnap.data();
-           // Only set if they exist, otherwise keep localStorage/default
-           if (data.uiLanguage && languageCodes.includes(data.uiLanguage)) {
-             setUiLanguage(data.uiLanguage);
-           }
-           if (data.targetLanguage && languageCodes.includes(data.targetLanguage)) {
-             setTargetLanguage(data.targetLanguage);
-             // --- NEW: Load language levels ---
-            if (data.languageLevels) {
-                // Merge defaults with loaded data to ensure all languages have a level
-                setLanguageLevels(prev => ({
-                  ...defaultLevels, // Start with all defaults from code
-                  ...data.languageLevels // Override with user's saved data
-                }));
-            } else {
-                // No levels saved, use defaults (which useLocalStorageState should handle, but this is safer)
-                setLanguageLevels(defaultLevels);
-            }
-           }
-         }
-       }).catch(err => {
-         // This isn't critical, so just log a warning
-         console.warn("Could not load user language preferences:", err);
-       });
+        setIsUserConfigLoading(true); // <-- START loading config
         fetchSubscriptionStatus(currentUser);
         setError(null);
+
+        // --- NEW: Load user language preferences ---
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        getDoc(userDocRef).then(docSnap => {
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              // Only set if they exist, otherwise keep localStorage/default
+              if (data.uiLanguage && languageCodes.includes(data.uiLanguage)) {
+                setUiLanguage(data.uiLanguage);
+              }
+              if (data.targetLanguage && languageCodes.includes(data.targetLanguage)) {
+                setTargetLanguage(data.targetLanguage);
+              }
+              // --- NEW: Load language levels ---
+              if (data.languageLevels) {
+                  // Merge defaults with loaded data to ensure all languages have a level
+                  setLanguageLevels(prev => ({
+                    ...defaultLevels, // Start with all defaults from code
+                    ...data.languageLevels // Override with user's saved data
+                  }));
+              } else {
+                  // No levels saved, use defaults (which useLocalStorageState should handle, but this is safer)
+                  setLanguageLevels(defaultLevels);
+              }
+            }
+            // --- FIX: This MUST be outside the 'if' block ---
+            // Always set loading to false, even if doc doesn't exist (new user)
+            setIsUserConfigLoading(false); 
+        }).catch(err => {
+            // This isn't critical, so just log a warning
+            console.warn("Could not load user language preferences:", err);
+            setIsUserConfigLoading(false); // <-- Also stop on error
+        });
+        // --- END NEW ---
+
       } else {
-        console.log("DEBUG: onAuthStateChanged - SIGNED_OUT"); // <-- ADD THIS
+        console.log("DEBUG: onAuthStateChanged - SIGNED_OUT");
         setUser(null);
         setAuthState('SIGNED_OUT');
         // setCurrentView('SIGN_OUT'); // This will be handled by URL/popstate handler
@@ -1283,6 +1323,7 @@ const App: React.FC = () => {
         setWordBank([]);
         setDashboardSearchTerm('');
         initialUrlHandled.current = false;
+        setIsUserConfigLoading(true); // <-- Reset on sign-out
         
         // --- ADDITION: Re-run URL handler on sign-out ---
         // This ensures the URL handler sees SIGNED_OUT state and shows login
@@ -1292,7 +1333,7 @@ const App: React.FC = () => {
       }
     });
     return () => unsubscribe();
-  }, [auth, setCurrentView, fetchSubscriptionStatus]); // fetchSubscriptionStatus was missing
+  }, [auth, setCurrentView, fetchSubscriptionStatus, db]); // Added db as it's used in the effect
 
   // --- NEW: Real-time data listeners ---
   useEffect(() => {
@@ -1370,8 +1411,8 @@ const App: React.FC = () => {
   useEffect(() => {
    // Use an async IIFE to allow awaiting the setDoc call
    (async () => {
-     // Only save if the user is logged in
-     if (user && db) {
+     // --- FIX: Do not save until config has finished loading! ---
+     if (user && db && !isUserConfigLoading) { // <-- MUST HAVE !isUserConfigLoading
        const userDocRef = doc(db, 'users', user.uid);
        console.log("Attempting to save user preferences...", { uiLanguage, targetLanguage, languageLevels });
        try {
@@ -1388,7 +1429,12 @@ const App: React.FC = () => {
        }
      }
    })();
-  }, [user, uiLanguage, targetLanguage, languageLevels, db]);
+  }, [user, uiLanguage, targetLanguage, languageLevels, db, isUserConfigLoading]);
+
+  // --- NEW: Track activity type in a ref to break dependency cycle ---
+  useEffect(() => {
+    lastActivityTypeRef.current = activityState?.type || null;
+  }, [activityState?.type]);
 
   // --- NEW: Callback to increment live chat usage ---
   const handleIncrementLiveChatUsage = useCallback(async () => {
@@ -1462,8 +1508,8 @@ const App: React.FC = () => {
         setIsGeneratingExample(false);
       }
     }, [
-      currentLesson, isGeneratingExample, inputLevel, uiLanguage, 
-      targetLanguage, authenticatedFetch, setError
+       currentLesson, isGeneratingExample, inputLevel, uiLanguage,
+       targetLanguage, authenticatedFetch, setError, setGeneratedGrammarExamples
     ]);
 
   const handleTranslateArticle = useCallback(async (article: Article) => {
@@ -1687,62 +1733,91 @@ const App: React.FC = () => {
     authenticatedFetch, uiLanguage, targetLanguage, setChatError, setIsChatLoading
   ]);
 
-  // --- NEW: Activity Logic ---
-  const startActivity = (type: ActivityType) => {
-    if (!currentLesson) return;
-    activityCancellationRef.current = false; // <<< ADD THIS LINE: Reset cancellation flag
-    // --- NEW: If starting from guided mode, set step ---
-    if (lessonViewMode === 'guided') {
-      const stepIndex = steps.findIndex(s => s.activity === type);
-      if (stepIndex !== -1) {
-        setGuidedLessonStep(stepIndex);
+  // --- Wrap shuffleArray in useCallback ---
+  const shuffleArray = useCallback(<T,>(array: T[]): T[] => {
+    let currentIndex = array.length, randomIndex;
+    while (currentIndex !== 0) {
+      randomIndex = Math.floor(Math.random() * currentIndex);
+      currentIndex--;
+      [array[currentIndex], array[randomIndex]] = [
+        array[randomIndex], array[currentIndex]];
+    }
+    return array;
+  }, []); // Stable reference needed for dependency array
+
+    // --- NEW: Define steps for Guided Lesson ---
+  // We define this here so `startActivity` can use it
+  const steps = [
+     { name: t('lesson.summaryTitle'), type: 'content' as const, activity: null },
+     { name: t('lesson.vocabBuilder'), type: 'content' as const, activity: null },
+     { name: t('activity.vocab'), type: 'activity' as const, activity: 'vocab' as ActivityState['type'] },
+     { name: t('lesson.grammarFocus'), type: 'content' as const, activity: null },
+     { name: t('activity.grammar'), type: 'activity' as const, activity: 'grammar' as ActivityState['type'] },
+     { name:t('lesson.comprehensionQuestions'), type: 'content' as const, activity: null },
+     { name: t('activity.comprehension'), type: 'activity' as const, activity: 'comprehension' as ActivityState['type'] },
+     { name: t('activity.writing'), type: 'activity' as const, activity: 'writing' as ActivityState['type'] },
+     { name: t('common.finish'), type: 'content' as const, activity: null }
+  ];
+
+    // --- NEW: Activity Logic ---
+    const startActivity = useCallback((type: ActivityType) => {
+      if (!currentLesson) return;
+      activityCancellationRef.current = false; // <<< ADD THIS LINE: Reset cancellation flag
+      // --- NEW: If starting from guided mode, set step ---
+      if (lessonViewMode === 'guided') {
+        const stepIndex = steps.findIndex(s => s.activity === type);
+        if (stepIndex !== -1) {
+          setGuidedLessonStep(stepIndex);
+        }
       }
-    }
-    setError(null);
-    let totalItems = 0;
-    let shuffledIndices: number[] | undefined = undefined; // <-- Initialize here
+      setError(null);
+      let totalItems = 0;
+      let shuffledIndices: number[] | undefined = undefined; // <-- Initialize here
 
-    if (type === 'vocab') {
-      totalItems = currentLesson.vocabularyList.length;
-      if (totalItems > 0) {
-        // --- Create and shuffle indices ---
-        const indices = Array.from(Array(totalItems).keys()); // [0, 1, 2, ..., totalItems-1]
-        shuffledIndices = shuffleArray(indices); // Shuffle the indices
-        console.log("Shuffled vocab indices:", shuffledIndices); // Log shuffled order
-        // --- End shuffling ---
+      if (type === 'vocab') {
+        totalItems = currentLesson.vocabularyList.length;
+        if (totalItems > 0) {
+          // --- Create and shuffle indices ---
+          const indices = Array.from(Array(totalItems).keys()); // [0, 1, 2, ..., totalItems-1]
+          shuffledIndices = shuffleArray(indices); // Shuffle the indices
+          console.log("Shuffled vocab indices:", shuffledIndices); // Log shuffled order
+          // --- End shuffling ---
+        }
       }
-    }
-    if (type === 'grammar') totalItems = 5;
-    if (type === 'comprehension') totalItems = currentLesson.comprehensionQuestions.length;
-    if (type === 'writing') totalItems = 1;
+      if (type === 'grammar') totalItems = 5;
+      if (type === 'comprehension') totalItems = currentLesson.comprehensionQuestions.length;
+      if (type === 'writing') totalItems = 1;
 
-    if (totalItems === 0) {
-        setError(t('activity.noItemsError', { type }));
-        return;
-    }
+      if (totalItems === 0) {
+          setError(t('activity.noItemsError', { type }));
+          return;
+      }
 
-    setActivityState({
-      type: type,
-      index: 0,
-      score: 0,
-      total: totalItems,
-      shuffledIndices: shuffledIndices, // <-- Store shuffled indices (will be undefined for non-vocab)
-      currentData: null,
-      userAnswer: null,
-      feedback: { isCorrect: null, message: '' },
-      isSubmitting: false,
-    });
-    setCurrentView('ACTIVITY');
-  };
+      setActivityState({
+        type: type,
+        index: 0,
+        score: 0,
+        total: totalItems,
+        shuffledIndices: shuffledIndices, // <-- Store shuffled indices (will be undefined for non-vocab)
+        currentData: null,
+        userAnswer: null,
+        feedback: { isCorrect: null, message: '' },
+        isSubmitting: false,
+      });
+      setCurrentView('ACTIVITY');
+    }, [currentLesson, shuffleArray, setError, t, lessonViewMode, setGuidedLessonStep, steps, setActivityState, setCurrentView]);
 
-  const quitActivity = () => {
+  const quitActivity = useCallback(() => {
       activityCancellationRef.current = true; // Signal cancellation
 
-      const lastActivityType = activityState?.type;
+      const lastActivityType = lastActivityTypeRef.current;
       console.log("last activity type: " + lastActivityType); // Your debug log
 
-      setGuidedLessonStep(0); // <-- NEW: Reset step
-      setLessonViewMode('overview'); // <-- NEW: Default back to overview
+      // --- FIX: Only reset step/view if quitting from GUIDED mode ---
+      if (lessonViewMode === 'guided') {
+        setGuidedLessonStep(0); // This now saves to localStorage
+        setLessonViewMode('overview'); // Default back to overview
+      }
       setActivityState(null);
 
       // Stop and clear any active activity audio
@@ -1764,22 +1839,10 @@ const App: React.FC = () => {
             navigate('/'); // Fallback to dashboard
           }
       }
-  };
-
-  // --- Wrap shuffleArray in useCallback ---
-  const shuffleArray = useCallback(<T,>(array: T[]): T[] => {
-    let currentIndex = array.length, randomIndex;
-    while (currentIndex !== 0) {
-      randomIndex = Math.floor(Math.random() * currentIndex);
-      currentIndex--;
-      [array[currentIndex], array[randomIndex]] = [
-        array[randomIndex], array[currentIndex]];
-    }
-    return array;
-  }, []); // Stable reference needed for dependency array
+  }, [setActivityState, setIsActivityAudioLoading, setActivityAudioError, navigate, currentArticle, goToLesson, lessonViewMode, setGuidedLessonStep, setLessonViewMode]);
 
   // --- NEW: Logic to move to the next GUIDED step ---
-   const handleNextGuidedStep = () => {
+   const handleNextGuidedStep = useCallback(() => {
      // This function is for the guided lesson flow
      const newStep = guidedLessonStep + 1;
      if (newStep >= steps.length) {
@@ -1787,13 +1850,12 @@ const App: React.FC = () => {
      } else {
        setGuidedLessonStep(newStep);
        setActivityState(null); // Clear old activity state
-       setUserAnswer(null);
-       setFeedback({ isCorrect: null, message: '' });
+       setCurrentView('LESSON_VIEW'); // <-- THE FIX: Go back to the lesson view
      }
-   };
+   }, [guidedLessonStep, steps, quitActivity, setGuidedLessonStep, setActivityState, setCurrentView]);
  
    // --- NEW: Logic for "Next" button in an activity ---
-   const handleNextActivityQuestion = () => {
+   const handleNextActivityQuestion = useCallback(() => {
      // This function is for *within* an activity
      setActivityState(prev => {
         if (!prev) return null; // Should not happen
@@ -1807,7 +1869,7 @@ const App: React.FC = () => {
           }
         } else {
           // In overview (modal) mode, finishing the quiz just quits
-          if (prev.index   1 >= prev.total) {
+          if (prev.index + 1 >= prev.total) {
             quitActivity();
             return null;
           }
@@ -1822,7 +1884,7 @@ const App: React.FC = () => {
             feedback: { isCorrect: null, message: '' }
         };
     });
-   };
+   }, [lessonViewMode, handleNextGuidedStep, quitActivity, setActivityState]);
 
   // Effect to load data for the current activity step (REVISED AGAIN - Simpler Loading Logic)
   useEffect(() => {
@@ -2079,13 +2141,13 @@ const App: React.FC = () => {
   }, [
       currentView, activityState?.type, activityState?.index, // Step definition
       activityState?.shuffledIndices, // Needed for vocab order
-      inputLevel, currentLesson, // Data sources
+      inputLevel, currentLesson, languageLevels, // <-- ADD languageLevels
       wordBank, // <-- ADDED: wordBank is now a data source
       authenticatedFetch, quitActivity, setError, shuffleArray, // Stable functions
       uiLanguage, targetLanguage
   ]);
 
-  const handleSubmitAnswer = async () => {
+  const handleSubmitAnswer = useCallback(async () => {
       // --- MODIFY THIS GUARD CLAUSE ---
       if (!activityState || !activityState.currentData || activityState.feedback.isCorrect !== null) {
         console.warn("handleSubmitAnswer: Bailing early (no state/data, or feedback already given)");
@@ -2121,7 +2183,11 @@ const App: React.FC = () => {
               // --- END REMOVAL ---
 
               // --- REPLACE WITH ASSIGNMENTS ---
-              isCorrect = String(userAnswer).trim().toLowerCase() === String(currentData.word).trim().toLowerCase();
+              const fullWordClean = String(currentData.word).trim().toLowerCase();
+              const mainWordClean = String(currentData.word).split('(')[0].trim().toLowerCase();
+              const userAnswerClean = String(userAnswer).trim().toLowerCase();
+
+              isCorrect = (userAnswerClean === fullWordClean) || (userAnswerClean === mainWordClean);
               feedbackMsg = isCorrect ? t('activity.correct') : t('activity.incorrectWord', { word: currentData.word });
               // --- END ASSIGNMENTS ---
 
@@ -2218,7 +2284,12 @@ const App: React.FC = () => {
             // --- END REMOVAL ---
             
             // --- REPLACE WITH ASSIGNMENTS ---
-            isCorrect = String(userAnswer).trim().toLowerCase() === String(currentData.word).trim().toLowerCase();
+            // --- FIX: Smart comparison for parentheticals (Hanja, Kanji, etc.) ---
+            const fullWordClean = String(currentData.word).trim().toLowerCase();
+            const mainWordClean = String(currentData.word).split('(')[0].trim().toLowerCase();
+            const userAnswerClean = String(userAnswer).trim().toLowerCase();
+ 
+            isCorrect = (userAnswerClean === fullWordClean) || (userAnswerClean === mainWordClean);
             feedbackMsg = isCorrect ? t('activity.correct') : t('activity.incorrectWord', { word: currentData.word });
             // --- END ASSIGNMENTS ---
 
@@ -2257,10 +2328,10 @@ const App: React.FC = () => {
         setError(`Error submitting answer: ${(err as Error).message}`);
         setActivityState(prev => prev ? ({ ...prev, isSubmitting: false }) : null);
       }
-  };
+  }, [activityState, setActivityState, setError, t, authenticatedFetch, uiLanguage, targetLanguage, inputLevel, currentLesson]);
 
   // --- Activity Text-to-Speech Handler (Renamed) ---
-  const handleActivityTextToSpeech = async (text: string | undefined | null, langCode: LanguageCode) => { // Renamed function
+  const handleActivityTextToSpeech = useCallback(async (text: string | undefined | null, langCode: LanguageCode) => { // Renamed function
     console.log(`handleActivityTextToSpeech called with lang: ${langCode}, text:`, text);
 
     if (!text || isActivityAudioLoading) { // Use renamed state variable
@@ -2307,21 +2378,7 @@ const App: React.FC = () => {
     } finally {
         setIsActivityAudioLoading(false); // Use renamed state variable
     }
-  };
-
-  // --- NEW: Define steps for Guided Lesson ---
-  // We define this here so `startActivity` can use it
-  const steps = [
-     { name: t('lesson.summaryTitle'), type: 'content' as const, activity: null },
-     { name: t('lesson.vocabBuilder'), type: 'content' as const, activity: null },
-     { name: t('activity.vocab'), type: 'activity' as const, activity: 'vocab' as ActivityState['type'] },
-     { name: t('lesson.grammarFocus'), type: 'content' as const, activity: null },
-     { name: t('activity.grammar'), type: 'activity' as const, activity: 'grammar' as ActivityState['type'] },
-     { name:t('lesson.comprehensionQuestions'), type: 'content' as const, activity: null },
-     { name: t('activity.comprehension'), type: 'activity' as const, activity: 'comprehension' as ActivityState['type'] },
-     { name: t('activity.writing'), type: 'activity' as const, activity: 'writing' as ActivityState['type'] },
-     { name: t('common.finish'), type: 'content' as const, activity: null }
-  ];
+  }, [isActivityAudioLoading, authenticatedFetch, setIsActivityAudioLoading, setActivityAudioError, setError, summaryAudioRef, setIsSummaryPlaying]);
 
   // --- REPLACE the entire useEffect from ~line 1782 to 1823 ---
   // Effect to create Audio object when src changes
@@ -2415,7 +2472,7 @@ const App: React.FC = () => {
     }
   }, [summaryAudioSrc]); // Re-run only when src changes
 
-  const toggleSummaryPlayPause = () => {
+  const toggleSummaryPlayPause = useCallback(() => {
     if (summaryAudioRef.current) {
       if (isSummaryPlaying) {
         summaryAudioRef.current.pause();
@@ -2438,23 +2495,23 @@ const App: React.FC = () => {
         // --- FIX 5: Pass targetLanguage ---
         fetchSummaryAudio(currentLesson.summary, targetLanguage);
     }
-  };
+  }, [isSummaryPlaying, currentLesson, isSummaryAudioLoading, fetchSummaryAudio, targetLanguage, setIsSummaryPlaying, setSummaryAudioError]);
 
-  const handleSeek = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSeek = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     if (summaryAudioRef.current) {
       const time = Number(event.target.value);
       summaryAudioRef.current.currentTime = time;
       setSummaryAudioProgress(time);
     }
-  };
+  }, []);
 
   // Helper to format time (MM:SS)
-  const formatTime = (timeInSeconds: number): string => {
+  const formatTime = useCallback((timeInSeconds: number): string => {
     if (isNaN(timeInSeconds) || timeInSeconds < 0) return "00:00";
     const minutes = Math.floor(timeInSeconds / 60);
     const seconds = Math.floor(timeInSeconds % 60);
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  };
+  }, []);
 
   // --- Render Functions ---
 
@@ -2886,6 +2943,28 @@ const LandingPage: React.FC<{
            onNextQuestion={handleNextActivityQuestion} // Pass the "next question" handler
            onFinish={quitActivity} // Pass the "quit" handler
            uiLanguage={uiLanguage}
+           // --- FIX: Pass targetLanguage and wordBank props ---
+           targetLanguage={targetLanguage}
+           wordBank={wordBank}
+           handleSaveWord={handleSaveWord}
+           // --- NEW: Pass Grammar Example props ---
+           generatedGrammarExamples={generatedGrammarExamples}
+           isGeneratingExample={isGeneratingExample}
+           handleGenerateGrammarExample={handleGenerateGrammarExample}
+           // --- NEW: Pass Comprehension Answer props ---
+           comprehensionAnswers={comprehensionAnswers}
+           isAnswerLoading={isAnswerLoading}
+           handleFetchComprehensionAnswer={handleFetchComprehensionAnswer}
+           // --- Pass Summary Audio Player state and handlers ---
+           summaryAudioSrc={summaryAudioSrc}
+           summaryAudioDuration={summaryAudioDuration}
+           summaryAudioProgress={summaryAudioProgress}
+           isSummaryPlaying={isSummaryPlaying}
+           isSummaryAudioLoading={isSummaryAudioLoading}
+           summaryAudioError={summaryAudioError}
+           toggleSummaryPlayPause={toggleSummaryPlayPause}
+           handleSeek={handleSeek}
+           formatTime={formatTime}
          />
  
          {/* Chat Assistant (still available in guided mode) */}
@@ -3699,6 +3778,7 @@ const LandingPage: React.FC<{
                     title={t('lesson.switchToGuided')}
                  >
                     <ArrowsRightLeftIcon className="w-5 h-5" />
+                    <span>{t('lesson.guidedMode')}</span>
                  </button>
                  {/* Invisible placeholder to balance */}
                  <div className="flex items-center text-sm font-medium flex-shrink-0 invisible">
@@ -3985,9 +4065,9 @@ const LandingPage: React.FC<{
 
     return (
       <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex justify-center items-center p-4">
-        <div className={`p-6 max-w-2xl mx-auto bg-white rounded-xl shadow-2xl space-y-4 border-2 ${feedbackColor}`}>
+        <div className={`p-6 max-w-2xl w-full mx-auto bg-white rounded-xl shadow-2xl space-y-4 border-2 ${feedbackColor}`}>
           {/* Header with Progress and Score */}
-          <div className="flex justify-between items-center text-sm text-gray-600">
+          <div className="flex flex-wrap justify-between items-center text-sm text-gray-600 gap-2">
             <span>{t('activity.title', { type: translatedType })}</span>
             <span>{t('common.score')} {score}/{total}</span>
             <span>{t('common.question')} {index + 1}/{total}</span>
@@ -4003,6 +4083,7 @@ const LandingPage: React.FC<{
            activityState={activityState}
            inputLevel={inputLevel}
            uiLanguage={uiLanguage}
+           targetLanguage={targetLanguage}
            isAudioLoading={isActivityAudioLoading}
            onSpeak={handleActivityTextToSpeech}
            onAnswerChange={(answer) => setActivityState(prev => prev ? { ...prev, userAnswer: answer } : null)}

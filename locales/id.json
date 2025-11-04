@@ -130,7 +130,11 @@
       "comprehensionQuestions": "Pertanyaan Pemahaman",
       "showAnswer": "Tampilkan Jawaban",
       "answerShown": "Jawaban ditampilkan",
-      "getNewExample": "Dapatkan contoh lain"
+      "getNewExample": "Dapatkan contoh lain",
+      "switchToGuided": "Mulai Pelajaran Terpandu",
+      "switchToOverview": "Beralih ke Ikhtisar Pelajaran",
+      "guidedMode": "Mode Terpandu",
+      "overviewMode": "Mode Ikhtisar"
     },
     "activity": {
       "title": "Aktivitas {{type}}",

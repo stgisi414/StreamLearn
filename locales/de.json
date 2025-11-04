@@ -130,7 +130,11 @@
       "comprehensionQuestions": "Verständnisfragen",
       "showAnswer": "Antwort anzeigen",
       "answerShown": "Antwort wird angezeigt",
-      "getNewExample": "Ein anderes Beispiel erhalten"
+      "getNewExample": "Ein anderes Beispiel erhalten",
+      "switchToGuided": "Geführte Lektion starten",
+      "switchToOverview": "Zur Lektionsübersicht wechseln",
+      "guidedMode": "Geführter Modus",
+      "overviewMode": "Übersichtsmodus"
     },
     "activity": {
       "title": "{{type}}-Aktivität",

@@ -130,7 +130,11 @@
       "comprehensionQuestions": "이해력 질문",
       "showAnswer": "정답 보기",
       "answerShown": "정답 표시됨",
-      "getNewExample": "다른 예시 보기"
+      "getNewExample": "다른 예시 보기",
+      "switchToGuided": "가이드 모드 수업 시작",
+      "switchToOverview": "수업 개요로 전환",
+      "guidedMode": "가이드 모드",
+      "overviewMode": "개요 모드"
     },
     "activity": {
       "title": "{{type}} 활동",

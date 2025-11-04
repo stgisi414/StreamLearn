@@ -9,6 +9,7 @@ interface ActivityContentProps {
   activityState: ActivityState;
   inputLevel: EnglishLevel;
   uiLanguage: LanguageCode;
+  targetLanguage: LanguageCode;
   isAudioLoading: boolean;
   onSpeak: (text: string, langCode: LanguageCode) => void;
   onAnswerChange: (answer: string | number | null) => void;
@@ -34,6 +35,7 @@ export const ActivityContent: React.FC<ActivityContentProps> = ({
   activityState,
   inputLevel,
   uiLanguage,
+  targetLanguage,
   isAudioLoading,
   onSpeak,
   onAnswerChange
@@ -55,7 +57,14 @@ export const ActivityContent: React.FC<ActivityContentProps> = ({
         <div>
           <p className="text-lg font-semibold text-gray-700 mb-2">
             {t('activity.definition')}
-            <SpeakButton text={currentData.definition} langCode={uiLanguage} isAudioLoading={isAudioLoading} onSpeak={onSpeak} t={t} />
+            {/* --- FIX: Use targetLanguage for Advanced, uiLanguage for others --- */}
+             <SpeakButton 
+               text={currentData.question} 
+               langCode={inputLevel === 'Advanced' ? targetLanguage : uiLanguage} 
+               isAudioLoading={isAudioLoading} 
+               onSpeak={onSpeak} 
+               t={t} 
+             />
           </p>
           <p className="p-3 bg-gray-100 text-gray-900 rounded mb-4">{currentData.definition}</p>
 

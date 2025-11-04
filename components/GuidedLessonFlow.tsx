@@ -7,6 +7,13 @@ import { ActivityControls } from './ActivityControls';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ArrowLeftIcon } from './icons/ArrowLeftIcon';
 import { VolumeUpIcon } from './icons/VolumeUpIcon';
+import { PlayIcon } from './icons/PlayIcon';
+import { PauseIcon } from './icons/PauseIcon';
+import { BookmarkIcon } from './icons/BookmarkIcon';
+import { SavedWord, VocabularyItem } from '../types';
+import { RestartIcon } from './icons/RestartIcon';
+import { LightBulbIcon } from './icons/LightBulbIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
 
 interface GuidedLessonFlowProps {
   lesson: Lesson;
@@ -19,6 +26,28 @@ interface GuidedLessonFlowProps {
   onAnswerChange: (answer: string | number | null) => void;
   onSubmitAnswer: () => void;
   onFinish: () => void;
+  // --- NEW: Summary Audio Player Props ---
+  summaryAudioSrc: string | null;
+  summaryAudioDuration: number;
+  summaryAudioProgress: number;
+  isSummaryPlaying: boolean;
+  isSummaryAudioLoading: boolean;
+  summaryAudioError: string | null;
+  toggleSummaryPlayPause: () => void;
+  handleSeek: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  formatTime: (timeInSeconds: number) => string;
+  // --- NEW: Word Bank & Language Props ---
+  targetLanguage: LanguageCode;
+  wordBank: SavedWord[];
+  handleSaveWord: (item: VocabularyItem) => void;
+  // --- NEW: Grammar Example Props ---
+  generatedGrammarExamples: string[];
+  isGeneratingExample: boolean;
+  handleGenerateGrammarExample: () => void;
+  // --- NEW: Comprehension Answer Props ---
+  comprehensionAnswers: Record<number, string>;
+  isAnswerLoading: number | null;
+  handleFetchComprehensionAnswer: (question: string, index: number) => void;
 }
 
 // Reusable SpeakButton for this component
@@ -39,7 +68,16 @@ const SpeakButton: React.FC<{ text: string | undefined | null, langCode: Languag
 
 export const GuidedLessonFlow: React.FC<GuidedLessonFlowProps> = (props) => {
   const { t } = useTranslation();
-  const { lesson, activityState, currentStep, setStep, startActivity, onSpeak, isAudioLoading, onAnswerChange, onSubmitAnswer, onFinish } = props;
+  const { 
+    lesson, activityState, currentStep, setStep, startActivity, 
+    onSpeak, isAudioLoading, onAnswerChange, onSubmitAnswer, onFinish,
+    targetLanguage, wordBank, handleSaveWord,
+    generatedGrammarExamples, isGeneratingExample, handleGenerateGrammarExample,
+    comprehensionAnswers, isAnswerLoading, handleFetchComprehensionAnswer,
+    // --- NEW: Destructure Audio Props ---
+    summaryAudioSrc, summaryAudioDuration, summaryAudioProgress, isSummaryPlaying,
+    isSummaryAudioLoading, summaryAudioError, toggleSummaryPlayPause, handleSeek, formatTime,
+  } = props;
 
   // Define the steps
   const steps = [
@@ -85,8 +123,36 @@ export const GuidedLessonFlow: React.FC<GuidedLessonFlowProps> = (props) => {
       // Step 0: Summary
       case 0:
         return (
-          <div className="space-y-2 border-l-4 border-blue-500 pl-4 bg-blue-50 p-3 rounded-lg">
-            <h3 className="text-xl font-bold text-blue-700">{t('lesson.summaryTitle')}</h3>
+          <div className="space-y-2 border-l-4 border-blue-500 pl-4 bg-blue-50 p-3 rounded-lg"> 
+            {/* --- NEW: Audio Player --- */}
+            {isSummaryAudioLoading && <LoadingSpinner className="w-5 h-5 inline-block mr-2"/>}
+            {summaryAudioError && <span className="text-red-600 text-xs ml-2">{t('lesson.audioFail')} {summaryAudioError}</span>}
+ 
+            {summaryAudioSrc && summaryAudioDuration > 0 && (
+              <div className="flex items-center gap-2 bg-gray-100 p-2 rounded border border-gray-300 my-2">
+                 <button
+                    onClick={toggleSummaryPlayPause}
+                    className="p-1 text-blue-600 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded flex-shrink-0"
+                    aria-label={isSummaryPlaying ? t('lesson.pauseAudio') : t('lesson.playAudio')}
+                  >
+                    {isSummaryPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
+                  </button>
+                  <span className="text-xs font-mono text-gray-600 text-center flex-shrink-0">
+                      {formatTime(summaryAudioProgress)}
+                  </span>
+                  <input
+                      type="range"
+                      className="flex-grow h-1.5 bg-gray-300 rounded-lg appearance-none cursor-pointer range-sm dark:bg-gray-700 accent-blue-600 min-w-0"
+                      min="0"
+                      max={summaryAudioDuration}
+                      value={summaryAudioProgress}
+                      onChange={handleSeek}
+                  />
+                  <span className="text-xs font-mono text-gray-600 text-center flex-shrink-0">
+                      {formatTime(summaryAudioDuration || 0)}
+                  </span>
+              </div>
+            )}
             <div className="mt-2 clearfix">
               <p className="text-gray-800 whitespace-pre-wrap">{lesson.summary}</p>
             </div>
@@ -97,17 +163,29 @@ export const GuidedLessonFlow: React.FC<GuidedLessonFlowProps> = (props) => {
       case 1:
         return (
           <div className="space-y-3 border-l-4 border-yellow-500 pl-4 bg-yellow-50 p-3 rounded-lg">
-            <h3 className="text-xl font-bold text-yellow-700">{t('lesson.vocabBuilder')}</h3>
             <ul className="space-y-3">
-              {lesson.vocabularyList.map((item, index) => (
-                <li key={index} className="text-gray-800 flex justify-between items-start gap-2">
-                  <div className="flex-grow">
-                    <strong className="text-yellow-900">{item.word}:</strong> {item.definition}
-                    <p className="text-sm italic text-gray-600 mt-1">{t('common.example')} "{item.articleExample}"</p>
-                  </div>
-                  <SpeakButton text={item.articleExample} langCode={activityState?.currentData?.targetLanguage || 'en'} isAudioLoading={isAudioLoading} onSpeak={onSpeak} t={t} />
-                </li>
-              ))}
+              {lesson.vocabularyList.map((item, index) => {
+                const isSaved = wordBank.some(w => w.word === item.word);
+                return (
+                  <li key={index} className="text-gray-800 flex justify-between items-start gap-2">
+                    <div className="flex-grow">
+                      <strong className="text-yellow-900">{item.word}:</strong> {item.definition}
+                      <p className="text-sm italic text-gray-600 mt-1">{t('common.example')} "{item.articleExample}"</p>
+                    </div>
+                    {/* --- FIX: Add Bookmark Button --- */}
+                    <button
+                      onClick={() => handleSaveWord(item)}
+                      disabled={isSaved}
+                      title={isSaved ? t('common.saved') : t('common.saveWord')}
+                      className="p-1 text-purple-600 hover:text-purple-800 disabled:text-gray-400 disabled:cursor-default flex-shrink-0"
+                    >
+                      <BookmarkIcon className="w-5 h-5" isSolid={isSaved} />
+                    </button>
+                    {/* --- FIX: Use targetLanguage prop for audio --- */}
+                    <SpeakButton text={item.articleExample} langCode={targetLanguage} isAudioLoading={isAudioLoading} onSpeak={onSpeak} t={t} />
+                  </li>
+                );
+              })}
             </ul>
           </div>
         );
@@ -121,6 +199,7 @@ export const GuidedLessonFlow: React.FC<GuidedLessonFlowProps> = (props) => {
               activityState={activityState} 
               inputLevel={lesson.level as EnglishLevel} // Assuming lesson has level
               uiLanguage={props.uiLanguage} 
+              targetLanguage={targetLanguage}
               isAudioLoading={isAudioLoading} 
               onSpeak={onSpeak} 
               onAnswerChange={onAnswerChange}
@@ -132,8 +211,34 @@ export const GuidedLessonFlow: React.FC<GuidedLessonFlowProps> = (props) => {
       case 3:
         return (
           <div className="space-y-3 border-l-4 border-purple-500 pl-4 bg-purple-50 p-3 rounded-lg">
-            <h3 className="text-xl font-bold text-purple-700">{t('lesson.grammarFocus')} {lesson.grammarFocus.topic}</h3>
             <MarkdownRenderer content={lesson.grammarFocus.explanation || ''} className="text-gray-800 mt-2"/>
+            {/* --- NEW: Add Grammar Example Generator --- */}
+            <div className="mt-4">
+              {/* Render generated examples */}
+              {generatedGrammarExamples.length > 0 && (
+                <ul className="space-y-2 mb-3">
+                  {generatedGrammarExamples.map((example, index) => (
+                    <li key={index} className="text-gray-700 italic border-t pt-2 flex justify-between items-center">
+                      <span>"{example}"</span>
+                      <SpeakButton text={example} langCode={targetLanguage} isAudioLoading={isAudioLoading} onSpeak={onSpeak} t={t} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {/* "Get another example" button */}
+              <button
+                onClick={handleGenerateGrammarExample}
+                disabled={isGeneratingExample}
+                className="w-full flex items-center justify-center gap-2 text-sm text-blue-600 font-medium bg-blue-100 p-2 rounded-lg hover:bg-blue-200 transition disabled:opacity-50"
+              >
+                {isGeneratingExample ? (
+                  <LoadingSpinner className="w-5 h-5" />
+                ) : (
+                  <RestartIcon className="w-5 h-5" />
+                )}
+                {t('lesson.getNewExample')} 
+              </button>
+            </div>
           </div>
         );
 
@@ -146,6 +251,7 @@ export const GuidedLessonFlow: React.FC<GuidedLessonFlowProps> = (props) => {
               activityState={activityState} 
               inputLevel={lesson.level as EnglishLevel}
               uiLanguage={props.uiLanguage} 
+              targetLanguage={targetLanguage}
               isAudioLoading={isAudioLoading} 
               onSpeak={onSpeak} 
               onAnswerChange={onAnswerChange}
@@ -157,15 +263,31 @@ export const GuidedLessonFlow: React.FC<GuidedLessonFlowProps> = (props) => {
       case 5:
         return (
           <div className="space-y-3 border-l-4 border-green-500 pl-4 bg-green-50 p-3 rounded-lg">
-            <h3 className="text-xl font-bold text-green-700">{t('lesson.comprehensionQuestions')}</h3>
             <ol className="list-decimal list-inside space-y-4">
               {lesson.comprehensionQuestions.map((q, index) => (
                 <li key={index} className="text-gray-800">
                   <span>{q}</span>
+                  {/* --- NEW: Show Answer Button --- */}
+                  <button
+                    onClick={() => handleFetchComprehensionAnswer(q, index)}
+                    disabled={isAnswerLoading === index || !!comprehensionAnswers[index]}
+                    className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={comprehensionAnswers[index] ? t('lesson.answerShown') : t('lesson.showAnswer')}
+                  >
+                    {isAnswerLoading === index ? (
+                      <LoadingSpinner className="w-4 h-4" />
+                    ) : (
+                      <LightBulbIcon className="w-4 h-4" />
+                    )}
+                  </button>
+                  {comprehensionAnswers[index] && (
+                    <p className="mt-2 p-2 bg-gray-100 border-l-2 border-gray-400 text-sm text-gray-700 whitespace-pre-wrap">
+                      {comprehensionAnswers[index]}
+                    </p>
+                  )}
                 </li>
               ))}
             </ol>
-            <p className="text-sm text-gray-600 italic">{t('activity.comprehension') + " " + t('common.next') + "..."}</p>
           </div>
         );
         
@@ -178,6 +300,7 @@ export const GuidedLessonFlow: React.FC<GuidedLessonFlowProps> = (props) => {
               activityState={activityState} 
               inputLevel={lesson.level as EnglishLevel}
               uiLanguage={props.uiLanguage} 
+              targetLanguage={targetLanguage}
               isAudioLoading={isAudioLoading} 
               onSpeak={onSpeak} 
               onAnswerChange={onAnswerChange}
@@ -194,6 +317,7 @@ export const GuidedLessonFlow: React.FC<GuidedLessonFlowProps> = (props) => {
               activityState={activityState} 
               inputLevel={lesson.level as EnglishLevel}
               uiLanguage={props.uiLanguage} 
+              targetLanguage={targetLanguage}
               isAudioLoading={isAudioLoading} 
               onSpeak={onSpeak} 
               onAnswerChange={onAnswerChange}
@@ -204,9 +328,12 @@ export const GuidedLessonFlow: React.FC<GuidedLessonFlowProps> = (props) => {
       // Step 8: Finish Screen
       case 8:
         return (
-          <div className="text-center p-6 bg-gray-50 rounded-lg">
-            <h2 className="text-2xl font-bold text-blue-700">{t('activity.complete')}</h2>
-            <p className="text-lg text-gray-700 mt-2">
+          <div className="text-center p-10 flex flex-col items-center justify-center min-h-[300px] bg-green-50 rounded-lg border border-green-200">
+            <CheckCircleIcon className="w-16 h-16 text-green-500" />
+            <h2 className="text-2xl font-bold text-gray-800 mt-4">
+              {t('activity.complete')}
+            </h2>
+            <p className="text-lg text-gray-600 mt-2">              
               {t('activity.backToLesson')}
             </p>
           </div>
@@ -229,15 +356,9 @@ export const GuidedLessonFlow: React.FC<GuidedLessonFlowProps> = (props) => {
       <ActivityControls
         activityState={activityState}
         onSubmit={onSubmitAnswer}
-        onNext={() => {
-          // If we are on the last step of an activity (e.g. 5/5), just call handleNext to move to the next screen
-          if (activityState.index + 1 >= activityState.total) {
-            handleNext();
-          } else {
-            // Otherwise, just call the normal activity "next question" handler
-            props.onNextQuestion();
-          }
-        }}
+        // FIX: Always call onNextQuestion. It has the logic to check
+        // if it's the last question and advance the step.
+        onNext={props.onNextQuestion}
         isLastStep={activityState.index + 1 >= activityState.total && isLastQuizStep}
       />
     );
@@ -258,7 +379,7 @@ export const GuidedLessonFlow: React.FC<GuidedLessonFlowProps> = (props) => {
       </div>
 
       {/* 2. Main Content Area */}
-      <div className="min-h-[300px]">
+      <div className="min-h-[50px]">
         {renderStepContent()}
       </div>
 
@@ -271,14 +392,19 @@ export const GuidedLessonFlow: React.FC<GuidedLessonFlowProps> = (props) => {
 
       {/* 4. Navigation */}
       <div className="flex justify-between items-center border-t pt-4">
-        <button
-          onClick={handleBack}
-          disabled={currentStep === 0}
-          className="flex items-center gap-1 text-gray-600 font-medium py-2 px-4 rounded-lg hover:bg-gray-100 transition duration-150 disabled:opacity-50"
-        >
-          <ArrowLeftIcon className="w-4 h-4" />
-          {t('common.back')}
-        </button>
+        {/* --- FIX: Hide Back button on the last step --- */}
+        {currentStep < (steps.length - 1) ? (
+          <button
+            onClick={handleBack}
+            disabled={currentStep === 0}
+            className="flex items-center gap-1 text-gray-600 font-medium py-2 px-4 rounded-lg hover:bg-gray-100 transition duration-150 disabled:opacity-50"
+          >
+            <ArrowLeftIcon className="w-4 h-4" />
+            {t('common.back')}
+          </button>
+        ) : (
+          <div></div> // Empty div to keep the "Finish" button on the right
+        )}
 
         {/* Show activity controls OR the simple "Next" button */}
         {currentStepData.type === 'activity' ? (

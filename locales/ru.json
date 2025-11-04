@@ -130,7 +130,11 @@
       "comprehensionQuestions": "Вопросы на понимание",
       "showAnswer": "Показать ответ",
       "answerShown": "Ответ показан",
-      "getNewExample": "Получить другой пример"
+      "getNewExample": "Получить другой пример",
+      "switchToGuided": "Начать управляемый урок",
+      "switchToOverview": "Переключиться на обзор урока",
+      "guidedMode": "Управляемый режим",
+      "overviewMode": "Режим обзора"
     },
     "activity": {
       "title": "Задание: {{type}}",

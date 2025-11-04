@@ -130,7 +130,11 @@
       "comprehensionQuestions": "أسئلة الفهم",
       "showAnswer": "إظهار الإجابة",
       "answerShown": "الإجابة معروضة",
-      "getNewExample": "الحصول على مثال آخر"
+      "getNewExample": "الحصول على مثال آخر",
+      "switchToGuided": "بدء الدرس الموجه",
+      "switchToOverview": "التبديل إلى نظرة عامة على الدرس",
+      "guidedMode": "وضع موجه",
+      "overviewMode": "وضع النظرة العامة"
     },
     "activity": {
       "title": "نشاط {{type}}",

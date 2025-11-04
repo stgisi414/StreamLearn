@@ -130,7 +130,11 @@
       "comprehensionQuestions": "समझ संबंधी प्रश्न",
       "showAnswer": "उत्तर दिखाएँ",
       "answerShown": "उत्तर दिखाया गया है",
-      "getNewExample": "एक और उदाहरण प्राप्त करें"
+      "getNewExample": "एक और उदाहरण प्राप्त करें",
+      "switchToGuided": "निर्देशित पाठ शुरू करें",
+      "switchToOverview": "पाठ के अवलोकन पर स्विच करें",
+      "guidedMode": "निर्देशित मोड",
+      "overviewMode": "अवलोकन मोड"
     },
     "activity": {
       "title": "{{type}} गतिविधि",

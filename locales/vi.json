@@ -130,7 +130,11 @@
       "comprehensionQuestions": "Câu hỏi Đọc hiểu",
       "showAnswer": "Hiển thị Đáp án",
       "answerShown": "Đáp án được hiển thị",
-      "getNewExample": "Lấy ví dụ khác"
+      "getNewExample": "Lấy ví dụ khác",
+      "switchToGuided": "Bắt đầu bài học có hướng dẫn",
+      "switchToOverview": "Chuyển sang Tổng quan bài học",
+      "guidedMode": "Chế độ hướng dẫn",
+      "overviewMode": "Chế độ tổng quan"
     },
     "activity": {
       "title": "Hoạt động {{type}}",

@@ -130,7 +130,11 @@
       "comprehensionQuestions": "Perguntas de Compreensão",
       "showAnswer": "Mostrar Resposta",
       "answerShown": "Resposta exibida",
-      "getNewExample": "Obter outro exemplo"
+      "getNewExample": "Obter outro exemplo",
+      "switchToGuided": "Iniciar Lição Guiada",
+      "switchToOverview": "Mudar para Visão Geral da Lição",
+      "guidedMode": "Modo Guiado",
+      "overviewMode": "Modo Visão Geral"
     },
     "activity": {
       "title": "Atividade de {{type}}",

@@ -128,7 +128,11 @@
       "comprehensionQuestions": "理解问题",
       "showAnswer": "显示答案",
       "answerShown": "答案已显示",
-      "getNewExample": "获取另一个例子"
+      "getNewExample": "获取另一个例子",
+      "switchToGuided": "开始引导式课程",
+      "switchToOverview": "切换到课程概览",
+      "guidedMode": "引导模式",
+      "overviewMode": "概览模式"
     },
     "activity": {
       "title": "{{type}} 活动",

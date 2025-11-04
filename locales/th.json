@@ -130,7 +130,11 @@
       "comprehensionQuestions": "คำถามเพื่อความเข้าใจ",
       "showAnswer": "แสดงคำตอบ",
       "answerShown": "แสดงคำตอบแล้ว",
-      "getNewExample": "รับตัวอย่างอื่น"
+      "getNewExample": "รับตัวอย่างอื่น",
+      "switchToGuided": "เริ่มบทเรียนนำทาง",
+      "switchToOverview": "สลับไปที่ภาพรวมบทเรียน",
+      "guidedMode": "โหมดนำทาง",
+      "overviewMode": "โหมดภาพรวม"
     },
     "activity": {
       "title": "กิจกรรม{{type}}",

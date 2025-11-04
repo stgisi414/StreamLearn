@@ -130,7 +130,11 @@
       "comprehensionQuestions": "Pytania do tekstu",
       "showAnswer": "Pokaż odpowiedź",
       "answerShown": "Odpowiedź pokazana",
-      "getNewExample": "Pobierz inny przykład"
+      "getNewExample": "Pobierz inny przykład",
+      "switchToGuided": "Rozpocznij lekcję z przewodnikiem",
+      "switchToOverview": "Przełącz do widoku ogólnego lekcji",
+      "guidedMode": "Tryb z przewodnikiem",
+      "overviewMode": "Tryb ogólny"
     },
     "activity": {
       "title": "Ćwiczenie: {{type}}",
