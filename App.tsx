@@ -42,6 +42,7 @@ import { PauseIcon } from './components/icons/PauseIcon';
 import { CheckCircleIcon } from './components/icons/CheckCircleIcon';
 import { LightBulbIcon } from './components/icons/LightBulbIcon';
 import { BrainIcon } from './components/icons/BrainIcon';
+import { BeakerIcon } from './components/icons/BeakerIcon';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
 import { Lesson, Article, NewsResult, EnglishLevel, LessonResponse, SavedWord, VocabularyItem, StripeSubscription, LanguageCode } from './types';
 import { ArrowsRightLeftIcon } from './components/icons/ArrowsRightLeftIcon';
@@ -449,6 +450,8 @@ const App: React.FC = () => {
     setCurrentArticle(article); // Set localStorage immediately
     navigate('/lesson', `?url=${encodeURIComponent(article.link)}`, { article });
   }, [navigate, setCurrentArticle]);
+
+
 
   // --- Core Fetch Helper ---
   const authenticatedFetch = useCallback(async (functionName: string, data: object) => {
@@ -1793,25 +1796,43 @@ const App: React.FC = () => {
           return;
       }
 
-      setActivityState({
-        type: type,
-        index: 0,
-        score: 0,
-        total: totalItems,
-        shuffledIndices: shuffledIndices, // <-- Store shuffled indices (will be undefined for non-vocab)
-        currentData: null,
-        userAnswer: null,
-        feedback: { isCorrect: null, message: '' },
-        isSubmitting: false,
-      });
+     setActivityState({
+      type: type,
+      index: 0,
+      score: 0,
+      total: totalItems,
+      shuffledIndices: undefined,
+      currentData: null, // Will be loaded by useEffect
+      userAnswer: null,
+      feedback: { isCorrect: null, message: '' },
+      isSubmitting: true, // Start in loading state
+    });
       setCurrentView('ACTIVITY');
     }, [currentLesson, shuffleArray, setError, t, lessonViewMode, setGuidedLessonStep, steps, setActivityState, setCurrentView]);
 
-  const quitActivity = useCallback(() => {
+    const quitActivity = useCallback(async () => {
       activityCancellationRef.current = true; // Signal cancellation
 
       const lastActivityType = lastActivityTypeRef.current;
       console.log("last activity type: " + lastActivityType); // Your debug log
+
+      const justFinishedGuidedLesson = lessonViewMode === 'guided' && guidedLessonStep === (steps.length - 1);
+      if (user && currentArticle && justFinishedGuidedLesson) {
+        console.log("Guided lesson finished. Marking as complete in Firestore.");
+        try {
+          const lessonDocId = btoa(currentArticle.link)
+            .replace(/\//g, '_')
+            .replace(/\+/g, '-');
+          const lessonDocRef = doc(db, `users/${user.uid}/lessons`, lessonDocId);
+          await setDoc(lessonDocRef, {
+            guidedCompleted: true, // Our new accountability flag
+            lastCompletedAt: Timestamp.now() // Track when
+          }, { merge: true });
+        } catch (err) {
+          console.warn("Could not mark lesson as complete:", err);
+          // Don't block the user, just log the error
+        }
+      }
 
       // --- FIX: Only reset step/view if quitting from GUIDED mode ---
       if (lessonViewMode === 'guided') {
@@ -1831,6 +1852,8 @@ const App: React.FC = () => {
       // Navigate based on the last activity type
       if (lastActivityType === 'wordbank_study' || lastActivityType === 'wordbank_review') {
           navigate('/wordbank'); // Go to Word Bank
+      } else if (lastActivityType === 'grammar_standalone' || lastActivityType === 'writing_standalone') { // <-- ADD THIS ELSE IF
+          navigate('/'); // Go to Dashboard
       } else {
           // Default to lesson view for all other types
           if (currentArticle) {
@@ -1839,7 +1862,11 @@ const App: React.FC = () => {
             navigate('/'); // Fallback to dashboard
           }
       }
-  }, [setActivityState, setIsActivityAudioLoading, setActivityAudioError, navigate, currentArticle, goToLesson, lessonViewMode, setGuidedLessonStep, setLessonViewMode]);
+  }, [
+      setActivityState, setIsActivityAudioLoading, setActivityAudioError, navigate, currentArticle, goToLesson,
+      lessonViewMode, setGuidedLessonStep, setLessonViewMode,
+      guidedLessonStep, steps, user, db
+  ]);
 
   // --- NEW: Logic to move to the next GUIDED step ---
    const handleNextGuidedStep = useCallback(() => {
@@ -1929,13 +1956,23 @@ const App: React.FC = () => {
     // --- Prepare Data (Sync or Async) ---
     let dataPromise: Promise<any>; // Use a promise to handle both sync and async paths
 
+    // --- THIS IS THE MISSING BLOCK ---
     if (type === 'vocab' && shuffledIndices) {
       dataPromise = Promise.resolve().then(() => { // Wrap sync logic in resolved promise
         const actualItemIndex = shuffledIndices[index];
         if (actualItemIndex >= currentLesson.vocabularyList.length) throw new Error(`Invalid shuffled index ${actualItemIndex}`);
         const currentVocabItem = currentLesson.vocabularyList[actualItemIndex];
         if (!currentVocabItem || !currentVocabItem.word || !currentVocabItem.definition) throw new Error(`Invalid vocab item at index ${actualItemIndex}`);
-        let dataForStep: any = { word: currentVocabItem.word, definition: currentVocabItem.definition };
+        
+        let dataForStep: any = { 
+          word: currentVocabItem.word, 
+          definition: currentVocabItem.definition,
+          // Pass language codes for the speak button
+          uiLanguage: uiLanguage, 
+          targetLanguage: targetLanguage,
+          question: currentVocabItem.definition // For the SpeakButton in ActivityContent
+        };
+        
         if (inputLevel !== 'Advanced') {
           const numOptions = inputLevel === 'Beginner' ? 2 : 4;
           const otherIndices = shuffledIndices.filter((_, i) => i !== index);
@@ -1944,6 +1981,7 @@ const App: React.FC = () => {
         }
         return dataForStep;
       });
+    // --- END OF THE MISSING BLOCK ---
     } else if (type === 'comprehension') {
       dataPromise = Promise.resolve().then(() => { // Wrap sync logic in resolved promise
         if (index >= currentLesson.comprehensionQuestions.length) throw new Error(`Index ${index} out of bounds for comprehension`);
@@ -1951,6 +1989,50 @@ const App: React.FC = () => {
         if (!questionText || typeof questionText !== 'string') throw new Error(`Invalid comprehension question at index ${index}`);
         return { question: questionText, summary: currentLesson.summary };
       });
+    } else if (type === 'grammar_standalone') {
+        console.log(`Setting loading ref and starting grammar_standalone fetch for ${currentStepKey}...`);
+        loadingStepRef.current = currentStepKey;
+        setActivityState(prev => {
+           if (!prev || prev.index !== index || prev.type !== 'grammar_standalone') return prev;
+           return { ...prev, isSubmitting: true, currentData: null, userAnswer: null, feedback: {isCorrect: null, message: ''}};
+        });
+  
+        const payload = {
+          level: inputLevel, // Use the user's current level setting
+          uiLanguage: uiLanguage,
+          targetLanguage: targetLanguage
+        };
+  
+        dataPromise = authenticatedFetch('handleActivity', {
+            activityType: 'grammar_standalone_generate', // We'll create this backend case
+            payload: payload
+        }).then(fetchedData => {
+          if (activityCancellationRef.current) { return Promise.reject(new Error("Activity cancelled")); }
+          if (fetchedData?.question && fetchedData?.options) { return fetchedData; }
+          else { throw new Error("Invalid grammar data received."); }
+        });
+    } else if (type === 'writing_standalone') {
+        console.log(`Setting loading ref and starting writing_standalone fetch for ${currentStepKey}...`);
+        loadingStepRef.current = currentStepKey;
+        setActivityState(prev => {
+           if (!prev || prev.index !== index || prev.type !== 'writing_standalone') return prev;
+           return { ...prev, isSubmitting: true, currentData: null, userAnswer: null, feedback: {isCorrect: null, message: ''}};
+        });
+  
+        const payload = {
+          level: inputLevel,
+          uiLanguage: uiLanguage,
+          targetLanguage: targetLanguage
+        };
+  
+        dataPromise = authenticatedFetch('handleActivity', {
+            activityType: 'writing_standalone_generate', // We'll create this backend case
+            payload: payload
+        }).then(fetchedData => {
+          if (activityCancellationRef.current) { return Promise.reject(new Error("Activity cancelled")); }
+          if (fetchedData?.prompt) { return fetchedData; }
+          else { throw new Error("Invalid writing prompt data received."); }
+        });
     } else if (type === 'grammar') {
     console.log(`Setting loading ref and starting grammar fetch for ${currentStepKey}...`);
     loadingStepRef.current = currentStepKey;
@@ -2078,7 +2160,7 @@ const App: React.FC = () => {
      }
      // *** END CANCELLATION CHECK ***
 
-     if (loadingStepRef.current !== currentStepKey && (type === 'grammar' || type === 'writing')) {
+     if (loadingStepRef.current !== currentStepKey && (type === 'grammar' || type === 'writing' || type === 'grammar_standalone' || type === 'writing_standalone')) {
         console.log(`Data received for ${currentStepKey}, but loading ref changed or cleared. Discarding.`);
         return;
      }
@@ -2141,8 +2223,8 @@ const App: React.FC = () => {
   }, [
       currentView, activityState?.type, activityState?.index, // Step definition
       activityState?.shuffledIndices, // Needed for vocab order
-      inputLevel, currentLesson, languageLevels, // <-- ADD languageLevels
-      wordBank, // <-- ADDED: wordBank is now a data source
+      inputLevel, currentLesson, // languageLevels, // <-- REMOVED languageLevels
+      wordsForPractice, // <-- REPLACED wordBank with wordsForPractice
       authenticatedFetch, quitActivity, setError, shuffleArray, // Stable functions
       uiLanguage, targetLanguage
   ]);
@@ -2230,6 +2312,27 @@ const App: React.FC = () => {
                   };
               });
 
+          } else if (type === 'grammar_standalone') {
+              const result = await authenticatedFetch('handleActivity', {
+                  activityType: 'grammar_grade', // We can reuse the existing 'grammar_grade'
+                  payload: {
+                      question: currentData.question,
+                      options: currentData.options,
+                      correctAnswer: currentData.correctAnswer,
+                      userAnswer: String(userAnswer),
+                      uiLanguage: uiLanguage
+                  }
+              });
+              setActivityState(prev => {
+                  if (!prev) return null;
+                  const newScore = result.isCorrect ? prev.score + 1 : prev.score;
+                  return {
+                    ...prev,
+                    feedback: { isCorrect: result.isCorrect, message: result.feedback || (result.isCorrect ? t('activity.correct') : 'Incorrect.') },
+                    score: newScore,
+                    isSubmitting: false
+                  };
+              });
           } else if (type === 'comprehension') {
               // Comprehension grading remains the same (uses backend)
                const result = await authenticatedFetch('handleActivity', {
@@ -2253,7 +2356,29 @@ const App: React.FC = () => {
                      isSubmitting: false
                    };
                });
-          } else if (type === 'writing') {
+          } else if (type === 'writing_standalone') {
+               const result = await authenticatedFetch('handleActivity', {
+                  activityType: 'writing_standalone_grade', // We'll create this new backend case
+                  payload: {
+                      prompt: currentData.prompt,
+                      userAnswer: String(userAnswer),
+                      level: inputLevel,
+                      uiLanguage: uiLanguage,
+                      targetLanguage: targetLanguage
+                  }
+               });
+               setActivityState(prev => {
+                   if (!prev) return null;
+                   // For writing, "isCorrect" is more of a "pass/fail". The feedback is what matters.
+                   const newScore = result.isCorrect ? prev.score + 1 : prev.score;
+                   return {
+                     ...prev,
+                     feedback: { isCorrect: result.isCorrect, message: result.feedback || (result.isCorrect ? 'Great job!' : 'Good try, see feedback.') },
+                     score: newScore,
+                     isSubmitting: false
+                   };
+               });
+          } else if (type === 'wordbank_study') {
                const result = await authenticatedFetch('handleActivity', {
                   activityType: 'writing_grade',
                   payload: {
@@ -2729,6 +2854,34 @@ const LandingPage: React.FC<{
     setCurrentView('ACTIVITY');
   };
 
+  // ADD this new function after startWordBankActivity (around line 2042)
+  const startStandaloneActivity = useCallback((type: 'grammar_standalone' | 'writing_standalone') => {
+    if (!user) {
+      setError("Please sign in to start practice.");
+      return;
+    }
+
+    console.log(`Starting standalone activity: ${type}`);
+    activityCancellationRef.current = false;
+    setError(null);
+
+    // Standalone activities are always 1 question
+    const totalItems = Infinity;
+
+    setActivityState({
+      type: type,
+      index: 0,
+      score: 0,
+      total: totalItems,
+      shuffledIndices: undefined,
+      currentData: null, // Will be loaded by useEffect
+      userAnswer: null,
+      feedback: { isCorrect: null, message: '' },
+      isSubmitting: true, // Start in loading state
+    });
+    setCurrentView('ACTIVITY');
+  }, [user, setError, setActivityState, setCurrentView]); // <-- ADDED dependencies
+
   const renderDashboard = () => (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto bg-white rounded-xl shadow-2xl space-y-5">
       {/* Header */}
@@ -2836,6 +2989,32 @@ const LandingPage: React.FC<{
         </div>
       </div>
 
+      {/* --- PRACTICE CENTER SECTION --- */}
+      <div className="space-y-3 border-t pt-4">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <BeakerIcon className="w-6 h-6" /> {t('dashboard.practiceCenter')}
+        </h2>
+        <p className="text-sm text-gray-500">
+          {t('dashboard.practiceDescription')}
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <button
+            onClick={() => startStandaloneActivity('grammar_standalone')}
+            disabled={isApiLoading || activityState?.isSubmitting}
+            className="flex items-center justify-center gap-2 bg-teal-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-teal-600 transition duration-150 shadow-lg disabled:opacity-50"
+          >
+            <PencilSquareIcon className="w-5 h-5" /> {t('dashboard.grammarPractice')}
+          </button>
+          <button
+            onClick={() => startStandaloneActivity('writing_standalone')}
+            disabled={isApiLoading || activityState?.isSubmitting}
+            className="flex items-center justify-center gap-2 bg-sky-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-sky-600 transition duration-150 shadow-lg disabled:opacity-50"
+          >
+            <BrainIcon className="w-5 h-5" /> {t('dashboard.writingPractice')}
+          </button>
+        </div>
+      </div>
+
       {/* Lesson History */}
       <div className="space-y-3">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-800 border-t pt-4">{t('dashboard.historyTitle')}</h2>
@@ -2869,14 +3048,30 @@ const LandingPage: React.FC<{
                 className="w-full flex gap-3 items-center p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-blue-50 transition duration-150 text-left"
               >
                 {lesson.image ? (
-                  <img
-                    src={lesson.image}
-                    alt=""
-                    className="w-16 h-16 object-cover rounded flex-shrink-0"
-                    onError={(e) => (e.currentTarget.style.display = 'none')}
-                  />
+                  <div className="relative flex-shrink-0">
+                    <img
+                      src={lesson.image}
+                      alt=""
+                      className="w-16 h-16 object-cover rounded"
+                      onError={(e) => (e.currentTarget.style.display = 'none')}
+                    />
+                    {/* --- ADD THIS CHECKMARK --- */}
+                    {lesson.guidedCompleted && (
+                      <CheckCircleIcon 
+                        className="w-6 h-6 text-green-500 absolute -top-2 -right-2 bg-white rounded-full" 
+                        title="Guided lesson completed" 
+                      />
+                    )}
+                  </div>
                 ) : (
-                  <div className="w-16 h-16 flex items-center justify-center bg-gray-100 rounded flex-shrink-0">
+                  <div className="w-16 h-16 flex items-center justify-center bg-gray-100 rounded flex-shrink-0 relative">
+                    {/* --- AND ADD IT HERE --- */}
+                    {lesson.guidedCompleted && (
+                      <CheckCircleIcon 
+                        className="w-6 h-6 text-green-500 absolute -top-2 -right-2 bg-white rounded-full" 
+                        title="Guided lesson completed" 
+                      />
+                    )}
                     <HistoryIcon className="w-8 h-8 text-blue-400" />
                   </div>
                 )}
@@ -4055,12 +4250,12 @@ const LandingPage: React.FC<{
     // This logic is now identical to the one in GuidedLessonFlow
     const translatedType = t(
       type === 'vocab' ? 'activity.vocab' :
-      type === 'grammar' ? 'activity.grammar' :
+      (type === 'grammar' || type === 'grammar_standalone') ? 'activity.grammar' : // <-- FIX
       type === 'comprehension' ? 'activity.comprehension' :
-      type === 'writing' ? 'activity.writing' :
+      (type === 'writing' || type === 'writing_standalone') ? 'activity.writing' : // <-- FIX
       type === 'wordbank_study' ? 'wordBank.title' :
       type === 'wordbank_review' ? 'wordBank.title' :
-      'activity.writing' // default for 'writing'
+      'activity.writing' // default
     );
 
     return (
@@ -4069,8 +4264,16 @@ const LandingPage: React.FC<{
           {/* Header with Progress and Score */}
           <div className="flex flex-wrap justify-between items-center text-sm text-gray-600 gap-2">
             <span>{t('activity.title', { type: translatedType })}</span>
-            <span>{t('common.score')} {score}/{total}</span>
-            <span>{t('common.question')} {index + 1}/{total}</span>
+            {(type === 'grammar_standalone' || type === 'writing_standalone') ? (
+              <span>{t('common.score')} {score}</span>
+            ) : (
+              <span>{t('common.score')} {score}/{total}</span>
+            )}
+            {(type === 'grammar_standalone' || type === 'writing_standalone') ? (
+              <span>{t('common.question')} {index + 1}</span>
+            ) : (
+              <span>{t('common.question')} {index + 1}/{total}</span>
+            )}
             <button onClick={quitActivity} className="text-xs text-gray-500 hover:text-gray-700">{t('common.quit')}</button>
           </div>
           <hr/>

@@ -76,7 +76,12 @@
       "historySearch": "タイトル、トピック、またはソースで検索...",
       "historyLoading": "レッスンを読み込んでいます...",
       "historyEmpty": "まだレッスンを完了していません。新しいレッスンを始めましょう！",
-      "historyNoResults": "「{{term}}」に一致するレッスンはありません。"
+      "historyNoResults": "「{{term}}」に一致するレッスンはありません。",
+      "topic": "トピック:",
+      "practiceCenter": "練習センター",
+      "practiceDescription": "クイックで独立した練習問題でスキルをテストしましょう。",
+      "grammarPractice": "クイック文法練習",
+      "writingPractice": "クイックライティング練習"
     },
     "wordBank": {
       "title": "単語バンク",
@@ -134,7 +139,8 @@
       "switchToGuided": "ガイド付きレッスンを開始",
       "switchToOverview": "レッスン概要に切り替え",
       "guidedMode": "ガイド付きモード",
-      "overviewMode": "概要モード"
+      "overviewMode": "概要モード",
+      "guidedComplete": "ガイド付きレッスンを完了しました！下の「終了」ボタンをクリックしてダッシュボードに戻ってください。"
     },
     "activity": {
       "title": "{{type}} アクティビティ",

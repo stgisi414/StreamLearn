@@ -77,7 +77,11 @@
       "historyLoading": "Memuat pelajaran Anda...",
       "historyEmpty": "Anda belum menyelesaikan pelajaran apa pun. Mulai yang baru!",
       "historyNoResults": "Tidak ada pelajaran yang cocok dengan pencarian Anda untuk \"{{term}}\".",
-      "topic": "Topik:"
+      "topic": "Topik:",
+      "practiceCenter": "Pusat Latihan",
+      "practiceDescription": "Uji keterampilan Anda dengan latihan praktik mandiri yang cepat.",
+      "grammarPractice": "Latihan Tata Bahasa Cepat",
+      "writingPractice": "Latihan Menulis Cepat"
     },
     "wordBank": {
       "title": "Bank Kata Saya",
@@ -134,7 +138,8 @@
       "switchToGuided": "Mulai Pelajaran Terpandu",
       "switchToOverview": "Beralih ke Ikhtisar Pelajaran",
       "guidedMode": "Mode Terpandu",
-      "overviewMode": "Mode Ikhtisar"
+      "overviewMode": "Mode Ikhtisar",
+      "guidedComplete": "Anda telah menyelesaikan pelajaran terpandu! Klik tombol 'Selesai' di bawah untuk kembali ke dasbor Anda."
     },
     "activity": {
       "title": "Aktivitas {{type}}",

@@ -76,7 +76,12 @@
       "historySearch": "Suche nach Titel, Thema oder Quelle...",
       "historyLoading": "Lade deine Lektionen...",
       "historyEmpty": "Du hast noch keine Lektionen abgeschlossen. Starte eine neue!",
-      "historyNoResults": "Keine Lektionen entsprechen deiner Suche nach \"{{term}}\"."
+      "historyNoResults": "Keine Lektionen entsprechen deiner Suche nach \"{{term}}\".",
+      "topic": "Thema:",
+      "practiceCenter": "Übungszentrum",
+      "practiceDescription": "Testen Sie Ihre Fähigkeiten mit schnellen, eigenständigen Übungen.",
+      "grammarPractice": "Sneloefening Grammatik",
+      "writingPractice": "Sneloefening Schreiben"
     },
     "wordBank": {
       "title": "Meine Wortbank",
@@ -134,7 +139,8 @@
       "switchToGuided": "Geführte Lektion starten",
       "switchToOverview": "Zur Lektionsübersicht wechseln",
       "guidedMode": "Geführter Modus",
-      "overviewMode": "Übersichtsmodus"
+      "overviewMode": "Übersichtsmodus",
+      "guidedComplete": "Sie haben die geführte Lektion abgeschlossen! Klicken Sie unten auf die Schaltfläche 'Fertig stellen', um zu Ihrem Dashboard zurückzukehren."
     },
     "activity": {
       "title": "{{type}}-Aktivität",

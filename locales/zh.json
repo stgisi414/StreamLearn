@@ -74,7 +74,12 @@
       "historySearch": "按标题、主题或来源搜索...",
       "historyLoading": "正在加载你的课程...",
       "historyEmpty": "你还没有完成任何课程。开始新的课程吧！",
-      "historyNoResults": "没有找到与 “{{term}}” 匹配的课程。"
+      "historyNoResults": "没有找到与 “{{term}}” 匹配的课程。",
+      "topic": "主题：",
+      "practiceCenter": "练习中心",
+      "practiceDescription": "通过快速、独立的练习来测试您的技能。",
+      "grammarPractice": "快速语法练习",
+      "writingPractice": "快速写作练习"
     },
     "wordBank": {
       "title": "我的单词库",
@@ -132,7 +137,8 @@
       "switchToGuided": "开始引导式课程",
       "switchToOverview": "切换到课程概览",
       "guidedMode": "引导模式",
-      "overviewMode": "概览模式"
+      "overviewMode": "概览模式",
+      "guidedComplete": "您已完成引导式课程！请点击下方的“完成”按钮返回您的仪表板。"
     },
     "activity": {
       "title": "{{type}} 活动",

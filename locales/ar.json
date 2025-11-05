@@ -77,7 +77,11 @@
       "historyLoading": "جارٍ تحميل دروسك...",
       "historyEmpty": "لم تكمل أي دروس بعد. ابدأ درسًا جديدًا!",
       "historyNoResults": "لا توجد دروس تطابق بحثك عن \"{{term}}\".",
-      "topic": "الموضوع:"
+      "topic": "الموضوع:",
+      "practiceCenter": "مركز التدريب",
+      "practiceDescription": "اختبر مهاراتك بتمارين تدريب سريعة ومستقلة.",
+      "grammarPractice": "تدريب سريع على القواعد",
+      "writingPractice": "تدريب سريع على الكتابة"
     },
     "wordBank": {
       "title": "بنك كلماتي",
@@ -134,7 +138,8 @@
       "switchToGuided": "بدء الدرس الموجه",
       "switchToOverview": "التبديل إلى نظرة عامة على الدرس",
       "guidedMode": "وضع موجه",
-      "overviewMode": "وضع النظرة العامة"
+      "overviewMode": "وضع النظرة العامة",
+      "guidedComplete": "لقد أكملت الدرس الموجه! انقر على زر 'إنهاء' أدناه للعودة إلى لوحة التحكم."
     },
     "activity": {
       "title": "نشاط {{type}}",

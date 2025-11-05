@@ -77,7 +77,11 @@
       "historyLoading": "Carregando suas lições...",
       "historyEmpty": "Você ainda não completou nenhuma lição. Comece uma nova!",
       "historyNoResults": "Nenhuma lição corresponde à sua busca por \"{{term}}\".",
-      "topic": "Tópico:"
+      "topic": "Tópico:",
+      "practiceCenter": "Centro de Prática",
+      "practiceDescription": "Teste suas habilidades com exercícios rápidos e autônomos.",
+      "grammarPractice": "Prática Rápida de Gramática",
+      "writingPractice": "Prática Rápida de Escrita"
     },
     "wordBank": {
       "title": "Meu Banco de Palavras",
@@ -134,7 +138,8 @@
       "switchToGuided": "Iniciar Lição Guiada",
       "switchToOverview": "Mudar para Visão Geral da Lição",
       "guidedMode": "Modo Guiado",
-      "overviewMode": "Modo Visão Geral"
+      "overviewMode": "Modo Visão Geral",
+      "guidedComplete": "Você concluiu a lição guiada! Clique no botão 'Terminar' abaixo para retornar ao seu painel."
     },
     "activity": {
       "title": "Atividade de {{type}}",

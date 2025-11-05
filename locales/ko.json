@@ -76,7 +76,12 @@
       "historySearch": "제목, 주제 또는 출처로 검색...",
       "historyLoading": "수업 기록을 불러오는 중...",
       "historyEmpty": "아직 완료한 수업이 없습니다. 새 수업을 시작해 보세요!",
-      "historyNoResults": "\"{{term}}\"에 대한 검색 결과가 없습니다."
+      "historyNoResults": "\"{{term}}\"에 대한 검색 결과가 없습니다.",
+      "topic": "주제:",
+      "practiceCenter": "연습 센터",
+      "practiceDescription": "빠르고 독립적인 연습 문제로 실력을 테스트하세요.",
+      "grammarPractice": "빠른 문법 연습",
+      "writingPractice": "빠른 작문 연습"
     },
     "wordBank": {
       "title": "내 단어장",
@@ -134,7 +139,8 @@
       "switchToGuided": "가이드 모드 수업 시작",
       "switchToOverview": "수업 개요로 전환",
       "guidedMode": "가이드 모드",
-      "overviewMode": "개요 모드"
+      "overviewMode": "개요 모드",
+      "guidedComplete": "가이드 수업을 완료했습니다! 대시보드로 돌아가려면 아래의 '완료' 버튼을 클릭하세요."
     },
     "activity": {
       "title": "{{type}} 활동",

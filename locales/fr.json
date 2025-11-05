@@ -76,7 +76,12 @@
       "historySearch": "Rechercher par titre, sujet ou source...",
       "historyLoading": "Chargement de vos leçons...",
       "historyEmpty": "Vous n'avez encore terminé aucune leçon. Commencez-en une nouvelle !",
-      "historyNoResults": "Aucune leçon ne correspond à votre recherche pour \"{{term}}\"."
+      "historyNoResults": "Aucune leçon ne correspond à votre recherche pour \"{{term}}\".",
+      "topic": "Sujet :",
+      "practiceCenter": "Centre d'Entraînement",
+      "practiceDescription": "Testez vos compétences avec des exercices de pratique rapides et autonomes.",
+      "grammarPractice": "Pratique Rapide de Grammaire",
+      "writingPractice": "Pratique Rapide d'Écriture"
     },
     "wordBank": {
       "title": "Ma banque de mots",
@@ -134,7 +139,8 @@
       "switchToGuided": "Démarrer la Leçon Guidée",
       "switchToOverview": "Passer à l'Aperçu de la Leçon",
       "guidedMode": "Mode Guidé",
-      "overviewMode": "Mode Aperçu"
+      "overviewMode": "Mode Aperçu",
+      "guidedComplete": "Vous avez terminé la leçon guidée ! Cliquez sur le bouton 'Terminer' ci-dessous pour retourner à votre tableau de bord."
     },
     "activity": {
       "title": "Activité de {{type}}",

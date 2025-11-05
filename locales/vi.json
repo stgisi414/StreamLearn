@@ -77,7 +77,11 @@
       "historyLoading": "Đang tải bài học của bạn...",
       "historyEmpty": "Bạn chưa hoàn thành bài học nào. Hãy bắt đầu một bài học mới!",
       "historyNoResults": "Không có bài học nào khớp với tìm kiếm của bạn cho \"{{term}}\".",
-      "topic": "Chủ đề:"
+      "topic": "Chủ đề:",
+      "practiceCenter": "Trung tâm Luyện tập",
+      "practiceDescription": "Kiểm tra kỹ năng của bạn với các bài tập luyện tập nhanh, độc lập.",
+      "grammarPractice": "Luyện tập Ngữ pháp Nhanh",
+      "writingPractice": "Luyện tập Viết Nhanh"
     },
     "wordBank": {
       "title": "Ngân hàng từ của tôi",
@@ -134,7 +138,8 @@
       "switchToGuided": "Bắt đầu bài học có hướng dẫn",
       "switchToOverview": "Chuyển sang Tổng quan bài học",
       "guidedMode": "Chế độ hướng dẫn",
-      "overviewMode": "Chế độ tổng quan"
+      "overviewMode": "Chế độ tổng quan",
+      "guidedComplete": "Bạn đã hoàn thành bài học có hướng dẫn! Nhấp vào nút 'Hoàn thành' bên dưới để quay lại bảng điều khiển của bạn."
     },
     "activity": {
       "title": "Hoạt động {{type}}",

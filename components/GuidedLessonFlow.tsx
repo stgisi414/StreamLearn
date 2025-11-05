@@ -334,7 +334,7 @@ export const GuidedLessonFlow: React.FC<GuidedLessonFlowProps> = (props) => {
               {t('activity.complete')}
             </h2>
             <p className="text-lg text-gray-600 mt-2">              
-              {t('activity.backToLesson')}
+              {t('lesson.guidedComplete')}
             </p>
           </div>
         );

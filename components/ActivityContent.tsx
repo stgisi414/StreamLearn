@@ -152,8 +152,8 @@ export const ActivityContent: React.FC<ActivityContentProps> = ({
         </div>
       )}
 
-      {/* Grammar Quiz */}
-      {type === 'grammar' && currentData.question && (
+      {/* Grammar Quiz (and Standalone) */}
+      {(type === 'grammar' || type === 'grammar_standalone') && currentData.question && (
         <div>
           <p className="text-lg font-semibold text-gray-700 mb-3">
             {currentData.question}
@@ -212,8 +212,8 @@ export const ActivityContent: React.FC<ActivityContentProps> = ({
         </div>
       )}
 
-      {/* Writing Practice */}
-      {type === 'writing' && currentData.prompt && (
+      {/* Writing Practice (and Standalone) */}
+      {(type === 'writing' || type === 'writing_standalone') && currentData.prompt && (
         <div>
           <p className="text-lg font-semibold text-gray-700 mb-2">
             {t('activity.writingPrompt')}

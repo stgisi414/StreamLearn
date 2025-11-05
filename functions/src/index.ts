@@ -878,6 +878,85 @@ export const handleActivity = onRequest(
           
           break; 
 
+        case 'grammar_standalone_generate':
+           if (!payload.level || !payload.uiLanguage || !payload.targetLanguage) {
+             logger.error("handleActivity: Bad request (grammar_standalone_generate), missing params.");
+             res.status(400).json({ error: "Missing level, uiLanguage, or targetLanguage." });
+             return;
+           }
+          prompt = `You are a ${targetLangName} language teacher. 
+            Generate one multiple-choice grammar question in ${uiLangName.toUpperCase()} for a ${level} student.
+            The question should test a common ${targetLangName} grammar topic appropriate for a ${level} learner.
+            
+            **IMPORTANT: Follow these ${level}-specific rules:**
+            ${levelGuidance}
+
+            Provide 4 distinct options (A, B, C, D) in ${uiLangName}, with only one being correct.
+            Respond ONLY with a JSON object following the specified schema.`;
+          responseSchema = {
+            type: Type.OBJECT,
+            properties: {
+              question: { type: Type.STRING, description: `The grammar question, in ${uiLangName}.` },
+              options: { type: Type.ARRAY, items: { type: Type.STRING }, description: `The 4 multiple choice options, in ${uiLangName}.` },
+              correctAnswer: { type: Type.STRING, description: "The letter (A, B, C, or D) corresponding to the correct option." }
+            },
+            required: ["question", "options", "correctAnswer"]
+          };
+          break;
+
+        case 'writing_standalone_generate':
+           if (!payload.level || !payload.uiLanguage || !payload.targetLanguage) {
+             logger.error("handleActivity: Bad request (writing_standalone_generate), missing params.");
+             res.status(400).json({ error: "Missing level, uiLanguage, or targetLanguage." });
+             return;
+           }
+           
+           prompt = `You are a ${targetLangName} teacher. 
+            Generate one short, general-knowledge writing prompt in ${uiLangName.toUpperCase()} for a ${level} learner.
+            The prompt should ask them to write 2-3 sentences in ${targetLangName.toUpperCase()}.
+            
+            **IMPORTANT: Follow these ${level}-specific rules for the prompt:**
+            ${levelGuidance}
+
+            Example prompts (for inspiration only): 
+            - "What did you do last weekend? Write 2-3 sentences in ${targetLangName}."
+            - "Describe your favorite food in 2-3 sentences in ${targetLangName}."
+            - "What is your opinion on remote work? Write 2-3 sentences in ${targetLangName}."
+
+            Respond ONLY with a JSON object following the specified schema.`;
+           
+           responseSchema = {
+            type: Type.OBJECT,
+            properties: {
+              prompt: { type: Type.STRING, description: `The writing prompt for the user, in ${uiLangName}.` }
+            },
+            required: ["prompt"]
+          };
+          break;
+
+        case 'writing_standalone_grade':
+          if (!payload.prompt || payload.userAnswer === undefined || payload.userAnswer === null || !payload.level) {
+              logger.error("handleActivity: Bad request (writing_standalone_grade), missing params.");
+              res.status(400).json({ error: "Missing prompt, userAnswer, or level." });
+              return;
+          }
+          
+          prompt = `You are a ${targetLangName} teacher grading a ${level} ${uiLangName}-speaking learner.
+            Evaluate the user's writing (which should be in ${targetLangName}) based on the prompt (which is in ${uiLangName}).
+            There is NO article summary to check against. You are only grading for grammatical accuracy, vocabulary usage, and relevance to the prompt.
+
+            **IMPORTANT: Grade according to these ${level}-specific rules:**
+            ${levelGuidance}
+
+            Writing Prompt (in ${uiLangName}): "${payload.prompt}"
+            User's Answer (in ${targetLangName}): "${payload.userAnswer}"
+
+            Is the user's answer a reasonable and relevant response (in ${targetLangName}) to the prompt?
+            Provide 1-2 sentences of constructive feedback in ${uiLangName.toUpperCase()}. Praise what they did well and suggest one simple correction if needed.
+            Respond ONLY with a JSON object with keys "isCorrect" (boolean, true if the response is on-topic and grammatically mostly correct) and "feedback" (string, in ${uiLangName}).`;
+          
+          break;
+       
         default:
           logger.error(`handleActivity: Invalid activityType: ${activityType}`);
           res.status(400).json({ error: "Invalid activityType." });
@@ -885,7 +964,7 @@ export const handleActivity = onRequest(
       }
 
       logger.info(`Calling Gemini for ${activityType}`);
-      const result = await ai.models.generateContent({
+      const genAIResponse = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: [{ role: "user", parts: [{ text: prompt }] }],
             config: {
@@ -894,14 +973,44 @@ export const handleActivity = onRequest(
             },
         });
 
-      // Use .text accessor
-      let responseText = result.text;
+      // --- NEW SAFETY CHECK BLOCK ---
+      // Check for safety blocks on the main response, not a nested one
+      if (genAIResponse.promptFeedback && genAIResponse.promptFeedback.blockReason) {
+          logger.warn(`Gemini call blocked for ${activityType}. Reason: ${genAIResponse.promptFeedback.blockReason}`, {
+              ratings: genAIResponse.promptFeedback.safetyRatings,
+              payload: payload,
+          });
+          
+          // Handle grading blocks gracefully
+          if (activityType === 'writing_grade' || activityType === 'writing_standalone_grade' || activityType === 'comprehension_grade') {
+              const blockedFeedback = (uiLanguage === 'ko')
+                ? "죄송합니다. 이 주제에 대해서는 피드백을 드릴 수 없습니다. 다른 내용으로 다시 시도해 주세요."
+                : (uiLanguage === 'ja')
+                ? "申し訳ありませんが、このトピックに関するフィードバックは提供できません。別の内容でお試しください。"
+                : "Sorry, I cannot provide feedback on this topic. Please try a different response.";
+              
+              res.status(200).json({ data: {
+                  isCorrect: false,
+                  feedback: blockedFeedback,
+              }});
+              return; // Exit successfully
+          }
+
+          // For other types (like generation), throw an error
+          throw new Error(`AI content generation was blocked due to: ${genAIResponse.promptFeedback.blockReason}`);
+      }
+      // --- END NEW BLOCK ---
+
+      // --- FIX: Use 'let' instead of 'const' and access .text directly ---
+      let responseText = genAIResponse.text; 
+      
       if (!responseText) {
-        logger.error(`Gemini response empty for ${activityType}`, JSON.stringify(result, null, 2));
-        throw new Error(`AI generation failed for ${activityType}.`);
+        logger.error(`Gemini response empty for ${activityType} (no block reason)`, JSON.stringify(genAIResponse, null, 2));
+        throw new Error(`AI generation failed for ${activityType} (empty response).`);
       }
 
-      if (activityType === 'comprehension_grade' || activityType === 'writing_grade') {
+      // This assignment is now valid because responseText is a 'let'
+      if (activityType === 'comprehension_grade' || activityType === 'writing_grade' || activityType === 'writing_standalone_grade') {
           responseText = responseText.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
       }
 

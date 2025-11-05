@@ -77,7 +77,11 @@
       "historyLoading": "Ładowanie Twoich lekcji...",
       "historyEmpty": "Nie ukończyłeś jeszcze żadnej lekcji. Rozpocznij nową!",
       "historyNoResults": "Brak lekcji pasujących do wyszukiwania \"{{term}}\".",
-      "topic": "Temat:"
+      "topic": "Temat:",
+      "practiceCenter": "Centrum Ćwiczeń",
+      "practiceDescription": "Sprawdź swoje umiejętności szybkimi, niezależnymi ćwiczeniami.",
+      "grammarPractice": "Szybkie Ćwiczenia Gramatyczne",
+      "writingPractice": "Szybkie Ćwiczenia Pisania"
     },
     "wordBank": {
       "title": "Mój bank słów",
@@ -134,7 +138,8 @@
       "switchToGuided": "Rozpocznij lekcję z przewodnikiem",
       "switchToOverview": "Przełącz do widoku ogólnego lekcji",
       "guidedMode": "Tryb z przewodnikiem",
-      "overviewMode": "Tryb ogólny"
+      "overviewMode": "Tryb ogólny",
+      "guidedComplete": "Ukończyłeś lekcję z przewodnikiem! Kliknij przycisk „Zakończ” poniżej, aby wrócić do pulpitu nawigacyjnego."
     },
     "activity": {
       "title": "Ćwiczenie: {{type}}",

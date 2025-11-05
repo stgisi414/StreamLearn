@@ -77,7 +77,11 @@
       "historyLoading": "Loading your lessons...",
       "historyEmpty": "You haven't completed any lessons yet. Start a new one!",
       "historyNoResults": "No lessons match your search for \"{{term}}\".",
-      "topic": "Topic:"
+      "topic": "Topic:",
+      "practiceCenter": "Practice Center",
+      "practiceDescription": "Test your skills with quick, standalone practice exercises.",
+      "grammarPractice": "Quick Grammar Practice",
+      "writingPractice": "Quick Writing Practice"
     },
     "wordBank": {
       "title": "My Word Bank",
@@ -134,7 +138,8 @@
       "switchToGuided": "Start Guided Lesson",
       "switchToOverview": "Switch to Lesson Overview",
       "guidedMode": "Guided Mode",
-      "overviewMode": "Overview Mode"
+      "overviewMode": "Overview Mode",
+      "guidedComplete": "You've completed the guided lesson! Click the 'Finish' button below to return to your dashboard."
     },
     "activity": {
       "title": "{{type}} Activity",
