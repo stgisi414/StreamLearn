@@ -57,10 +57,10 @@ export const ActivityContent: React.FC<ActivityContentProps> = ({
         <div>
           <p className="text-lg font-semibold text-gray-700 mb-2">
             {t('activity.definition')}
-            {/* --- FIX: Use targetLanguage for Advanced, uiLanguage for others --- */}
+            {/* --- FIX: The definition is always in the uiLanguage --- */}
              <SpeakButton 
                text={currentData.question} 
-               langCode={inputLevel === 'Advanced' ? targetLanguage : uiLanguage} 
+               langCode={uiLanguage} 
                isAudioLoading={isAudioLoading} 
                onSpeak={onSpeak} 
                t={t} 

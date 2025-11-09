@@ -1750,7 +1750,7 @@ const App: React.FC = () => {
 
     // --- NEW: Define steps for Guided Lesson ---
   // We define this here so `startActivity` can use it
-  const steps = [
+  const steps = useMemo(() => [
      { name: t('lesson.summaryTitle'), type: 'content' as const, activity: null },
      { name: t('lesson.vocabBuilder'), type: 'content' as const, activity: null },
      { name: t('activity.vocab'), type: 'activity' as const, activity: 'vocab' as ActivityState['type'] },
@@ -1760,7 +1760,7 @@ const App: React.FC = () => {
      { name: t('activity.comprehension'), type: 'activity' as const, activity: 'comprehension' as ActivityState['type'] },
      { name: t('activity.writing'), type: 'activity' as const, activity: 'writing' as ActivityState['type'] },
      { name: t('common.finish'), type: 'content' as const, activity: null }
-  ];
+  ], [t]);
 
     // --- NEW: Activity Logic ---
     const startActivity = useCallback((type: ActivityType) => {
@@ -1801,7 +1801,7 @@ const App: React.FC = () => {
       index: 0,
       score: 0,
       total: totalItems,
-      shuffledIndices: undefined,
+      shuffledIndices: shuffledIndices,
       currentData: null, // Will be loaded by useEffect
       userAnswer: null,
       feedback: { isCorrect: null, message: '' },
@@ -1915,9 +1915,13 @@ const App: React.FC = () => {
 
   // Effect to load data for the current activity step (REVISED AGAIN - Simpler Loading Logic)
   useEffect(() => {
+    // --- ADD THIS CHECK ---
+    const isStandalone = activityState?.type === 'grammar_standalone' || activityState?.type === 'writing_standalone';
+
     // --- Early exit if not in the right view or state is missing ---
-    if (currentView !== 'ACTIVITY' || !activityState || !currentLesson) {
-      console.log("Activity useEffect: Bailing early (not in activity view or missing state)");
+    // FIX: Allow standalone activities to run even if currentLesson is null
+    if (currentView !== 'ACTIVITY' || !activityState || (!currentLesson && !isStandalone)) {
+      console.log("Activity useEffect: Bailing early (not in activity view, missing state, or missing lesson for non-standalone activity)");
       return;
     }
 
@@ -1992,11 +1996,8 @@ const App: React.FC = () => {
     } else if (type === 'grammar_standalone') {
         console.log(`Setting loading ref and starting grammar_standalone fetch for ${currentStepKey}...`);
         loadingStepRef.current = currentStepKey;
-        setActivityState(prev => {
-           if (!prev || prev.index !== index || prev.type !== 'grammar_standalone') return prev;
-           return { ...prev, isSubmitting: true, currentData: null, userAnswer: null, feedback: {isCorrect: null, message: ''}};
-        });
-  
+        // The isSubmitting:true state is already set by startStandaloneActivity
+
         const payload = {
           level: inputLevel, // Use the user's current level setting
           uiLanguage: uiLanguage,
@@ -2014,10 +2015,6 @@ const App: React.FC = () => {
     } else if (type === 'writing_standalone') {
         console.log(`Setting loading ref and starting writing_standalone fetch for ${currentStepKey}...`);
         loadingStepRef.current = currentStepKey;
-        setActivityState(prev => {
-           if (!prev || prev.index !== index || prev.type !== 'writing_standalone') return prev;
-           return { ...prev, isSubmitting: true, currentData: null, userAnswer: null, feedback: {isCorrect: null, message: ''}};
-        });
   
         const payload = {
           level: inputLevel,
@@ -2036,10 +2033,6 @@ const App: React.FC = () => {
     } else if (type === 'grammar') {
     console.log(`Setting loading ref and starting grammar fetch for ${currentStepKey}...`);
     loadingStepRef.current = currentStepKey;
-    setActivityState(prev => { // Set loading state immediately *before* fetch
-         if (!prev || prev.index !== index || prev.type !== 'grammar') return prev; // Check relevance
-         return { ...prev, isSubmitting: true, currentData: null, userAnswer: null, feedback: {isCorrect: null, message: ''}}; // Clear old data/answer/feedback
-    });
 
     // *** ADD SAFETY CHECKS & LOGGING HERE ***
     const grammarPayload = {
@@ -2114,42 +2107,41 @@ const App: React.FC = () => {
     // --- END ADDITION ---
 
   } else if (type === 'writing') {
-      console.log(`Setting loading ref and starting writing fetch for ${currentStepKey}...`);
-      loadingStepRef.current = currentStepKey;
-      setActivityState(prev => {
-         if (!prev || prev.index !== index || prev.type !== 'writing') return prev;
-         return { ...prev, isSubmitting: true, currentData: null, userAnswer: null, feedback: {isCorrect: null, message: ''}};
-      });
+        console.log(`Setting loading ref and starting writing fetch for ${currentStepKey}...`);
+        loadingStepRef.current = currentStepKey;
 
-      const payload = {
-        summary: currentLesson.summary,
-        level: inputLevel,
-        vocabularyList: currentLesson.vocabularyList.map(v => v.word),
-        uiLanguage: uiLanguage,
-        targetLanguage: targetLanguage
-      };
+        const payload = {
+          summary: currentLesson.summary,
+          level: inputLevel,
+          vocabularyList: currentLesson.vocabularyList.map(v => v.word),
+          uiLanguage: uiLanguage,
+          targetLanguage: targetLanguage
+        };
 
-      if (!payload.summary || !payload.level || !payload.vocabularyList) {
-          console.error("Cannot generate writing prompt: missing summary, level, or vocab list.");
-          setError("Failed to prepare writing activity data.");
-          dataPromise = Promise.reject(new Error("Missing writing_generate payload data."));
-      } else {
-          dataPromise = authenticatedFetch('handleActivity', {
-              activityType: 'writing_generate',
-              payload: payload
-          }).then(fetchedData => {
-            if (activityCancellationRef.current) {
-                return Promise.reject(new Error("Activity cancelled"));
-            }
-            console.log(`Writing prompt fetch successful for ${currentStepKey}`);
-            if (fetchedData?.prompt) { return fetchedData; }
-            else { throw new Error("Invalid writing prompt data received."); }
-        });
-      }
-  } else {
-    // Should not happen
-    dataPromise = Promise.reject(new Error(`Unhandled activity type: ${type}`));
-  }
+        if (!payload.summary || !payload.level || !payload.vocabularyList) {
+            console.error("Cannot generate writing prompt: missing summary, level, or vocab list.");
+            setError("Failed to prepare writing activity data.");
+            dataPromise = Promise.reject(new Error("Missing writing_generate payload data."));
+        } else {
+            dataPromise = authenticatedFetch('handleActivity', {
+                activityType: 'writing_generate',
+                payload: payload
+            }).then(fetchedData => {
+              if (activityCancellationRef.current) {
+                  return Promise.reject(new Error("Activity cancelled"));
+              }
+              console.log(`Writing prompt fetch successful for ${currentStepKey}`);
+              if (fetchedData?.prompt) { 
+                // This is the fix to store the summary for later submission
+                return { ...fetchedData, summary: currentLesson.summary }; 
+              }
+              else { throw new Error("Invalid writing prompt data received."); }
+          });
+        }
+    } else {
+      // Should not happen
+      dataPromise = Promise.reject(new Error(`Unhandled activity type: ${type}`));
+    }
 
     // --- Process the data promise ---
     dataPromise.then(dataForStep => {
@@ -2223,8 +2215,8 @@ const App: React.FC = () => {
   }, [
       currentView, activityState?.type, activityState?.index, // Step definition
       activityState?.shuffledIndices, // Needed for vocab order
-      inputLevel, currentLesson, // languageLevels, // <-- REMOVED languageLevels
-      wordsForPractice, // <-- REPLACED wordBank with wordsForPractice
+      inputLevel, currentLesson,
+      // wordsForPractice, // <-- DELETED
       authenticatedFetch, quitActivity, setError, shuffleArray, // Stable functions
       uiLanguage, targetLanguage
   ]);
@@ -2356,6 +2348,30 @@ const App: React.FC = () => {
                      isSubmitting: false
                    };
                });
+          } else if (type === 'writing') {
+               const result = await authenticatedFetch('handleActivity', {
+                  activityType: 'writing_grade',
+                  payload: {
+                      prompt: currentData.prompt,
+                      summary: currentData.summary, // <-- This is the fix for the infinite load
+                      userAnswer: String(userAnswer),
+                      level: inputLevel,
+                      uiLanguage: uiLanguage,
+                      targetLanguage: targetLanguage
+                  }
+               });
+               setActivityState(prev => {
+                   if (!prev) return null;
+                   // For writing, "isCorrect" is more of a "pass/fail". The feedback is what matters.
+                   const newScore = result.isCorrect ? prev.score + 1 : prev.score;
+                   return {
+                     ...prev,
+                     feedback: { isCorrect: result.isCorrect, message: result.feedback || (result.isCorrect ? 'Great job!' : 'Good try, see feedback.') },
+                     score: newScore,
+                     isSubmitting: false
+                   };
+               });
+
           } else if (type === 'writing_standalone') {
                const result = await authenticatedFetch('handleActivity', {
                   activityType: 'writing_standalone_grade', // We'll create this new backend case
@@ -2379,28 +2395,24 @@ const App: React.FC = () => {
                    };
                });
           } else if (type === 'wordbank_study') {
-               const result = await authenticatedFetch('handleActivity', {
-                  activityType: 'writing_grade',
-                  payload: {
-                      prompt: currentData.prompt,
-                      summary: currentLesson.summary,
-                      userAnswer: String(userAnswer),
-                      level: inputLevel,
-                      uiLanguage: uiLanguage,
-                      targetLanguage: targetLanguage
-                  }
-               });
-               setActivityState(prev => {
-                   if (!prev) return null;
-                   // For writing, "isCorrect" is more of a "pass/fail". The feedback is what matters.
-                   const newScore = result.isCorrect ? prev.score + 1 : prev.score;
-                   return {
-                     ...prev,
-                     feedback: { isCorrect: result.isCorrect, message: result.feedback || (result.isCorrect ? 'Great job!' : 'Good try, see feedback.') },
-                     score: newScore,
-                     isSubmitting: false
-                   };
-               });
+               // --- FIX: This was incorrectly calling 'writing_grade'. Replace with vocab logic. ---
+              const fullWordClean = String(currentData.word).trim().toLowerCase();
+              const mainWordClean = String(currentData.word).split('(')[0].trim().toLowerCase();
+              const userAnswerClean = String(userAnswer).trim().toLowerCase();
+   
+              isCorrect = (userAnswerClean === fullWordClean) || (userAnswerClean === mainWordClean);
+              feedbackMsg = isCorrect ? t('activity.correct') : t('activity.incorrectWord', { word: currentData.word });
+
+              setActivityState(prev => {
+                if (!prev) return null;
+                const newScore = isCorrect ? prev.score + 1 : prev.score;
+                return {
+                    ...prev,
+                    feedback: { isCorrect: isCorrect, message: feedbackMsg },
+                    score: newScore,
+                    isSubmitting: false
+                  };
+              });
 
           } else if (type === 'wordbank_study') {
             // --- REMOVE THE OLD DECLARATIONS ---
@@ -2866,7 +2878,7 @@ const LandingPage: React.FC<{
     setError(null);
 
     // Standalone activities are always 1 question
-    const totalItems = Infinity;
+    const totalItems = 5;
 
     setActivityState({
       type: type,
@@ -2889,7 +2901,7 @@ const LandingPage: React.FC<{
         <img src="/banner.png" alt="StreamLearn Banner Logo" className="h-8 sm:h-10" />
         {isSubscribed && (
             <span className="text-sm font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full border border-yellow-500 shadow-sm">
-              PRO
+              MAX
             </span>
           )}
         {user && (
@@ -2907,37 +2919,65 @@ const LandingPage: React.FC<{
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <button
           onClick={goToInput}
-          className="flex items-center justify-center gap-2 bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-lg"
+          className="flex items-center justify-between w-full font-bold py-3 px-4 rounded-lg text-white
+                     bg-gradient-to-b from-blue-500 to-blue-700
+                     shadow-md shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)]
+                     transition-all duration-150
+                     hover:from-blue-600 hover:to-blue-700
+                     active:shadow-inner active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] active:translate-y-px"
         >
-          <RestartIcon className="w-5 h-5" /> {t('dashboard.startLesson')}
+          <span>{t('dashboard.startLesson')}</span>
+          <RestartIcon className="w-5 h-5" /> 
         </button>
         <button
           onClick={() => navigate('/wordbank')}
           disabled={isWordBankLoading}
-          className="flex items-center justify-center gap-2 bg-purple-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-purple-600 transition duration-150 shadow-lg disabled:opacity-50"
+          className="flex items-center justify-between w-full font-bold py-3 px-4 rounded-lg text-white
+                     bg-gradient-to-b from-green-500 to-green-700
+                     shadow-md shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)]
+                     transition-all duration-150
+                     hover:from-green-600 hover:to-green-700
+                     active:shadow-inner active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] active:translate-y-px"
         >
-          <BookOpenIcon className="w-5 h-5" />
           {t('dashboard.wordBank', { count: wordBank.length })}
+          <BookOpenIcon className="w-5 h-5" />
         </button>
 
         {/* Subscription Button */}
         {isBillingLoading ? (
-            <button disabled className="flex items-center justify-center gap-2 bg-gray-400 text-white font-bold py-3 px-4 rounded-lg shadow-lg disabled:opacity-50">
+            <button disabled 
+              className="flex items-center justify-between w-full font-bold py-3 px-4 rounded-lg text-white
+                     bg-gradient-to-b from-indigo-500 to-indigo-700
+                     shadow-md shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)]
+                     transition-all duration-150
+                     hover:from-indigo-600 hover:to-indigo-700
+                     active:shadow-inner active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] active:translate-y-px"
+            >
               <LoadingSpinner className="w-5 h-5" /> {t('common.loading')}
             </button>
         ) : isSubscribed ? (
             <button
               onClick={handleManageBilling}
-              className="flex items-center justify-center gap-2 bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 transition duration-150 shadow-lg"
+              className="flex items-center justify-between w-full font-bold py-3 px-4 rounded-lg text-white
+                     bg-gradient-to-b from-indigo-500 to-indigo-700
+                     shadow-md shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)]
+                     transition-all duration-150
+                     hover:from-indigo-600 hover:to-indigo-700
+                     active:shadow-inner active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] active:translate-y-px"
             >
-              <CreditCardIcon className="w-5 h-5" /> {t('dashboard.manageBilling')}
+             {t('dashboard.manageBilling')} <CreditCardIcon className="w-5 h-5" />
             </button>
         ) : (
             <button
               onClick={() => navigate('/pricing')}
-              className="flex items-center justify-center gap-2 bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition duration-150 shadow-lg"
+              className="flex items-center justify-between w-full font-bold py-3 px-4 rounded-lg text-white
+                     bg-gradient-to-b from-indigo-500 to-indigo-700
+                     shadow-md shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)]
+                     transition-all duration-150
+                     hover:from-indigo-600 hover:to-indigo-700
+                     active:shadow-inner active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] active:translate-y-px"
             >
-              <CreditCardIcon className="w-5 h-5" /> {t('dashboard.upgradePro')}
+              {t('dashboard.upgradePro')} <CreditCardIcon className="w-5 h-5" />
             </button>
         )}
       </div>
@@ -3001,16 +3041,26 @@ const LandingPage: React.FC<{
           <button
             onClick={() => startStandaloneActivity('grammar_standalone')}
             disabled={isApiLoading || activityState?.isSubmitting}
-            className="flex items-center justify-center gap-2 bg-teal-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-teal-600 transition duration-150 shadow-lg disabled:opacity-50"
+            className="flex items-center justify-between w-full font-bold py-3 px-4 rounded-lg text-white
+                     bg-gradient-to-b from-emerald-500 to-emerald-700
+                     shadow-md shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)]
+                     transition-all duration-150
+                     hover:from-emerald-600 hover:to-emerald-700
+                     active:shadow-inner active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] active:translate-y-px"
           >
-            <PencilSquareIcon className="w-5 h-5" /> {t('dashboard.grammarPractice')}
+            {t('dashboard.grammarPractice')} <PencilSquareIcon className="w-5 h-5" />
           </button>
           <button
             onClick={() => startStandaloneActivity('writing_standalone')}
             disabled={isApiLoading || activityState?.isSubmitting}
-            className="flex items-center justify-center gap-2 bg-sky-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-sky-600 transition duration-150 shadow-lg disabled:opacity-50"
+            className="flex items-center justify-between w-full font-bold py-3 px-4 rounded-lg text-white
+                     bg-gradient-to-b from-teal-500 to-teal-700
+                     shadow-md shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)]
+                     transition-all duration-150
+                     hover:from-blue-teal hover:to-blue-teal
+                     active:shadow-inner active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] active:translate-y-px"
           >
-            <BrainIcon className="w-5 h-5" /> {t('dashboard.writingPractice')}
+            {t('dashboard.writingPractice')} <BrainIcon className="w-5 h-5" />
           </button>
         </div>
       </div>
@@ -3111,11 +3161,16 @@ const LandingPage: React.FC<{
            </button>
            <button
              onClick={() => setLessonViewMode('overview')}
-             className="flex items-center gap-2 text-sm text-blue-600 font-medium p-2 rounded-lg hover:bg-blue-100"
+             className="flex items-center justify-between w-full font-bold py-3 px-4 rounded-lg text-white
+                     bg-gradient-to-b from-blue-500 to-blue-700
+                     shadow-md shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)]
+                     transition-all duration-150
+                     hover:from-blue-600 hover:to-blue-700
+                     active:shadow-inner active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] active:translate-y-px"
              title={t('lesson.switchToOverview')}
            >
-             <ArrowsRightLeftIcon className="w-5 h-5" />
              <span>{t('lesson.overviewMode')}</span>
+             <ArrowsRightLeftIcon className="w-5 h-5" />
            </button>
          </div>
  
@@ -3969,11 +4024,16 @@ const LandingPage: React.FC<{
                  {/* --- NEW: Toggle Button --- */}
                  <button
                     onClick={() => setLessonViewMode('guided')}
-                    className="flex items-center text-sm text-blue-600 font-medium p-2 rounded-lg hover:bg-blue-100"
+                    className="flex items-center justify-between w-1/4 font-bold py-3 px-4 rounded-lg text-white
+                     bg-gradient-to-b from-blue-500 to-blue-700
+                     shadow-md shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)]
+                     transition-all duration-150
+                     hover:from-blue-600 hover:to-blue-700
+                     active:shadow-inner active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] active:translate-y-px"
                     title={t('lesson.switchToGuided')}
                  >
-                    <ArrowsRightLeftIcon className="w-5 h-5" />
                     <span>{t('lesson.guidedMode')}</span>
+                    <ArrowsRightLeftIcon className="w-5 h-5" />
                  </button>
                  {/* Invisible placeholder to balance */}
                  <div className="flex items-center text-sm font-medium flex-shrink-0 invisible">
@@ -4021,13 +4081,21 @@ const LandingPage: React.FC<{
            {/* --- End Audio Player --- */}
           <div className="mt-2 clearfix"> {/* Added clearfix utility */}
              {currentArticle?.image && (
-               <img
-                 src={currentArticle.image}
-                 alt=""
-                 // Apply float, margin, and size constraints
-                 className="float-left w-20 h-20 sm:w-24 sm:h-24 object-cover rounded mr-4 mb-2" // Added float-left, margins (mr-4, mb-2), responsive size
-                 onError={(e) => (e.currentTarget.style.display = 'none')}
-               />
+               <a
+                 href={currentArticle?.link} // Links to the original article
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 className="float-left mr-4 mb-2 group" // Keep the float and margins
+                 title={t('lesson.openOriginalArticle')} // Add a helpful tooltip
+               >
+                 <img
+                   src={currentArticle.image}
+                   alt={t('lesson.articleImage')} // Add alt text
+                   // Keep size constraints, add hover effect and cursor
+                   className="float-left w-20 h-20 sm:w-24 sm:h-24 object-cover rounded mr-4 mb-2 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md cursor-pointer"
+                   onError={(e) => (e.currentTarget.style.display = 'none')}
+                 />
+               </a>
              )}
              <p className="text-gray-800 whitespace-pre-wrap"> {/* Text will now wrap */}
                {currentLesson?.summary}

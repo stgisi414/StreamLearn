@@ -102,7 +102,7 @@ export const GuidedLessonFlow: React.FC<GuidedLessonFlowProps> = (props) => {
         startActivity(currentStepData.activity);
       }
     }
-  }, [currentStep, currentStepData.type, currentStepData.activity, activityState, startActivity]);
+  }, [currentStep, currentStepData.type, currentStepData.activity, startActivity]);
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
