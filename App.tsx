@@ -43,6 +43,8 @@ import { CheckCircleIcon } from './components/icons/CheckCircleIcon';
 import { LightBulbIcon } from './components/icons/LightBulbIcon';
 import { BrainIcon } from './components/icons/BrainIcon';
 import { BeakerIcon } from './components/icons/BeakerIcon';
+import { PracticeCenter } from './components/PracticeCenter';
+import { PracticeTopic, PracticeTopicType } from './types';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
 import { Lesson, Article, NewsResult, EnglishLevel, LessonResponse, SavedWord, VocabularyItem, StripeSubscription, LanguageCode } from './types';
 import { ArrowsRightLeftIcon } from './components/icons/ArrowsRightLeftIcon';
@@ -244,6 +246,8 @@ const App: React.FC = () => {
   // --- Auth State ---
   const [user, setUser] = useState<User | null>(null);
   const [authState, setAuthState] = useState<'LOADING' | 'SIGNED_OUT' | 'SIGNED_IN'>('LOADING');
+
+  const [isPracticeCenterOpen, setIsPracticeCenterOpen] = useState(false);
 
   // --- View State (derived from URL and authState) ---
   const [currentView, setCurrentView] = useState<AppView>('LOADING');
@@ -1925,7 +1929,7 @@ const App: React.FC = () => {
       return;
     }
 
-    const { type, index, total, shuffledIndices, currentData, isSubmitting } = activityState;
+    const { type, index, total, shuffledIndices, currentData, isSubmitting, practiceTopic } = activityState;
     const currentStepKey = `${type}-${index}`; // Unique identifier for this step
 
     // --- Handle activity completion ---
@@ -1996,16 +2000,18 @@ const App: React.FC = () => {
     } else if (type === 'grammar_standalone') {
         console.log(`Setting loading ref and starting grammar_standalone fetch for ${currentStepKey}...`);
         loadingStepRef.current = currentStepKey;
-        // The isSubmitting:true state is already set by startStandaloneActivity
-
+  
         const payload = {
-          level: inputLevel, // Use the user's current level setting
+          level: inputLevel,
           uiLanguage: uiLanguage,
-          targetLanguage: targetLanguage
+          targetLanguage: targetLanguage,
+          // --- ADD THIS ---
+          topic: practiceTopic // Pass the selected topic to the backend
+          // --- END ADDITION ---
         };
   
         dataPromise = authenticatedFetch('handleActivity', {
-            activityType: 'grammar_standalone_generate', // We'll create this backend case
+            activityType: 'grammar_standalone_generate',
             payload: payload
         }).then(fetchedData => {
           if (activityCancellationRef.current) { return Promise.reject(new Error("Activity cancelled")); }
@@ -2019,11 +2025,14 @@ const App: React.FC = () => {
         const payload = {
           level: inputLevel,
           uiLanguage: uiLanguage,
-          targetLanguage: targetLanguage
+          targetLanguage: targetLanguage,
+          // --- ADD THIS ---
+          topic: practiceTopic // Pass the selected topic to the backend
+          // --- END ADDITION ---
         };
   
         dataPromise = authenticatedFetch('handleActivity', {
-            activityType: 'writing_standalone_generate', // We'll create this backend case
+            activityType: 'writing_standalone_generate',
             payload: payload
         }).then(fetchedData => {
           if (activityCancellationRef.current) { return Promise.reject(new Error("Activity cancelled")); }
@@ -2213,11 +2222,12 @@ const App: React.FC = () => {
 
   // Keep dependencies tight: Only re-run when the step fundamentally changes
   }, [
-      currentView, activityState?.type, activityState?.index, // Step definition
-      activityState?.shuffledIndices, // Needed for vocab order
+      // --- ADD 'practiceTopic' to dependency array ---
+      currentView, activityState?.type, activityState?.index, activityState?.practiceTopic,
+      activityState?.shuffledIndices,
       inputLevel, currentLesson,
-      // wordsForPractice, // <-- DELETED
-      authenticatedFetch, quitActivity, setError, shuffleArray, // Stable functions
+      wordsForPractice,
+      authenticatedFetch, quitActivity, setError, shuffleArray,
       uiLanguage, targetLanguage
   ]);
 
@@ -2866,22 +2876,23 @@ const LandingPage: React.FC<{
     setCurrentView('ACTIVITY');
   };
 
-  // ADD this new function after startWordBankActivity (around line 2042)
-  const startStandaloneActivity = useCallback((type: 'grammar_standalone' | 'writing_standalone') => {
+  // --- MODIFY THIS FUNCTION ---
+  const startStandaloneActivity = useCallback((type: PracticeTopicType, topic: PracticeTopic) => {
     if (!user) {
       setError("Please sign in to start practice.");
       return;
     }
 
-    console.log(`Starting standalone activity: ${type}`);
+    console.log(`Starting standalone activity: ${type} - ${topic.title}`);
     activityCancellationRef.current = false;
     setError(null);
 
-    // Standalone activities are always 1 question
-    const totalItems = 5;
+    // Standalone activities are always 1 question at a time (infinite total)
+    const totalItems = Infinity;
 
     setActivityState({
-      type: type,
+      // --- FIX: Use the new PracticeTopicType ---
+      type: `${type}_standalone` as ActivityType, // e.g., 'grammar_standalone'
       index: 0,
       score: 0,
       total: totalItems,
@@ -2890,9 +2901,15 @@ const LandingPage: React.FC<{
       userAnswer: null,
       feedback: { isCorrect: null, message: '' },
       isSubmitting: true, // Start in loading state
+      
+      // --- ADD THIS ---
+      // Pass the selected topic into the activity state
+      // We will read this in the useEffect hook
+      practiceTopic: topic 
+      // --- END ADDITION ---
     });
     setCurrentView('ACTIVITY');
-  }, [user, setError, setActivityState, setCurrentView]); // <-- ADDED dependencies
+  }, [user, setError, setActivityState, setCurrentView]);
 
   const renderDashboard = () => (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto bg-white rounded-xl shadow-2xl space-y-5">
@@ -2990,46 +3007,7 @@ const LandingPage: React.FC<{
         <a href="/privacy" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }} className="hover:underline">{t('dashboard.privacy')}</a>
       </div>
 
-      {/* --- NEW: Language Settings --- */}
-      <div className="space-y-3 border-t pt-4">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
-          <LanguageIcon className="w-6 h-6" /> {t('dashboard.langSettings')}
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              {t('dashboard.uiLang')}
-            </label>
-            <select
-              value={uiLanguage}
-              onChange={(e) => setUiLanguage(e.target.value as LanguageCode)}
-              className="w-full p-3 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
-            >
-              {/* FIX: Map over the languageCodes array and use t() for the name */}
-              {languageCodes.map((code) => (
-                <option key={code} value={code}>{t(`languages.${code}`)}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              {t('dashboard.targetLang')}
-            </label>
-            <select
-              value={targetLanguage}
-              onChange={(e) => setTargetLanguage(e.target.value as LanguageCode)}
-              className="w-full p-3 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
-            >
-              {/* FIX: Map over the languageCodes array and use t() for the name */}
-              {languageCodes.map((code) => (
-                <option key={code} value={code}>{t(`languages.${code}`)}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* --- PRACTICE CENTER SECTION --- */}
+      {/* --- MODIFY Practice Center SECTION --- */}
       <div className="space-y-3 border-t pt-4">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
           <BeakerIcon className="w-6 h-6" /> {t('dashboard.practiceCenter')}
@@ -3039,7 +3017,7 @@ const LandingPage: React.FC<{
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <button
-            onClick={() => startStandaloneActivity('grammar_standalone')}
+            onClick={() => setIsPracticeCenterOpen(true)} // --- FIX: Open modal ---
             disabled={isApiLoading || activityState?.isSubmitting}
             className="flex items-center justify-between w-full font-bold py-3 px-4 rounded-lg text-white
                      bg-gradient-to-b from-emerald-500 to-emerald-700
@@ -3051,7 +3029,7 @@ const LandingPage: React.FC<{
             {t('dashboard.grammarPractice')} <PencilSquareIcon className="w-5 h-5" />
           </button>
           <button
-            onClick={() => startStandaloneActivity('writing_standalone')}
+            onClick={() => setIsPracticeCenterOpen(true)} // --- FIX: Open modal ---
             disabled={isApiLoading || activityState?.isSubmitting}
             className="flex items-center justify-between w-full font-bold py-3 px-4 rounded-lg text-white
                      bg-gradient-to-b from-teal-500 to-teal-700
@@ -3308,15 +3286,23 @@ const LandingPage: React.FC<{
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <button
               onClick={() => startWordBankActivity('wordbank_study')}
-              className="flex items-center justify-center gap-2 bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-150 shadow-lg"
-            >
-              <PencilSquareIcon className="w-5 h-5" /> {t('wordBank.studyFlashcards')}
+              className="flex items-center justify-between w-full font-bold py-3 px-4 rounded-lg text-white
+                     bg-gradient-to-b from-cyan-500 to-cyan-700
+                     shadow-md shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)]
+                     transition-all duration-150
+                     hover:from-cyan-600 hover:to-cyan-700
+                     active:shadow-inner active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] active:translate-y-px"            >
+                {t('wordBank.studyFlashcards')} <PencilSquareIcon className="w-5 h-5" />
             </button>
             <button
               onClick={() => startWordBankActivity('wordbank_review')}
-              className="flex items-center justify-center gap-2 bg-purple-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-purple-600 transition duration-150 shadow-lg"
-            >
-              <BookOpenIcon className="w-5 h-5" /> {t('wordBank.reviewFlashcards')}
+              className="flex items-center justify-between w-full font-bold py-3 px-4 rounded-lg text-white
+                     bg-gradient-to-b from-sky-500 to-sky-700
+                     shadow-md shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)]
+                     transition-all duration-150
+                     hover:from-sky-600 hover:to-sky-700
+                     active:shadow-inner active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] active:translate-y-px"            >
+                 {t('wordBank.reviewFlashcards')} <BookOpenIcon className="w-5 h-5" />
             </button>
           </div>
         )}
@@ -3479,7 +3465,7 @@ const LandingPage: React.FC<{
           </button>
         </div>
 
-        {/* Pro Plan Card (Featured) */}
+        {/* Max Plan Card (Featured) */}
         <div className="border-2 border-blue-600 rounded-xl p-6 shadow-2xl relative flex flex-col bg-gray-50">
           {/* "Most Popular" Badge */}
           <div className="absolute top-0 -translate-y-1/2 left-1/2 -translate-x-1/2">
@@ -3489,7 +3475,7 @@ const LandingPage: React.FC<{
           </div>
 
           <h2 className="text-2xl font-semibold text-blue-700">{t('pricing.proTitle')}</h2>
-          <p className="text-gray-500 mt-2">{t('pricing.proDescription')}</p>
+          <p className="text-gray-500 mt-2">{t('pricing.description')}</p>
           
           <div className="my-6">
             <span className="text-4xl font-extrabold text-gray-900">{t('pricing.price')}</span>
@@ -4426,6 +4412,12 @@ const LandingPage: React.FC<{
                 {currentView === 'NEWS_LIST' && renderNewsList()}
                 {currentView === 'LESSON_VIEW' && renderLessonView()}
                 {currentView === 'ACTIVITY' && renderActivityView()}
+                <PracticeCenter 
+                  isOpen={isPracticeCenterOpen}
+                  onClose={() => setIsPracticeCenterOpen(false)}
+                  onStartPractice={startStandaloneActivity}
+                  targetLanguage={targetLanguage}
+                />
                 {currentView === 'PRICING' && renderPricingPage()}
                 {currentView === 'TERMS' && renderTermsPage()}
                 {currentView === 'PRIVACY' && renderPrivacyPage()}

@@ -7,6 +7,14 @@ export const languageCodes = [
 
 export type LanguageCode = typeof languageCodes[number];
 
+export type PracticeTopicType = 'grammar' | 'writing' | 'vocab';
+
+export interface PracticeTopic {
+  title: string;
+  level: number;
+  tags: string[];
+}
+
 export type EnglishLevel = 'Beginner' | 'Intermediate' | 'Advanced';
 
 /**

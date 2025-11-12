@@ -186,9 +186,10 @@
     },
     "pricing": {
       "title": "मूल्य निर्धारण",
-      "proTitle": "StreamLearn Pro",
+      "mostPopular": "सबसे लोकप्रिय",
+      "proTitle": "StreamLearn Max",
       "description": "एक सरल मूल्य पर StreamLearn द्वारा प्रस्तुत सभी चीज़ों तक असीमित पहुँच प्राप्त करें।",
-      "price": "$20 / माह",
+      "price": "$20",
       "billing": "मासिक बिल। किसी भी समय रद्द करें।",
       "feature1": "असीमित पाठ निर्माण।",
       "feature2": "असीमित शब्दावली अभ्यास।",

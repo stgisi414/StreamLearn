@@ -187,7 +187,8 @@
     },
     "pricing": {
       "title": "料金",
-      "proTitle": "StreamLearn Pro",
+      "mostPopular": "一番人気",
+      "proTitle": "StreamLearn Max",
       "description": "StreamLearnのすべての機能に無制限にアクセスできます。",
       "price": "月額 $20",
       "billing": "毎月請求。いつでもキャンセル可能。",

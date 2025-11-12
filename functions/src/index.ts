@@ -879,14 +879,21 @@ export const handleActivity = onRequest(
           break; 
 
         case 'grammar_standalone_generate':
-           if (!payload.level || !payload.uiLanguage || !payload.targetLanguage) {
+        // --- FIX: Add 'topic' to the check ---
+           if (!payload.level || !payload.uiLanguage || !payload.targetLanguage || !payload.topic) {
              logger.error("handleActivity: Bad request (grammar_standalone_generate), missing params.");
-             res.status(400).json({ error: "Missing level, uiLanguage, or targetLanguage." });
+            // --- FIX: Update error message ---
+             res.status(400).json({ error: "Missing level, uiLanguage, targetLanguage, or topic." });
              return;
            }
+        // --- FIX: Get the topic title from the payload ---
+        const grammarTopicTitle = payload.topic?.title || 'a general grammar topic';
+
           prompt = `You are a ${targetLangName} language teacher. 
             Generate one multiple-choice grammar question in ${uiLangName.toUpperCase()} for a ${level} student.
-            The question should test a common ${targetLangName} grammar topic appropriate for a ${level} learner.
+            
+            **The user has selected the specific topic: "${grammarTopicTitle}"**
+            Your question MUST test this specific topic.
             
             **IMPORTANT: Follow these ${level}-specific rules:**
             ${levelGuidance}
@@ -905,23 +912,24 @@ export const handleActivity = onRequest(
           break;
 
         case 'writing_standalone_generate':
-           if (!payload.level || !payload.uiLanguage || !payload.targetLanguage) {
+        // --- FIX: Add 'topic' to the check ---
+           if (!payload.level || !payload.uiLanguage || !payload.targetLanguage || !payload.topic) {
              logger.error("handleActivity: Bad request (writing_standalone_generate), missing params.");
-             res.status(400).json({ error: "Missing level, uiLanguage, or targetLanguage." });
+            // --- FIX: Update error message ---
+             res.status(400).json({ error: "Missing level, uiLanguage, targetLanguage, or topic." });
              return;
            }
-           
-           prompt = `You are a ${targetLangName} teacher. 
-            Generate one short, general-knowledge writing prompt in ${uiLangName.toUpperCase()} for a ${level} learner.
-            The prompt should ask them to write 2-3 sentences in ${targetLangName.toUpperCase()}.
-            
-            **IMPORTANT: Follow these ${level}-specific rules for the prompt:**
-            ${levelGuidance}
+        // --- FIX: Get the topic title from the payload ---
+        const writingTopicTitle = payload.topic?.title || 'a general topic';
 
-            Example prompts (for inspiration only): 
-            - "What did you do last weekend? Write 2-3 sentences in ${targetLangName}."
-            - "Describe your favorite food in 2-3 sentences in ${targetLangName}."
-            - "What is your opinion on remote work? Write 2-3 sentences in ${targetLangName}."
+          prompt = `You are a ${targetLangName} language teacher. 
+            Generate one short writing or conversation prompt in ${uiLangName.toUpperCase()} for a ${level} student.
+
+            **The user has selected the specific conversation topic: "${writingTopicTitle}"**
+            Your prompt MUST be based on this specific topic.
+            
+            **IMPORTANT: Follow these ${level}-specific rules:**
+            ${levelGuidance}
 
             Respond ONLY with a JSON object following the specified schema.`;
            

@@ -188,7 +188,8 @@
     },
     "pricing": {
       "title": "가격",
-      "proTitle": "StreamLearn Pro",
+      "proTitle": "StreamLearn Max",
+      "mostPopular": "가장 인기 있는",
       "description": "하나의 간단한 가격으로 StreamLearn이 제공하는 모든 것에 무제한으로 액세스하세요.",
       "price": "$20 / 월",
       "billing": "매월 청구됩니다. 언제든지 취소하세요.",
