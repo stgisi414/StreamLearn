@@ -3007,6 +3007,43 @@ const LandingPage: React.FC<{
         <a href="/privacy" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }} className="hover:underline">{t('dashboard.privacy')}</a>
       </div>
 
+       {/* --- NEW: Language Settings --- */}
+      <div className="space-y-3 border-t pt-4">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <LanguageIcon className="w-6 h-6" /> Language Settings
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              My UI Language (What I see)
+            </label>
+            <select
+              value={uiLanguage}
+              onChange={(e) => setUiLanguage(e.target.value as LanguageCode)}
+              className="w-full p-3 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+            >
+              {languageCodes.map((code) => (
+                <option key={code} value={code}>{t(`languages.${code}`)}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              My Target Language (What I want to learn)
+            </label>
+            <select
+              value={targetLanguage}
+              onChange={(e) => setTargetLanguage(e.target.value as LanguageCode)}
+              className="w-full p-3 border border-gray-300 text-gray-900 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+            >
+              {languageCodes.map((code) => (
+                <option key={code} value={code}>{t(`languages.${code}`)}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
       {/* --- MODIFY Practice Center SECTION --- */}
       <div className="space-y-3 border-t pt-4">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
