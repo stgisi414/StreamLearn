@@ -1508,7 +1508,7 @@ export const grammarData = {
         { "title": "Question Words: 누구 (nugu - who), 무엇/뭐 (mueot/mwo - what), 어디 (eodi - where), 언제 (eonje - when), 왜 (wae - why), 어떻게 (eotteoke - how), 얼마 (eolma - how much money)", "level": 1, "tags": ["basics", "questions", "question words", "vocabulary"] },
         { "title": "Demonstratives: 이 (i - this, near speaker), 그 (geu - that, near listener/previously mentioned), 저 (jeo - that over there, far from both)", "level": 1, "tags": ["basics", "demonstratives", "i", "geu", "jeo"] },
         { "title": "Demonstratives + Noun: 이 X, 그 X, 저 X (e.g., 이 책 i chaek - this book)", "level": 1, "tags": ["basics", "demonstratives", "noun modification"] },
-
+        
         // Pre-Intermediate (Level 2 - TOPIK 2 equivalent - Detailed)
         { "title": "Polite Future Tense Ending: -(으)ㄹ 거예요 (-(eu)l geoyeyo - will/going to)", "level": 2, "tags": ["verbs", "future tense", "polite form", "eul geoyeyo", "intention", "prediction"] },
         { "title": "Conjunction 'and/with' (for nouns, more formal): -와/과 (wa/gwa)", "level": 2, "tags": ["conjunctions", "particles", "and", "with", "wa", "gwa", "nouns"] },
@@ -1598,7 +1598,259 @@ export const grammarData = {
         { "title": "Expressing Intention (Strong): -(으)려던 참이다 (-(eu)ryeodeon chamida)", "level": 5, "tags": ["grammar points", "intention", "timing"] },
         { "title": "Archaic/Literary Endings & Forms", "level": 5, "tags": ["literary", "formal language", "archaic"] },
         { "title": "Sound Symbolism & Ideophones (의성어/의태어)", "level": 5, "tags": ["vocabulary", "onomatopoeia", "ideophones"] },
-        { "title": "Advanced Discourse Markers & Idiomatic Expressions", "level": 5, "tags": ["discourse markers", "linking words", "idioms"] }
+        { "title": "Advanced Discourse Markers & Idiomatic Expressions", "level": 5, "tags": ["discourse markers", "linking words", "idioms"] },
+
+        // --- LEVEL 1 (Beginner / High Beginner) ---
+        // From earlier chapters
+        { "title": "-아/어 보이다 (Expressing Conjecture and Supposition)", "level": 1, "tags": ["grammar", "expressing-conjecture-and-supposition"] },
+        { "title": "-(으)ㄴ/는 모양이다 (Expressing Conjecture and Supposition)", "level": 1, "tags": ["grammar", "expressing-conjecture-and-supposition"] },
+        { "title": "-(으)ㄹ 텐데 (Expressing Conjecture and Supposition)", "level": 1, "tags": ["grammar", "expressing-conjecture-and-supposition"] },
+        { "title": "-(으)ㄹ 테니까 (Expressing Conjecture and Supposition)", "level": 1, "tags": ["grammar", "expressing-conjecture-and-supposition"] },
+        { "title": "-(으)ㄹ걸요 (Expressing Conjecture and Supposition)", "level": 1, "tags": ["grammar", "expressing-conjecture-and-supposition"] },
+        { "title": "-(으)니/는/(으)ㄹ 줄 몰랐다(알았다) (Expressing Conjecture and Supposition)", "level": 1, "tags": ["grammar", "expressing-conjecture-and-supposition"] },
+        { "title": "-(으)ㄹ지도 모르다 (Expressing Conjecture and Supposition)", "level": 1, "tags": ["grammar", "expressing-conjecture-and-supposition"] },
+
+        { "title": "-기는 하지만, -기는 -지만 (Expressing Contrast)", "level": 1, "tags": ["grammar", "expressing-contrast"] },
+        { "title": "-(으)니/는 반면에 (Expressing Contrast)", "level": 1, "tags": ["grammar", "expressing-contrast"] },
+        { "title": "-(으)니/는데도 (Expressing Contrast)", "level": 1, "tags": ["grammar", "expressing-contrast"] },
+
+        { "title": "-다고요? (Citing the Speech or Writing of Others)", "level": 1, "tags": ["grammar", "citing-the-speech-or-writing-of-others"] },
+        { "title": "-다고 하던데 (Citing the Speech or Writing of Others)", "level": 1, "tags": ["grammar", "citing-the-speech-or-writing-of-others"] },
+        { "title": "-다면서요? (Citing the Speech or Writing of Others)", "level": 1, "tags": ["grammar", "citing-the-speech-or-writing-of-others"] },
+        { "title": "-다니요? (Citing the Speech or Writing of Others)", "level": 1, "tags": ["grammar", "citing-the-speech-or-writing-of-others"] },
+
+        { "title": "-(으)ㄹ까 하다 (Expressing Resolution and Intent)", "level": 1, "tags": ["grammar", "expressing-resolution-and-intent"] },
+        { "title": "-고자 (Expressing Resolution and Intent)", "level": 1, "tags": ["grammar", "expressing-resolution-and-intent"] },
+        { "title": "-(으)려던 참이다 (Expressing Resolution and Intent)", "level": 1, "tags": ["grammar", "expressing-resolution-and-intent"] },
+        { "title": "-(으)ㄹ 겸-(으)ㄹ 겸 (Expressing Resolution and Intent)", "level": 1, "tags": ["grammar", "expressing-resolution-and-intent"] },
+        { "title": "-아/어야지요 (Expressing Resolution and Intent)", "level": 1, "tags": ["grammar", "expressing-resolution-and-intent"] },
+
+        { "title": "-(으)ㄹ 만하다 (Giving Recommendations and Advice)", "level": 1, "tags": ["grammar", "giving-recommendations-and-advice"] },
+        { "title": "-도록 하다 (Giving Recommendations and Advice)", "level": 1, "tags": ["grammar", "giving-recommendations-and-advice"] },
+        { "title": "-지 그래요? (Giving Recommendations and Advice)", "level": 1, "tags": ["grammar", "giving-recommendations-and-advice"] },
+
+        { "title": "서술체 (Narrative Form)", "level": 1, "tags": ["grammar", "narrative-and-informal-forms"] },
+        { "title": "반말체 (Informal Form)", "level": 1, "tags": ["grammar", "narrative-and-informal-forms"] },
+
+        { "title": "-던 (Expressing Recollection)", "level": 1, "tags": ["grammar", "expressing-recollection"] },
+        { "title": "-더라고요 (Expressing Recollection)", "level": 1, "tags": ["grammar", "expressing-recollection"] },
+        { "title": "-던데요 (Expressing Recollection)", "level": 1, "tags": ["grammar", "expressing-recollection"] },
+
+        { "title": "-거든요 (Expressing Reasons)", "level": 1, "tags": ["grammar", "expressing-reasons"] },
+        { "title": "-잖아요 (Expressing Reasons)", "level": 1, "tags": ["grammar", "expressing-reasons"] },
+        { "title": "-느라고 (Expressing Reasons)", "level": 1, "tags": ["grammar", "expressing-reasons"] },
+        { "title": "-는 바람에 (Expressing Reasons)", "level": 1, "tags": ["grammar", "expressing-reasons"] },
+        { "title": "-(으)니/는 탓에 (Expressing Reasons)", "level": 1, "tags": ["grammar", "expressing-reasons"] },
+        { "title": "-고 해서 (Expressing Reasons)", "level": 1, "tags": ["grammar", "expressing-reasons"] },
+        { "title": "-(으)ㄹ까 봐 (Expressing Reasons)", "level": 1, "tags": ["grammar", "expressing-reasons"] },
+
+        // --- LEVEL 2 (Intermediate) ---
+        // From middle chapters
+        { "title": "단어 피동 (-이/히/리/기-) (Passive Expressions)", "level": 2, "tags": ["grammar", "passive-expressions"] },
+        { "title": "-아/어지다 (Passive Expressions)", "level": 2, "tags": ["grammar", "passive-expressions"] },
+        { "title": "-게 되다 (Passive Expressions)", "level": 2, "tags": ["grammar", "passive-expressions"] },
+
+        { "title": "단어 사동(-이/히/리/기/우/추-) (Causative Expressions)", "level": 2, "tags": ["grammar", "causative-expressions"] },
+        { "title": "-게 하다 (Causative Expressions)", "level": 2, "tags": ["grammar", "causative-expressions"] },
+
+        { "title": "-아/어야 (Expressing Conditions)", "level": 2, "tags": ["grammar", "expressing-conditions"] },
+        { "title": "-거든 (Expressing Conditions)", "level": 2, "tags": ["grammar", "expressing-conditions"] },
+
+        { "title": "-(으)ㄹ 뿐만 아니라 (Expressing Additional Information)", "level": 2, "tags": ["grammar", "expressing-additional-information"] },
+        { "title": "-(으)니/는 데다가 (Expressing Additional Information)", "level": 2, "tags": ["grammar", "expressing-additional-information"] },
+        { "title": "조차 (Expressing Additional Information)", "level": 2, "tags": ["grammar", "expressing-additional-information"] },
+        { "title": "만 해도 (Expressing Additional Information)", "level": 2, "tags": ["grammar", "expressing-additional-information"] },
+
+        { "title": "-는 길에 (Expressing Mid-Action)", "level": 2, "tags": ["grammar", "expressing-mid-action"] },
+        { "title": "-다가 (Expressing Mid-Action)", "level": 2, "tags": ["grammar", "expressing-mid-action"] },
+        { "title": "-(으)ㄹ 정도로 (Expressing Degree)", "level": 2, "tags": ["grammar", "expressing-degree"] },
+        { "title": "만 하다 (Expressing Degree)", "level": 2, "tags": ["grammar", "expressing-degree"] },
+        { "title": "-(으)니/는/(으)ㄹ 만큼 (Expressing Degree)", "level": 2, "tags": ["grammar", "expressing-degree"] },
+
+        { "title": "아무+(이)나 / 아무+도 (Expressing Choice)", "level": 2, "tags": ["grammar", "expressing-choice"] },
+        { "title": "(이)나 (Expressing Choice)", "level": 2, "tags": ["grammar", "expressing-choice"] },
+        { "title": "(이)라도 (Expressing Choice)", "level": 2, "tags": ["grammar", "expressing-choice"] },
+        { "title": "-든지-든지 (Expressing Choice)", "level": 2, "tags": ["grammar", "expressing-choice"] },
+        { "title": "-(으)니/는 대신에 (Expressing Choice)", "level": 2, "tags": ["grammar", "expressing-choice"] },
+
+        { "title": "만에 (Expressing Time and Sequential Behavior)", "level": 2, "tags": ["grammar", "expressing-time-and-sequential-behavior"] },
+        { "title": "-아/어 가지고 (Expressing Time and Sequential Behavior)", "level": 2, "tags": ["grammar", "expressing-time-and-sequential-behavior"] },
+        { "title": "-아/어다가 (Expressing Time and Sequential Behavior)", "level": 2, "tags": ["grammar", "expressing-time-and-sequential-behavior"] },
+        { "title": "-고서 (Expressing Time and Sequential Behavior)", "level": 2, "tags": ["grammar", "expressing-time-and-sequential-behavior"] },
+
+        { "title": "-고 보니 (Expressing Discoveries and Results)", "level": 2, "tags": ["grammar", "expressing-discoveries-and-results"] },
+        { "title": "-다 보니 (Expressing Discoveries and Results)", "level": 2, "tags": ["grammar", "expressing-discoveries-and-results"] },
+        { "title": "-다 보면 (Expressing Discoveries and Results)", "level": 2, "tags": ["grammar", "expressing-discoveries-and-results"] },
+        { "title": "-더니 (Expressing Discoveries and Results)", "level": 2, "tags": ["grammar", "expressing-discoveries-and-results"] },
+        { "title": "-았/었더니 (Expressing Discoveries and Results)", "level": 2, "tags": ["grammar", "expressing-discoveries-and-results"] },
+        { "title": "-다가는 (Expressing Discoveries and Results)", "level": 2, "tags": ["grammar", "expressing-discoveries-and-results"] },
+        { "title": "-(으)니/는 셈이다 (Expressing Discoveries and Results)", "level": 2, "tags": ["grammar", "expressing-discoveries-and-results"] },
+
+        { "title": "-아/어 놓다 (Expressing Situational States of Being)", "level": 2, "tags": ["grammar", "expressing-situational-states-of-being"] },
+        { "title": "-아/어 두다 (Expressing Situational States of Being)", "level": 2, "tags": ["grammar", "expressing-situational-states-of-being"] },
+        { "title": "-(으)ㄴ 채로 (Expressing Situational States of Being)", "level": 2, "tags": ["grammar", "expressing-situational-states-of-being"] },
+        { "title": "-(으)ㄴ/는 대로 (Expressing Situational States of Being)", "level": 2, "tags": ["grammar", "expressing-situational-states-of-being"] },
+
+        { "title": "-(으)니/는 편이다 (Expressing Attributes and Characteristics)", "level": 2, "tags": ["grammar", "expressing-attributes-and-characteristics"] },
+        { "title": "스럽다 (Expressing Attributes and Characteristics)", "level": 2, "tags": ["grammar", "expressing-attributes-and-characteristics"] },
+        { "title": "답다 (Expressing Attributes and Characteristics)", "level": 2, "tags": ["grammar", "expressing-attributes-and-characteristics"] },
+        { "title": "-게 (Expressing Aims and Intentions)", "level": 2, "tags": ["grammar", "expressing-aims-and-intentions"] },
+        { "title": "-도록 (Expressing Aims and Intentions)", "level": 2, "tags": ["grammar", "expressing-aims-and-intentions"] },
+
+        // --- LEVEL 3 (Advanced) ---
+        // From later chapters (19+)
+        { "title": "얼마나 -(으)니/는지 모르다 (Expressing Emphasis)", "level": 3, "tags": ["grammar", "expressing-emphasis"] },
+        { "title": "-(으)ㄹ 수밖에 없다 (Expressing Emphasis)", "level": 3, "tags": ["grammar", "expressing-emphasis"] },
+        { "title": "-(으)ㄹ 뿐이다 (Expressing Emphasis)", "level": 3, "tags": ["grammar", "expressing-emphasis"] },
+        { "title": "(이)야말로 (Expressing Emphasis)", "level": 3, "tags": ["grammar", "expressing-emphasis"] },
+
+        { "title": "-았/었다가 (Expressing Completion)", "level": 3, "tags": ["grammar", "expressing-completion"] },
+        { "title": "-았/었던 (Expressing Completion)", "level": 3, "tags": ["grammar", "expressing-completion"] },
+        { "title": "-아/어 버리다 (Expressing Completion)", "level": 3, "tags": ["grammar", "expressing-completion"] },
+        { "title": "-고 말다 (Expressing Completion)", "level": 3, "tags": ["grammar", "expressing-completion"] },
+
+        { "title": "-(으)나 마나 (Expressing Futility)", "level": 3, "tags": ["grammar", "expressing-futility"] },
+        { "title": "-아/어 봤자 (Expressing Futility)", "level": 3, "tags": ["grammar", "expressing-futility"] },
+
+        { "title": "-(느)ㄴ다면 (Expressing Hypothetical Situations)", "level": 3, "tags": ["grammar", "expressing-hypothetical-situations"] },
+        { "title": "-았/었더라면 (Expressing Hypothetical Situations)", "level": 3, "tags": ["grammar", "expressing-hypothetical-situations"] },
+        { "title": "-(으)ㄹ 뻔하다 (Expressing Hypothetical Situations)", "level": 3, "tags": ["grammar", "expressing-hypothetical-situations"] },
+
+        { "title": "-(으)ㄹ걸 그랬다 (Expressing Regret)", "level": 3, "tags": ["grammar", "expressing-regret"] },
+        { "title": "-았/었어야 했는데 (Expressing Regret)", "level": 3, "tags": ["grammar", "expressing-regret"] },
+
+        { "title": "-곤 하다 (Expressing Habits and Attitudes)", "level": 3, "tags": ["grammar", "expressing-habits-and-attitudes"] },
+        { "title": "-기는요 (Expressing Habits and Attitudes)", "level": 3, "tags": ["grammar", "expressing-habits-and-attitudes"] },
+        { "title": "-(으)니/는 척하다 (Expressing Habits and Attitudes)", "level": 3, "tags": ["grammar", "expressing-habits-and-attitudes"] },
+
+        // --- LEVEL 4 (High Intermediate) ---
+    
+        // Expressing Choices
+        { "title": "-느니 (Expressing Choices)", "level": 4, "tags": ["grammar", "expressing-choices"] },
+        { "title": "-(으)ㄹ 바에야 (Expressing Choices)", "level": 4, "tags": ["grammar", "expressing-choices"] },
+        { "title": "-건 -건 (Expressing Choices)", "level": 4, "tags": ["grammar", "expressing-choices"] },
+        { "title": "-(느)ㄴ다기보다는 (Expressing Choices)", "level": 4, "tags": ["grammar", "expressing-choices"] },
+
+        // Expressing Citations and Quotations (Advanced)
+        { "title": "보고 (Indirect Quotation Particle)", "level": 4, "tags": ["grammar", "expressing-citations"] },
+        { "title": "-(느)ㄴ다니까 (Citations)", "level": 4, "tags": ["grammar", "expressing-citations"] },
+        { "title": "-(느)ㄴ다면서 (Citations)", "level": 4, "tags": ["grammar", "expressing-citations"] },
+        { "title": "에 의하면 (According to)", "level": 4, "tags": ["grammar", "expressing-citations"] },
+
+        // Expressing Nominalization
+        { "title": "-(으)ㅁ (Nominalization Ending)", "level": 4, "tags": ["grammar", "expressing-nominalization"] },
+        { "title": "-는 데 (Context/Circumstance)", "level": 4, "tags": ["grammar", "expressing-nominalization"] },
+        { "title": "-는 바 (The thing that...)", "level": 4, "tags": ["grammar", "expressing-nominalization"] },
+
+        // Expressing Causes and Reasons (Advanced)
+        { "title": "-(으)로 인해서 (Due to)", "level": 4, "tags": ["grammar", "expressing-causes-and-reasons"] },
+        { "title": "-는 통에 (Because of the commotion)", "level": 4, "tags": ["grammar", "expressing-causes-and-reasons"] },
+        { "title": "-(으)로 말미암아 (Due to)", "level": 4, "tags": ["grammar", "expressing-causes-and-reasons"] },
+        { "title": "-느니만큼 (Inasmuch as)", "level": 4, "tags": ["grammar", "expressing-causes-and-reasons"] },
+        { "title": "-는 이상 (Since/As long as)", "level": 4, "tags": ["grammar", "expressing-causes-and-reasons"] },
+        { "title": "-기에 망정이지 (It's a relief that...)", "level": 4, "tags": ["grammar", "expressing-causes-and-reasons"] },
+        { "title": "-(으)므로써 (By means of)", "level": 4, "tags": ["grammar", "expressing-causes-and-reasons"] },
+        { "title": "-길래 (Because - Colloquial)", "level": 4, "tags": ["grammar", "expressing-causes-and-reasons"] },
+
+        // Sequential Behavior
+        { "title": "-기가 무섭게 (As soon as)", "level": 4, "tags": ["grammar", "expressing-sequence"] },
+        { "title": "-자 (As soon as)", "level": 4, "tags": ["grammar", "expressing-sequence"] },
+
+        // Doing Things Separately and Together
+        { "title": "-(으)ㄴ/는 대로 (As soon as / In accordance with)", "level": 4, "tags": ["grammar", "expressing-togetherness"] },
+        { "title": "-는 김에 (While one is at it)", "level": 4, "tags": ["grammar", "expressing-togetherness"] },
+
+        // Similarity
+        { "title": "-듯이 (As if/Like)", "level": 4, "tags": ["grammar", "expressing-similarity"] },
+        { "title": "-다시피 하다 (Practically/As you know)", "level": 4, "tags": ["grammar", "expressing-similarity"] },
+
+        // Inevitability
+        { "title": "-기 마련이다 (It is natural that...)", "level": 4, "tags": ["grammar", "expressing-inevitability"] },
+        { "title": "-는 법이다 (It is the rule that...)", "level": 4, "tags": ["grammar", "expressing-inevitability"] },
+
+        // Enumeration
+        { "title": "-는가 하면 (While some..., others...)", "level": 4, "tags": ["grammar", "expressing-enumeration"] },
+        { "title": "-느니 -느니 하다 (Saying this and that)", "level": 4, "tags": ["grammar", "expressing-enumeration"] },
+        { "title": "-(으)랴 -(으)랴 (Listing hectic actions)", "level": 4, "tags": ["grammar", "expressing-enumeration"] },
+
+        // Results and Retrospection
+        { "title": "-(으)ㄴ 끝에 (At the end of)", "level": 4, "tags": ["grammar", "expressing-results"] },
+        { "title": "-아/어 내다 (Manage to do)", "level": 4, "tags": ["grammar", "expressing-results"] },
+        { "title": "-(으)ㄴ 나머지 (As a result of excess)", "level": 4, "tags": ["grammar", "expressing-results"] },
+
+        // Intention (Advanced)
+        { "title": "-(느)ㄴ다는 것이 (I intended to..., but)", "level": 4, "tags": ["grammar", "expressing-intention"] },
+        { "title": "-(으)려고 들다 (Try/Threaten to)", "level": 4, "tags": ["grammar", "expressing-intention"] },
+        { "title": "-(으)려다가 (Was about to..., but)", "level": 4, "tags": ["grammar", "expressing-intention"] },
+
+        // Supposition and Possibility
+        { "title": "-는 듯이 (As if)", "level": 4, "tags": ["grammar", "expressing-supposition"] },
+        { "title": "-는 듯하다 (Seem to)", "level": 4, "tags": ["grammar", "expressing-supposition"] },
+        { "title": "-(으)ㄹ 게 뻔하다 (It is obvious that)", "level": 4, "tags": ["grammar", "expressing-supposition"] },
+        { "title": "-(으)ㄹ 법하다 (It is likely that)", "level": 4, "tags": ["grammar", "expressing-supposition"] },
+        { "title": "-(으)ㄹ 리가 없다 (There is no way that)", "level": 4, "tags": ["grammar", "expressing-supposition"] },
+        { "title": "-기 십상이다 (It is easy to/likely to)", "level": 4, "tags": ["grammar", "expressing-supposition"] },
+
+        // --- LEVEL 5 (Advanced) ---
+
+        // Hypothetical Situations (Advanced)
+        { "title": "-더라도 (Even if)", "level": 5, "tags": ["grammar", "expressing-hypothetical"] },
+        { "title": "-(으)ㄹ지라도 (Even though)", "level": 5, "tags": ["grammar", "expressing-hypothetical"] },
+        { "title": "-(으)ㄴ들 (Even if... what use is it?)", "level": 5, "tags": ["grammar", "expressing-hypothetical"] },
+        { "title": "-(으)ㄹ망정 (Even if/Rather)", "level": 5, "tags": ["grammar", "expressing-hypothetical"] },
+        { "title": "-(느)ㄴ다고 치다 (Let's assume)", "level": 5, "tags": ["grammar", "expressing-hypothetical"] },
+        { "title": "-는 셈치다 (Assume that...)", "level": 5, "tags": ["grammar", "expressing-hypothetical"] },
+
+        // Conditions and Decisions (Advanced)
+        { "title": "-는 한 (As long as)", "level": 5, "tags": ["grammar", "expressing-conditions"] },
+        { "title": "-(으)ㄹ라치면 (Whenever I intend to)", "level": 5, "tags": ["grammar", "expressing-conditions"] },
+        { "title": "-노라면 (If one keeps doing)", "level": 5, "tags": ["grammar", "expressing-conditions"] },
+        { "title": "-느냐에 달려 있다 (Depends on)", "level": 5, "tags": ["grammar", "expressing-conditions"] },
+        { "title": "-기 나름이다 (Depends on -ing)", "level": 5, "tags": ["grammar", "expressing-conditions"] },
+
+        // Contrasts and Opposites (Advanced)
+        { "title": "-건만 (But/However - Literary)", "level": 5, "tags": ["grammar", "expressing-contrast"] },
+        { "title": "-고도 (Even after doing)", "level": 5, "tags": ["grammar", "expressing-contrast"] },
+        { "title": "-(으)ㅁ에도 불구하고 (Despite)", "level": 5, "tags": ["grammar", "expressing-contrast"] },
+
+        // Addition and Inclusion
+        { "title": "-거니와 (Not only... but also)", "level": 5, "tags": ["grammar", "expressing-addition"] },
+        { "title": "-기는커녕 (Far from...)", "level": 5, "tags": ["grammar", "expressing-addition"] },
+        { "title": "-(으)ㄹ뿐더러 (Not only...)", "level": 5, "tags": ["grammar", "expressing-addition"] },
+        { "title": "-되 (But/However)", "level": 5, "tags": ["grammar", "expressing-addition"] },
+        { "title": "마저 (Even/Up to)", "level": 5, "tags": ["grammar", "expressing-addition"] },
+        { "title": "을/를 비롯해서 (Starting with/Including)", "level": 5, "tags": ["grammar", "expressing-addition"] },
+
+        // Habits and Attitude (Advanced)
+        { "title": "-아/어 대다 (Do repeatedly/excessively)", "level": 5, "tags": ["grammar", "expressing-habits"] },
+        { "title": "-기 일쑤이다 (Is prone to)", "level": 5, "tags": ["grammar", "expressing-habits"] },
+        { "title": "-는 둥 마는 둥 하다 (Barely doing)", "level": 5, "tags": ["grammar", "expressing-habits"] },
+
+        // Degree
+        { "title": "-(으)리만치 (To the extent that)", "level": 5, "tags": ["grammar", "expressing-degree"] },
+        { "title": "-다 못해 (Unable to bear... so)", "level": 5, "tags": ["grammar", "expressing-degree"] },
+
+        // Situations and Standards
+        { "title": "-는 가운데 (Amidst)", "level": 5, "tags": ["grammar", "expressing-situations"] },
+        { "title": "-는 마당에 (Under the circumstances)", "level": 5, "tags": ["grammar", "expressing-situations"] },
+        { "title": "치고 (Considering/For a...)", "level": 5, "tags": ["grammar", "expressing-situations"] },
+        { "title": "-(으)ㅁ에 따라 (In accordance with)", "level": 5, "tags": ["grammar", "expressing-situations"] },
+
+        // Emphasis (Advanced)
+        { "title": "여간 -지 않다 (Extremely)", "level": 5, "tags": ["grammar", "expressing-emphasis"] },
+        { "title": "-기가 이를 데 없다 (Unspeakably/Incredibly)", "level": 5, "tags": ["grammar", "expressing-emphasis"] },
+        { "title": "-(으)ㄹ래야 -(으)ㄹ 수가 없다 (Even if I want to... I can't)", "level": 5, "tags": ["grammar", "expressing-emphasis"] },
+
+        // Honorifics (Written/Archaic)
+        { "title": "하오체 (Formal Style - Ha-o)", "level": 5, "tags": ["grammar", "expressing-honorifics"] },
+        { "title": "하게체 (Formal Style - Ha-ge)", "level": 5, "tags": ["grammar", "expressing-honorifics"] },
+
+        // Useful Expressions
+        { "title": "-(으)므로 (Because - Formal)", "level": 5, "tags": ["grammar", "useful-expressions"] },
+        { "title": "-(으)ㄹ세라 (For fear that)", "level": 5, "tags": ["grammar", "useful-expressions"] },
+        { "title": "-는 양 (As if)", "level": 5, "tags": ["grammar", "useful-expressions"] },
+        { "title": "-는 한편 (Meanwhile/On the other hand)", "level": 5, "tags": ["grammar", "useful-expressions"] },
+        { "title": "-(으)ㄹ 턱이 없다 (There is no reason/way)", "level": 5, "tags": ["grammar", "useful-expressions"] }
     ],
     "zh": [
         // Beginner (Level 1 - HSK 1 equivalent - Detailed)
