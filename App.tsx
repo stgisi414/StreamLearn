@@ -60,6 +60,48 @@ const languageCodes: LanguageCode[] = [
 
 type LanguageCode = typeof languageCodes[number];
 
+// --- Google Ads Conversion Tracking ---
+declare global {
+  interface Window {
+    gtag: (command: string, action: string, params?: Record<string, any>) => void;
+  }
+}
+
+const gtag_report_conversion = (url?: string) => {
+  const callback = function () {
+    if (typeof(url) !== 'undefined') {
+      window.location.href = url;
+    }
+  };
+
+  // --- NEW: Check for Google Ads Traffic Source ---
+  // We check for 'gclid' in the URL (current session) OR '_gcl_aw' cookie (previous session/page)
+  const isGoogleAdsTraffic = 
+    window.location.search.includes('gclid') || 
+    document.cookie.split(';').some(c => c.trim().startsWith('_gcl_aw='));
+
+  if (!isGoogleAdsTraffic) {
+    console.log("Not Google Ads traffic. Skipping conversion tracking.");
+    callback(); // Proceed with navigation/logic immediately
+    return false;
+  }
+  
+  if (typeof window.gtag !== 'function') {
+      console.warn("Google Tag Manager (gtag) is not loaded.");
+      callback(); // Proceed with navigation/logic immediately
+      return false;
+  }
+
+  window.gtag('event', 'conversion', {
+      'send_to': 'AW-17678235250/2jyoCJzYsrMbEPLs0e1B',
+      'value': 1.0,
+      'currency': 'USD',
+      'transaction_id': '', // Transaction ID is empty for now as it's generated on Stripe's side later
+      'event_callback': callback
+  });
+  return false;
+};
+
 // --- Configuration Variables ---
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -966,6 +1008,9 @@ const App: React.FC = () => {
   };
 
   const handleCheckout = async () => {
+    // Track conversion event (Click on Checkout/Subscribe)
+    gtag_report_conversion();
+
     if (!user) {
       setError("You must be signed in to upgrade.");
       return;
