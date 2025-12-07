@@ -29,16 +29,5 @@ export default defineConfig(({ mode }) => {
           '@': path.resolve(__dirname, '.'),
         }
       },
-      // Configure Rollup to treat Firebase packages as external
-      build: {
-        rollupOptions: {
-          external: [
-            'firebase/app',
-            'firebase/auth',
-            'firebase/firestore',
-            'firebase/functions'
-          ],
-        },
-      },
     };
 });

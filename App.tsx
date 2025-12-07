@@ -51,6 +51,7 @@ import { ArrowsRightLeftIcon } from './components/icons/ArrowsRightLeftIcon';
 import { GuidedLessonFlow } from './components/GuidedLessonFlow';
 import { ActivityContent } from './components/ActivityContent';
 import { ActivityControls } from './components/ActivityControls';
+import { InAppBrowserOverlay } from './components/InAppBrowserOverlay';
 
 // --- NEW: Language Configuration ---
 const languageCodes: LanguageCode[] = [
@@ -4092,22 +4093,22 @@ const LandingPage: React.FC<{
                  </button>
             </div>
             {/* Back button and Title on a new line, spanning full width */}
-            <div className="w-full flex items-center mt-2 gap-2">
+            <div className="w-full flex flex-col sm:flex-row items-center mt-2 gap-2 sm:gap-4">
                  <button
                     onClick={() => goToSearch(inputTopic, inputLevel)}
-                    className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium flex-shrink-0"
+                    className="flex items-center justify-center sm:justify-start w-full sm:w-auto text-blue-600 hover:text-blue-800 text-sm font-medium flex-shrink-0"
                     title={t('news.back')}
                   >
                     <ArrowLeftIcon className="w-4 h-4 mr-1" /> {t('common.back')}
                   </button>
                 {/* Title - allow wrapping */}
-                 <h2 className="text-xl sm:text-2xl font-bold text-blue-700 text-center flex-grow min-w-0 break-words px-2"> {/* Added break-words and padding */}
+                 <h2 className="text-xl sm:text-2xl font-bold text-blue-700 text-center flex-grow min-w-0 break-words px-2 w-full sm:w-auto"> {/* Added break-words and padding */}
                    {currentLesson?.articleTitle || t('lesson.generating')}
                  </h2>
                  {/* --- NEW: Toggle Button --- */}
                  <button
                     onClick={() => setLessonViewMode('guided')}
-                    className="flex items-center justify-between w-1/4 font-bold py-3 px-4 rounded-lg text-white
+                    className="flex items-center justify-between w-full sm:w-1/4 font-bold py-3 px-4 rounded-lg text-white
                      bg-gradient-to-b from-blue-500 to-blue-700
                      shadow-md shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)]
                      transition-all duration-150
@@ -4119,7 +4120,7 @@ const LandingPage: React.FC<{
                     <ArrowsRightLeftIcon className="w-5 h-5" />
                  </button>
                  {/* Invisible placeholder to balance */}
-                 <div className="flex items-center text-sm font-medium flex-shrink-0 invisible">
+                 <div className="hidden sm:flex items-center text-sm font-medium flex-shrink-0 invisible">
                       <ArrowLeftIcon className="w-4 h-4 mr-1" /> {t('common.back')}
                  </div>
             </div>
@@ -4467,6 +4468,7 @@ const LandingPage: React.FC<{
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gray-100 font-sans"> {/* Changed font */}
       <div className="w-full">
+        <InAppBrowserOverlay />
         {/* Global error bar - always show if error exists */}
         {error && <ErrorMessage message={error} />}
 
