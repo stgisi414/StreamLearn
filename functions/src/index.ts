@@ -888,6 +888,13 @@ export const handleActivity = onRequest(
            }
         // --- FIX: Get the topic title from the payload ---
         const grammarTopicTitle = payload.topic?.title || 'a general grammar topic';
+        // --- FIX: Add random seed to prompt to prevent caching/repetition ---
+        const seed = payload.seed || Date.now();
+        // --- FIX: Get previous questions from payload ---
+        const previousQuestions = payload.previousQuestions || [];
+        const previousQuestionsText = previousQuestions.length > 0 
+            ? `\n\n**AVOID repeating any of these previous questions:**\n${previousQuestions.map((q: string) => `- ${q}`).join('\n')}\n`
+            : "";
 
           prompt = `You are a ${targetLangName} language teacher. 
             Generate one multiple-choice grammar question in ${uiLangName.toUpperCase()} for a ${level} student.
@@ -899,7 +906,16 @@ export const handleActivity = onRequest(
             ${levelGuidance}
 
             Provide 4 distinct options (A, B, C, D) in ${uiLangName}, with only one being correct.
-            Respond ONLY with a JSON object following the specified schema.`;
+            
+            **CRITICAL INSTRUCTION: Ensure the question is UNIQUE and DIFFERENT from common or previous questions.**
+            - Select a RANDOM aspect of the topic to focus on (e.g., usage, structure, rules, exceptions).
+            - Do NOT ask generic "Who created..." or "When was it created..." questions unless the topic is explicitly historical.
+            - Focus on the grammar/language mechanics if possible.
+            ${previousQuestionsText}
+            
+            Respond ONLY with a JSON object following the specified schema.
+            
+            (Random Seed: ${seed})`; // Inject seed into prompt
           responseSchema = {
             type: Type.OBJECT,
             properties: {
@@ -921,6 +937,13 @@ export const handleActivity = onRequest(
            }
         // --- FIX: Get the topic title from the payload ---
         const writingTopicTitle = payload.topic?.title || 'a general topic';
+        // --- FIX: Add random seed ---
+        const wSeed = payload.seed || Date.now();
+        // --- FIX: Get previous questions/prompts from payload ---
+        const previousPrompts = payload.previousQuestions || []; // Reusing the same key 'previousQuestions' for simplicity
+        const previousPromptsText = previousPrompts.length > 0 
+            ? `\n\n**AVOID repeating any of these previous prompts:**\n${previousPrompts.map((p: string) => `- ${p}`).join('\n')}\n`
+            : "";
 
           prompt = `You are a ${targetLangName} language teacher. 
             Generate one short writing or conversation prompt in ${uiLangName.toUpperCase()} for a ${level} student.
@@ -931,7 +954,15 @@ export const handleActivity = onRequest(
             **IMPORTANT: Follow these ${level}-specific rules:**
             ${levelGuidance}
 
-            Respond ONLY with a JSON object following the specified schema.`;
+            **CRITICAL INSTRUCTION: Ensure the prompt is UNIQUE and DIFFERENT from common or previous prompts.**
+            - Select a RANDOM aspect or scenario related to the topic.
+            - Do NOT ask generic "Who created..." or "When was it created..." questions.
+            - Focus on conversation, opinion, or description.
+            ${previousPromptsText}
+
+            Respond ONLY with a JSON object following the specified schema.
+            
+            (Random Seed: ${wSeed})`; // Inject seed
            
            responseSchema = {
             type: Type.OBJECT,
@@ -972,12 +1003,20 @@ export const handleActivity = onRequest(
       }
 
       logger.info(`Calling Gemini for ${activityType}`);
+      
+      // --- FIX: Increase temperature for standalone activities to prevent repetition ---
+      let temperature = 0.5; // Default for consistent tasks like grading
+      if (activityType === 'grammar_standalone_generate' || activityType === 'writing_standalone_generate') {
+          temperature = 1.0; // Higher randomness for creative generation
+      }
+
       const genAIResponse = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: [{ role: "user", parts: [{ text: prompt }] }],
             config: {
                 ...(responseSchema && { responseMimeType: "application/json", responseSchema: responseSchema }),
                 safetySettings: safetySettings,
+                temperature: temperature, // Apply dynamic temperature
             },
         });
 

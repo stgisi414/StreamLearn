@@ -371,6 +371,10 @@ const App: React.FC = () => {
   // --- NEW: State for Word Bank language filter ---
   const [wordBankLanguageFilter, setWordBankLanguageFilter] = useState<LanguageCode | 'all'>('all');
 
+  // --- NEW: Question History State ---
+  // Structure: { [languageCode]: { [topicTitle]: string[] } }
+  const [questionHistory, setQuestionHistory] = useLocalStorageState<Record<string, Record<string, string[]>>>('streamlearn_questionHistory', {});
+
   // --- Static Data ---
   const newsTopics: string[] = [
     "Technology", "Business", "World News", "US Politics", "Health", "Science",
@@ -2000,13 +2004,25 @@ const App: React.FC = () => {
     } else if (type === 'grammar_standalone') {
         console.log(`Setting loading ref and starting grammar_standalone fetch for ${currentStepKey}...`);
         loadingStepRef.current = currentStepKey;
+
+        // Map numeric practice level (1-5) to API EnglishLevel string
+        const numericLevel = practiceTopic?.level || 1;
+        let effectiveLevel: EnglishLevel = 'Beginner';
+        if (numericLevel >= 4) effectiveLevel = 'Advanced';
+        else if (numericLevel >= 2) effectiveLevel = 'Intermediate';
+
+        // --- NEW: Get previous questions for this topic ---
+        const topicTitle = practiceTopic?.title || 'Unknown Topic';
+        const previousQuestions = questionHistory[targetLanguage]?.[topicTitle] || [];
   
         const payload = {
-          level: inputLevel,
+          level: effectiveLevel,
           uiLanguage: uiLanguage,
           targetLanguage: targetLanguage,
           // --- ADD THIS ---
-          topic: practiceTopic // Pass the selected topic to the backend
+          topic: practiceTopic, // Pass the selected topic to the backend
+          seed: Date.now(), // Add randomness to the prompt
+          previousQuestions: previousQuestions // Pass history to backend
           // --- END ADDITION ---
         };
   
@@ -2015,19 +2031,47 @@ const App: React.FC = () => {
             payload: payload
         }).then(fetchedData => {
           if (activityCancellationRef.current) { return Promise.reject(new Error("Activity cancelled")); }
-          if (fetchedData?.question && fetchedData?.options) { return fetchedData; }
+          if (fetchedData?.question && fetchedData?.options) { 
+             // --- NEW: Update question history ---
+             setQuestionHistory(prev => {
+                const langHistory = prev[targetLanguage] || {};
+                const topicHistory = langHistory[topicTitle] || [];
+                // Keep only the last 10 questions to prevent prompt bloat
+                const newTopicHistory = [...topicHistory, fetchedData.question].slice(-10);
+                return {
+                    ...prev,
+                    [targetLanguage]: {
+                        ...langHistory,
+                        [topicTitle]: newTopicHistory
+                    }
+                };
+             });
+             return fetchedData; 
+          }
           else { throw new Error("Invalid grammar data received."); }
         });
     } else if (type === 'writing_standalone') {
         console.log(`Setting loading ref and starting writing_standalone fetch for ${currentStepKey}...`);
         loadingStepRef.current = currentStepKey;
+
+        // Map numeric practice level (1-5) to API EnglishLevel string
+        const numericLevel = practiceTopic?.level || 1;
+        let effectiveLevel: EnglishLevel = 'Beginner';
+        if (numericLevel >= 4) effectiveLevel = 'Advanced';
+        else if (numericLevel >= 2) effectiveLevel = 'Intermediate';
+
+        // --- NEW: Get previous prompts for this topic ---
+        const topicTitle = practiceTopic?.title || 'Unknown Topic';
+        const previousPrompts = questionHistory[targetLanguage]?.[topicTitle] || [];
   
         const payload = {
-          level: inputLevel,
+          level: effectiveLevel,
           uiLanguage: uiLanguage,
           targetLanguage: targetLanguage,
           // --- ADD THIS ---
-          topic: practiceTopic // Pass the selected topic to the backend
+          topic: practiceTopic, // Pass the selected topic to the backend
+          seed: Date.now(), // Add randomness to the prompt
+          previousQuestions: previousPrompts // Pass history (using same key)
           // --- END ADDITION ---
         };
   
@@ -2036,7 +2080,23 @@ const App: React.FC = () => {
             payload: payload
         }).then(fetchedData => {
           if (activityCancellationRef.current) { return Promise.reject(new Error("Activity cancelled")); }
-          if (fetchedData?.prompt) { return fetchedData; }
+          if (fetchedData?.prompt) { 
+             // --- NEW: Update prompt history ---
+             setQuestionHistory(prev => {
+                const langHistory = prev[targetLanguage] || {};
+                const topicHistory = langHistory[topicTitle] || [];
+                // Keep only the last 10 prompts
+                const newTopicHistory = [...topicHistory, fetchedData.prompt].slice(-10);
+                return {
+                    ...prev,
+                    [targetLanguage]: {
+                        ...langHistory,
+                        [topicTitle]: newTopicHistory
+                    }
+                };
+             });
+             return fetchedData; 
+          }
           else { throw new Error("Invalid writing prompt data received."); }
         });
     } else if (type === 'grammar') {
@@ -4351,7 +4411,7 @@ const LandingPage: React.FC<{
 
     return (
       <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex justify-center items-center p-4">
-        <div className={`p-6 max-w-2xl w-full mx-auto bg-white rounded-xl shadow-2xl space-y-4 border-2 ${feedbackColor}`}>
+        <div className={`p-6 max-w-2xl w-full mx-auto bg-white rounded-xl shadow-2xl space-y-4 border-2 max-h-[85vh] overflow-y-auto ${feedbackColor}`}>
           {/* Header with Progress and Score */}
           <div className="flex flex-wrap justify-between items-center text-sm text-gray-600 gap-2">
             <span>{t('activity.title', { type: translatedType })}</span>

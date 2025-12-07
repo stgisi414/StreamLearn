@@ -73,7 +73,7 @@ export const PracticeCenter: React.FC<PracticeCenterProps> = ({
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b overflow-x-auto shrink-0">
+        <div className="flex border-b overflow-x-auto shrink-0 -mx-4 px-4 md:mx-0 md:px-0">
           <TabButton
             icon={<PencilSquareIcon className="w-5 h-5" />}
             label={t('dashboard.grammarPractice')}
@@ -156,7 +156,7 @@ const TabButton: React.FC<{icon: React.ReactNode, label: string, isActive: boole
   ({ icon, label, isActive, onClick }) => (
   <button
     onClick={onClick}
-    className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap
+    className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap flex-none
       ${isActive 
         ? 'border-blue-600 text-blue-600' 
         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
